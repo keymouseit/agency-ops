@@ -23,7 +23,7 @@ function calcHealth(p: {
   // Schedule (−3 max)
   if (p.estimatedEnd) {
     const daysLeft = differenceInDays(new Date(p.estimatedEnd), now)
-    const ci = p.checkIns[0]
+    const ci = (p.checkIns || [])[0]
     if (ci?.onTrack === 'no') score -= 3
     else if (ci?.onTrack === 'at_risk') score -= 1.5
     else if (daysLeft < 0) score -= 2 // overdue with no check-in
@@ -37,7 +37,7 @@ function calcHealth(p: {
   }
 
   // Milestones (−1.5 max)
-  const missed = p.milestones.filter(m => m.status === 'missed').length
+  const missed = (p.milestones || []).filter(m => m.status === 'missed').length
   if (missed > 0) score -= Math.min(1.5, missed * 0.5)
 
   // Post-delivery issues (−1 max)
@@ -45,12 +45,12 @@ function calcHealth(p: {
   score -= Math.min(1, clientIssues * 0.5)
 
   // Communication (−1 max)
-  const ci = p.checkIns[0]
+  const ci = (p.checkIns || [])[0]
   if (ci && !ci.clientUpdated) score -= 0.5
   if (ci?.blockers && ci.blockers.trim()) score -= 0.3
 
   // Scope without CO (−0.5)
-  const unsigned = p.scopeChanges.filter(s => !s.changeOrderSigned).length
+  const unsigned = (p.scopeChanges || []).filter(s => !s.changeOrderSigned).length
   if (unsigned > 0) score -= 0.5
 
   const clamped = Math.max(0, Math.round(score * 10) / 10)
@@ -79,7 +79,7 @@ export default async function IntelligencePage() {
           },
         },
         orderBy: { updatedAt: 'desc' },
-      }),
+      }).then(res => res || []),
       prisma.teamMember.findMany({
         where: { active: true },
         include: {
@@ -90,27 +90,27 @@ export default async function IntelligencePage() {
             include: { tasks: true },
           },
         },
-      }),
+      }).then(res => res || []),
       prisma.lead.findMany({
         include: { owner: true, lossAnalysis: true, proposals: true },
         orderBy: { createdAt: 'desc' },
-      }),
-      prisma.lossAnalysis.findMany({ include: { lead: { include: { owner: true } } } }),
+      }).then(res => res || []),
+      prisma.lossAnalysis.findMany({ include: { lead: { include: { owner: true } } } }).then(res => res || []),
       prisma.dailyLog.findMany({
         where: { date: { gte: subDays(today, 7) } },
         include: { tasks: true, member: true },
-      }),
-      prisma.goal.findMany({ include: { member: true } }),
+      }).then(res => res || []),
+      prisma.goal.findMany({ include: { member: true } }).then(res => res || []),
       prisma.blocker.findMany({
         where: { status: { in: ['open', 'in_progress'] } },
         include: { member: true, project: { select: { name: true } } },
         orderBy: { raisedAt: 'asc' },
-      }),
+      }).then(res => res || []),
       prisma.weeklyScore.findMany({
         where: { weekOf: { gte: subDays(thisWeek, 42) } },
         include: { member: true },
         orderBy: { weekOf: 'asc' },
-      }),
+      }).then(res => res || []),
     ])
 
   const activeProjects = projects.filter(p => ['active', 'qa', 'scoping'].includes(p.status))
@@ -130,14 +130,14 @@ export default async function IntelligencePage() {
     const projectedHours = p.estimatedHours && p.actualHours && daysElapsed > 0 && daysTotal
       ? Math.round((p.actualHours / daysElapsed) * daysTotal)
       : null
-    const ci = p.checkIns[0]
-    const lastClientUpdate = p.checkIns.find(c => c.clientUpdated)
+    const ci = (p.checkIns || [])[0]
+    const lastClientUpdate = (p.checkIns || []).find(c => c.clientUpdated)
     const daysSinceClientUpdate = lastClientUpdate
       ? differenceInDays(new Date(), new Date(lastClientUpdate.weekOf))
       : 99
 
     // Time by task type
-    const taskTypeSummary = p.dailyTasks.reduce((acc, t) => {
+    const taskTypeSummary = (p.dailyTasks || []).reduce((acc, t) => {
       if (t.actualHours) acc[t.taskType] = (acc[t.taskType] || 0) + t.actualHours
       return acc
     }, {} as Record<string, number>)
@@ -158,7 +158,7 @@ export default async function IntelligencePage() {
   const winRate = closedLeads.length ? Math.round((leads.filter(l => l.status === 'won').length / closedLeads.length) * 100) : 0
 
   const lossStageBreakdown = lostLeads.reduce((acc, l) => {
-    const lastProposal = l.proposals.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())[0]
+    const lastProposal = (l.proposals || []).sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())[0]
     const stage = lastProposal?.status || 'no_proposal'
     acc[stage] = (acc[stage] || 0) + 1
     return acc
@@ -214,7 +214,7 @@ export default async function IntelligencePage() {
   }).sort((a, b) => a.utilisation - b.utilisation)
 
   // ── Time in lifecycle by phase ────────────────────────────────────────────
-  const phaseTime = projects.flatMap(p => p.dailyTasks).reduce((acc, t) => {
+  const phaseTime = projects.flatMap(p => p.dailyTasks || []).reduce((acc, t) => {
     if (t.actualHours) acc[t.taskType] = (acc[t.taskType] || 0) + t.actualHours
     return acc
   }, {} as Record<string, number>)
@@ -256,10 +256,10 @@ export default async function IntelligencePage() {
 
         <div className="space-y-3">
           {projectHealth.map(({ project: p, health, daysLeft, schedulePct, burnPct, projectedHours, ci, daysSinceClientUpdate, taskTypeSummary }) => {
-            const milestonesDone = p.milestones.filter(m => m.status === 'done').length
-            const milestonesTotal = p.milestones.length
+            const milestonesDone = (p.milestones || []).filter(m => m.status === 'done').length
+            const milestonesTotal = (p.milestones || []).length
             // const openCrit = p?.bugs?.filter(b => b.severity === 'critical' && ['open','in_progress'].includes(b.status))?.length || 0
-            const unsignedCOs = p.scopeChanges.filter(s => !s.changeOrderSigned).length
+            const unsignedCOs = (p.scopeChanges || []).filter(s => !s.changeOrderSigned).length
 
             return (
               <div key={p.id} className={`card p-4 border ${healthBg(health.label)}`}>
@@ -427,10 +427,10 @@ export default async function IntelligencePage() {
                           : '—'}
                       </td>
                       <td className="px-3 py-2.5">
-                        {m.goals.length === 0
+                        {(m.goals || []).length === 0
                           ? <span className="text-xs text-gray-300">No goals set</span>
                           : <div className="space-y-1">
-                              {m.goals.slice(0,2).map(g => (
+                              {(m.goals || []).slice(0,2).map(g => (
                                 <div key={g.id} className="flex items-center gap-2">
                                   <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden max-w-16">
                                     <div className={`h-full rounded-full ${g.progressPct >= 80 ? 'bg-green-400' : g.progressPct >= 50 ? 'bg-amber-400' : 'bg-gray-300'}`}

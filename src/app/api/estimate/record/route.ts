@@ -131,5 +131,19 @@ export async function PATCH(req: Request) {
     data: { status: data.confirm ? 'confirmed' : 'in_progress' },
   })
 
+  // Notify BD requester when dev confirms
+  if (data.confirm) {
+    const req = await prisma.estimationRequest.findUnique({
+      where: { id: data.requestId },
+      include: { lead: { select: { clientName: true } }, requester: { select: { id: true, name: true } } },
+    })
+    if (req) {
+      const assigneeName = (await prisma.teamMember.findUnique({ where: { id: data.estimatedById }, select: { name: true } }))?.name ?? 'Developer'
+      await notify('estimate_confirmed', [req.requestedBy],
+        `${assigneeName} confirmed the estimate for ${req.lead.clientName} — ready for your review`,
+        `/estimate/${req.leadId}`)
+    }
+  }
+
   return NextResponse.json(record)
 }

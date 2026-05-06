@@ -1,6 +1,7 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
 type Lead = { id: string; clientName: string; description: string | null; budget: number | null; currency: string; source: string; owner: { name: string } }
@@ -17,11 +18,15 @@ const emptyLine = (order: number): Line => ({
 
 export default function EstimateForm({ lead, members, existingRequest }: { lead: Lead; members: Member[]; existingRequest: ExistingRecord }) {
   const router = useRouter()
+  const { data: session } = useSession()
   const hasRecord = !!existingRequest?.record
   const existing = existingRequest?.record
 
   const [step, setStep] = useState<'request'|'estimate'|'review'>(
-    !existingRequest ? 'request' : existing ? 'estimate' : 'request'
+    !existingRequest ? 'request' :
+    existing?.devConfirmedAt ? 'review' :
+    existingRequest ? 'estimate' :
+    'request'
   )
   const [requestLoading, setRequestLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -31,6 +36,16 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   const [requestedBy, setRequestedBy] = useState('')
   const [requestNotes, setRequestNotes] = useState('')
   const [dueBy, setDueBy] = useState('')
+
+  // Auto-fill requestedBy with current user
+  useEffect(() => {
+    if (session?.user?.id && !existingRequest) {
+      const currentUser = members.find(m => m.id === session.user.id)
+      if (currentUser && ['BD', 'Both', 'Founder'].includes(currentUser.role)) {
+        setRequestedBy(session.user.id)
+      }
+    }
+  }, [session, members, existingRequest])
 
   // Estimation form
   const [estimatedById, setEstimatedById] = useState(existingRequest?.assignee?.id ?? '')
@@ -164,11 +179,14 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
             <form onSubmit={submitRequest} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Requested by (BD) *</label>
-                  <select required className="input" value={requestedBy} onChange={e => setRequestedBy(e.target.value)}>
-                    <option value="">Select...</option>
-                    {bdMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
+                  <label className="label">Requested by (BD)</label>
+                  <input
+                    type="text"
+                    className="input bg-gray-50"
+                    value={bdMembers.find(m => m.id === requestedBy)?.name || session?.user?.name || ''}
+                    disabled
+                    readOnly
+                  />
                 </div>
                 <div>
                   <label className="label">Assign estimation to (Developer) *</label>

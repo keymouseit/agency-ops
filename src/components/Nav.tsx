@@ -40,9 +40,11 @@ export default function Nav() {
 
   async function handleSignOut() {
     setSigningOut(true)
-    await signOut({ redirect: false })
-    router.push('/login')
+    // Use callbackUrl to force a full page reload and clear session
+    await signOut({ callbackUrl: '/login' })
   }
+
+  if (!session?.user) return null
 
   return (
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -62,21 +64,19 @@ export default function Nav() {
             </Link>
           ))}
         </div>
-        {session?.user && (
-          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            <NotificationBell />
-            <span className="text-sm text-gray-700 font-medium hidden sm:block">{firstName}</span>
-            {role && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'}`}>
-                {role}
-              </span>
-            )}
-            <button onClick={handleSignOut} disabled={signingOut}
-              className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
-              {signingOut ? '…' : 'Sign out'}
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+          <NotificationBell />
+          <span className="text-sm text-gray-700 font-medium hidden sm:block">{firstName}</span>
+          {role && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'}`}>
+              {role}
+            </span>
+          )}
+          <button onClick={handleSignOut} disabled={signingOut}
+            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+            {signingOut ? '…' : 'Sign out'}
+          </button>
+        </div>
       </div>
     </nav>
   )
