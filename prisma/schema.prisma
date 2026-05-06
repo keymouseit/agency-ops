@@ -1,0 +1,643 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./agency-ops.db"
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  leadsOwned       Lead[]
+  proposalsWritten Proposal[]
+  projectsOwned    Project[]
+  weeklyScores     WeeklyScore[]
+  scopeChanges     ScopeChange[]
+  checkIns         ProjectCheckIn[]
+  monthlyReviews   MonthlyReview[]
+  dailyLogs        DailyLog[]
+  goals            Goal[]
+  blockers         Blocker[]
+  utilisationWeeks       UtilisationWeek[]
+  estimationRequestsMade EstimationRequest[] @relation("EstimationRequester")
+  estimationRequestsAssigned EstimationRequest[] @relation("EstimationAssignee")
+  estimationRecords      EstimationRecord[]
+  userAccount            UserAccount?
+  testCycles             TestCycle[]
+  releaseSignOffs        ReleaseSignOff[]
+  notifications          Notification[]
+}
+
+// ─── BD PIPELINE ─────────────────────────────────────────────
+
+model Lead {
+  id           String     @id @default(cuid())
+  clientName   String
+  source       String
+  description  String?
+  budget       Float?
+  currency     String     @default("USD")
+  ownerId      String
+  owner        TeamMember @relation(fields: [ownerId], references: [id])
+  status       String     @default("new")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  proposals    Proposal[]
+  project      Project?
+  lossAnalysis       LossAnalysis?
+  estimationRequests EstimationRequest[]
+  estimationRecords  EstimationRecord[]
+}
+
+model Proposal {
+  id            String     @id @default(cuid())
+  leadId        String
+  lead          Lead       @relation(fields: [leadId], references: [id])
+  writtenById   String
+  writtenBy     TeamMember @relation(fields: [writtenById], references: [id])
+  sentAt        DateTime   @default(now())
+  budgetQuoted  Float?
+  techStack     String?
+  coverLetter   String?
+  connectsSpent Int?
+  status        String     @default("sent")
+  interviewedAt DateTime?
+  interviewNotes String?
+  respondedAt   DateTime?
+}
+
+model LossAnalysis {
+  id             String     @id @default(cuid())
+  leadId         String     @unique
+  lead           Lead       @relation(fields: [leadId], references: [id])
+  reason         String
+  faultArea      String
+  faultOwnerId   String?
+  notes          String?
+  competitorWon  String?
+  budgetLost     Float?
+  lessonsLearned String?
+  createdAt      DateTime   @default(now())
+}
+
+// ─── PROJECT LIFECYCLE ────────────────────────────────────────
+
+model Project {
+  id             String     @id @default(cuid())
+  name           String
+  leadId         String?    @unique
+  lead           Lead?      @relation(fields: [leadId], references: [id])
+  ownerId        String
+  owner          TeamMember @relation(fields: [ownerId], references: [id])
+  status         String     @default("scoping")
+  channel        String?
+  contractValue  Float?
+  currency       String     @default("USD")
+  estimatedHours Float?
+  actualHours    Float?
+  startDate      DateTime?
+  estimatedEnd   DateTime?
+  actualEnd      DateTime?
+  techStack      String?
+  clientName     String?
+  clientScore    Int?
+  onTime         Boolean?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  milestones   Milestone[]
+  scopeChanges ScopeChange[]
+  checkIns     ProjectCheckIn[]
+  postMortem   PostMortem?
+  dailyTasks      DailyTask[]
+  healthSnapshots ProjectHealthSnapshot[]
+  blockers        Blocker[]
+  testCycles      TestCycle[]
+  releaseSignOff  ReleaseSignOff?
+  postDeliveryIssues PostDeliveryIssue[]
+}
+
+model Milestone {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id])
+  title       String
+  dueDate     DateTime
+  completedAt DateTime?
+  status      String     @default("pending")
+  notes       String?
+}
+
+model ScopeChange {
+  id                String      @id @default(cuid())
+  projectId         String
+  project           Project     @relation(fields: [projectId], references: [id])
+  requestedBy       String
+  description       String
+  hoursAdded        Float?
+  valueAdded        Float?
+  changeOrderSigned Boolean     @default(false)
+  approvedById      String?
+  approvedBy        TeamMember? @relation(fields: [approvedById], references: [id])
+  createdAt         DateTime    @default(now())
+}
+
+model ProjectCheckIn {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  submittedById String
+  submittedBy   TeamMember @relation(fields: [submittedById], references: [id])
+  weekOf        DateTime
+  progressPct   Int
+  onTrack       String
+  scopeChange   String
+  clientUpdated Boolean    @default(false)
+  blockers      String?
+  flags         String?
+  estimateDrift Float?
+  notes         String?
+  createdAt     DateTime   @default(now())
+}
+
+model PostMortem {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  project            Project  @relation(fields: [projectId], references: [id])
+  estimationAccuracy Float?
+  scopeDriftHours    Float?
+  clientSatisfaction Int?
+  onTime             Boolean?
+  whatWorked         String?
+  whatBroke          String?
+  rootCause          String?
+  preventionAction   String?
+  createdAt          DateTime @default(now())
+}
+
+// ─── QA LAYER ────────────────────────────────────────────────
+
+
+// ─── PEOPLE & SCORES ─────────────────────────────────────────
+
+model WeeklyScore {
+  id              String     @id @default(cuid())
+  memberId        String
+  member          TeamMember @relation(fields: [memberId], references: [id])
+  weekOf          DateTime
+  delivery        Int
+  process         Int
+  communication   Int
+  growth          Int
+  culture         Int
+  selfNotes       String?
+  repeatedMistake Boolean    @default(false)
+  founderScore    Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+
+  @@unique([memberId, weekOf, founderScore])
+}
+
+model MonthlyReview {
+  id           String     @id @default(cuid())
+  memberId     String
+  member       TeamMember @relation(fields: [memberId], references: [id])
+  month        DateTime
+  avgDelivery  Float
+  avgProcess   Float
+  avgComm      Float
+  avgGrowth    Float
+  avgCulture   Float
+  overall      Float
+  pipFlag      Boolean    @default(false)
+  recognized   Boolean    @default(false)
+  founderNotes String?
+  createdAt    DateTime   @default(now())
+
+  @@unique([memberId, month])
+}
+
+// ─── DAILY PLANNING & EOD ────────────────────────────────────
+
+// One record per person per day. Two phases: morning plan + EOD report.
+model DailyLog {
+  id            String     @id @default(cuid())
+  memberId      String
+  member        TeamMember @relation(fields: [memberId], references: [id])
+  date          DateTime   // date only — store as midnight UTC
+
+  // Phase 1: Morning plan (required by 9:30am)
+  planSubmittedAt  DateTime?
+  planNotes        String?   // anything blocking the day before it starts
+
+  // Phase 2: EOD report (required by 7pm)
+  eodSubmittedAt   DateTime?
+  blockers         String?   // blockers encountered during the day
+  carryOver        String?   // what moves to tomorrow and why
+  dayRating        Int?      // 1-5: their honest self-assessment of the day
+  eodNotes         String?
+
+  // Computed flags (updated on EOD submission)
+  planMissed       Boolean   @default(false) // no morning plan by 9:30am
+  eodMissed        Boolean   @default(false) // no EOD by 7pm
+  completionRate   Float?    // tasks done / tasks planned (0.0 - 1.0)
+  estimationScore  Float?    // avg(actual/estimated) across tasks — 1.0 = perfect
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  tasks         DailyTask[]
+
+  @@unique([memberId, date])
+}
+
+// Individual task within a daily log. Created at morning plan, updated at EOD.
+model DailyTask {
+  id           String    @id @default(cuid())
+  dailyLogId   String
+  dailyLog     DailyLog  @relation(fields: [dailyLogId], references: [id])
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id])
+
+  // Morning plan fields
+  title        String    // specific task description — "Build appointment booking endpoint"
+  taskType     String    @default("feature") // "feature" | "bug" | "review" | "meeting" | "admin" | "qa" | "research"
+  priority     String    @default("medium")  // "high" | "medium" | "low"
+  estimatedHours Float?
+
+  // EOD update fields
+  status       String    @default("planned") // "planned" | "done" | "partial" | "blocked" | "moved"
+  actualHours  Float?
+  eodNotes     String?   // what happened with this task
+  blockedReason String?  // if status = blocked, why
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ─── GOALS / KRAs ────────────────────────────────────────────
+
+// Quarterly goals set by founder for each team member.
+// These are the "what good looks like" target — weekly scores measure progress toward them.
+model Goal {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      TeamMember @relation(fields: [memberId], references: [id])
+  title       String     // specific, measurable goal
+  description String?
+  category    String     // "delivery" | "process" | "communication" | "growth" | "culture" | "business"
+  quarter     String     // "Q1-2025", "Q2-2025" etc.
+  targetDate  DateTime?
+  progressPct Int        @default(0)  // 0-100, updated in weekly check-in
+  status      String     @default("active") // "active" | "achieved" | "missed" | "deferred"
+  successMetric String?  // what does 100% look like? e.g. "Zero client-reported bugs for 4 weeks"
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// ─── PROJECT HEALTH SNAPSHOT ─────────────────────────────────
+
+// Computed daily snapshot of project health. Written by the system (API),
+// not by humans. Enables trend charts and founder alerts without requiring
+// the founder to read through check-ins manually.
+model ProjectHealthSnapshot {
+  id                 String   @id @default(cuid())
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id])
+  date               DateTime // midnight UTC — one per project per day
+
+  // Delivery health
+  daysElapsed        Int      // days since project start
+  daysTotal          Int      // total planned duration
+  scheduleHealth     Float    // 0-1: how on-schedule (1 = perfect, <0.7 = at risk)
+  milestonesTotal    Int      @default(0)
+  milestonesDone     Int      @default(0)
+
+  // Financial health
+  hoursEstimated     Float?   // original estimate
+  hoursBurned        Float?   // actual hours logged so far
+  burnRate           Float?   // hoursBurned / daysElapsed per day
+  projectedHours     Float?   // burnRate * daysTotal — projected final
+  marginHealth       Float?   // 1 = on budget, <0.8 = over budget risk
+
+  // Quality health
+  openCriticalBugs   Int      @default(0)
+  openMajorBugs      Int      @default(0)
+  clientReportedBugs Int      @default(0)
+
+  // Communication health
+  daysSinceClientUpdate Int   @default(0) // days since clientUpdated = true in check-in
+  openBlockers          Int   @default(0) // unresolved blockers from daily logs
+
+  // Composite score — 0-10, calculated from above
+  healthScore        Float    @default(5)
+  healthLabel        String   @default("unknown") // "healthy" | "at_risk" | "critical"
+
+  createdAt          DateTime @default(now())
+
+  @@unique([projectId, date])
+}
+
+// ─── BLOCKER TRACKER ─────────────────────────────────────────
+
+// Persisted blocker record. Pulled from DailyLog.blockers but given
+// a lifecycle: open → in_progress → resolved.
+// This enables: age tracking, repeat pattern detection, founder intervention.
+model Blocker {
+  id           String     @id @default(cuid())
+  projectId    String?
+  project      Project?   @relation(fields: [projectId], references: [id])
+  memberId     String
+  member       TeamMember @relation(fields: [memberId], references: [id])
+  description  String
+  category     String     @default("other") // "client_delay" | "technical" | "dependency" | "access" | "unclear_requirement" | "other"
+  status       String     @default("open")  // "open" | "in_progress" | "resolved" | "escalated"
+  raisedAt     DateTime   @default(now())
+  resolvedAt   DateTime?
+  resolvedBy   String?    // who fixed it
+  ageHours     Float?     // computed: hours between raisedAt and resolvedAt (or now)
+  escalatedToFounder Boolean @default(false)
+  founderNote  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// ─── UTILISATION LOG ─────────────────────────────────────────
+
+// Weekly utilisation summary per person. Written by system after EOD data.
+// Answers: is this person billing enough hours? are they idle?
+model UtilisationWeek {
+  id              String     @id @default(cuid())
+  memberId        String
+  member          TeamMember @relation(fields: [memberId], references: [id])
+  weekOf          DateTime
+
+  plannedHours    Float      @default(0)  // sum of estimatedHours in daily plans
+  loggedHours     Float      @default(0)  // sum of actualHours in EOD
+  billableHours   Float      @default(0)  // hours on client projects
+  internalHours   Float      @default(0)  // hours on meetings/admin/research
+  idleFlag        Boolean    @default(false) // true if loggedHours < 25 (configurable)
+
+  tasksPlanned    Int        @default(0)
+  tasksDone       Int        @default(0)
+  tasksBlocked    Int        @default(0)
+  tasksMoved      Int        @default(0)
+
+  planSubmissionRate Float   @default(0)  // 0-1: how many working days had a plan
+  eodSubmissionRate  Float   @default(0)  // 0-1: how many plans had an EOD
+
+  createdAt       DateTime   @default(now())
+
+  @@unique([memberId, weekOf])
+}
+
+// ─── ESTIMATION MODULE ───────────────────────────────────────
+//
+// Full lifecycle: BD requests → Dev estimates → Dev confirms → BD reviews
+// → proposal sent → won → project tracks actual vs estimate per feature.
+//
+// This is the single source of truth for what was estimated and why.
+
+model EstimationRequest {
+  id           String     @id @default(cuid())
+  leadId       String
+  lead         Lead       @relation(fields: [leadId], references: [id])
+  requestedBy  String     // BD member who asked for the estimate
+  assignedTo   String     // developer who will estimate
+  assignee     TeamMember @relation("EstimationAssignee", fields: [assignedTo], references: [id])
+  requester    TeamMember @relation("EstimationRequester", fields: [requestedBy], references: [id])
+  dueBy        DateTime?  // when BD needs the estimate back
+  notes        String?    // what BD told the dev about scope
+  status       String     @default("pending")
+  // "pending"      — sent to dev, not started
+  // "in_progress"  — dev is working on it
+  // "submitted"    — dev submitted, awaiting BD review
+  // "revision"     — BD sent back for changes
+  // "confirmed"    — dev confirmed final numbers
+  // "approved"     — BD approved, ready to quote
+  // "sent"         — proposal sent to client
+  // "won" | "lost" — outcome known
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  record       EstimationRecord?
+}
+
+model EstimationRecord {
+  id              String     @id @default(cuid())
+  requestId       String     @unique
+  request         EstimationRequest @relation(fields: [requestId], references: [id])
+  leadId          String
+  lead            Lead       @relation(fields: [leadId], references: [id])
+
+  // Who did this
+  estimatedById   String
+  estimatedBy     TeamMember @relation(fields: [estimatedById], references: [id])
+
+  // Summary numbers (computed from lines)
+  totalHoursRaw      Float    @default(0)  // sum of line estimates before buffer
+  bufferPct          Float    @default(20) // % buffer added
+  totalHoursFinal    Float    @default(0)  // after buffer
+  ratePerHour        Float?               // USD/hr used to price
+  totalPriceRaw      Float?               // before any BD adjustment
+  totalPriceFinal    Float?               // what client is quoted
+  currency           String   @default("USD")
+
+  // Risk and context
+  overallRisk        String   @default("medium") // "low" | "medium" | "high"
+  assumptions        String?  // key assumptions — what this estimate is based on
+  exclusions         String?  // explicitly what is NOT included
+  validUntil         DateTime?
+
+  // Confirmation trail
+  devConfirmedAt     DateTime? // developer signed off on the numbers
+  devConfirmedNote   String?
+  bdReviewedAt       DateTime?
+  bdRevisionNote     String?   // if BD sent back for changes
+  bdApprovedAt       DateTime?
+
+  // Outcome tracking — filled in when project is complete
+  actualHoursTotal   Float?   // pulled from project/daily logs
+  estimationAccuracy Float?   // actualHoursTotal / totalHoursFinal
+  varianceNotes      String?  // what caused the biggest gaps
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  lines        EstimationLine[]
+}
+
+model EstimationLine {
+  id            String           @id @default(cuid())
+  recordId      String
+  record        EstimationRecord @relation(fields: [recordId], references: [id])
+
+  // What is being estimated
+  phase         String           // "discovery" | "design" | "frontend" | "backend" | "mobile" | "qa" | "devops" | "integration" | "other"
+  feature       String           // human-readable name e.g. "User authentication"
+  description   String?          // what exactly is included
+  estimatedHours Float
+  complexityLevel String @default("medium") // "simple" | "medium" | "complex"
+  riskFlag      Boolean @default(false) // true = this line has uncertainty
+  riskNote      String?          // why it's risky / what could make it bigger
+  assumptions   String?          // what must be true for this estimate to hold
+
+  // Actual tracking — updated from project daily task logs
+  actualHours   Float?
+  variancePct   Float?           // (actual - estimated) / estimated * 100
+
+  sortOrder     Int @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─── AUTH ────────────────────────────────────────────────────
+// Each TeamMember can log in. Password is hashed with bcrypt.
+// Role determines what pages and actions they can access.
+
+model UserAccount {
+  id             String     @id @default(cuid())
+  memberId       String     @unique
+  member         TeamMember @relation(fields: [memberId], references: [id])
+  passwordHash   String
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+}
+
+// ─── QA MODULE (SIMPLIFIED) ──────────────────────────────────
+//
+// QA in Agency Ops is a release quality gate — not a bug tracker.
+// Individual bugs live in the client's tool (Jira, Linear, etc.)
+// or in the dev's head. What Agency Ops tracks is:
+//   1. Test cycles run before each release attempt
+//   2. Release blockers (one at a time, not individual bugs)
+//   3. Sign-off — the formal "go/no-go" gate
+//   4. Post-delivery issues — if client finds something after release
+
+// One test cycle per release attempt.
+// QA runs this before any delivery to the client.
+model TestCycle {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  conductedById String
+  conductedBy   TeamMember @relation(fields: [conductedById], references: [id])
+  cycleType     String     // "sanity" | "regression" | "pre_release" | "uat_prep"
+  environment   String     @default("staging") // "local" | "staging" | "production"
+  startedAt     DateTime   @default(now())
+  completedAt   DateTime?
+
+  // Overall result
+  result        String     @default("pending") // "pending" | "pass" | "fail" | "conditional"
+  // pass        = all clear, ready for sign-off
+  // fail        = blocked, cannot release
+  // conditional = minor issues, release possible with client acknowledgement
+
+  // What was tested (checklist — tick what applies to this cycle)
+  testedAuth          Boolean @default(false)
+  testedCoreFlows     Boolean @default(false) // primary user journeys
+  testedEdgeCases     Boolean @default(false)
+  testedMobile        Boolean @default(false)
+  testedCrossBrowser  Boolean @default(false)
+  testedPerformance   Boolean @default(false)
+  testedIntegrations  Boolean @default(false) // 3rd party APIs, payments, etc.
+  testedDataIntegrity Boolean @default(false)
+
+  // Summary (not a bug list — a paragraph)
+  summary       String?   // "Tested all core flows. Auth working. Payment flow has one
+                           // conditional issue — see blocker. Regression passed."
+  blockerNote   String?   // If result = fail/conditional, describe what is blocking
+  fixedInCycle  String?   // What dev fixed between this cycle and the previous one
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  signOff       ReleaseSignOff?
+}
+
+// Formal release sign-off. One per release attempt (linked to a TestCycle).
+// Cannot exist without a TestCycle that passed or is conditional.
+// Project cannot move to "delivered" without this.
+model ReleaseSignOff {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  cycleId       String     @unique
+  cycle         TestCycle  @relation(fields: [cycleId], references: [id])
+  signedOffById String
+  signedOffBy   TeamMember @relation(fields: [signedOffById], references: [id])
+  signedOffAt   DateTime   @default(now())
+
+  // Pre-release checklist — QA confirms each item before signing
+  sanityPassed          Boolean @default(false)
+  regressionPassed      Boolean @default(false)
+  noBlockersOpen        Boolean @default(false)
+  stagingMatchesLive    Boolean @default(false) // env parity confirmed
+  clientUATDone         Boolean @default(false)
+  knownIssuesAgreed     Boolean @default(false) // client aware of any conditionals
+
+  // If any item is false, a reason is required
+  exceptionsNotes       String?
+
+  // QA's honest quality score for this release
+  qualityScore          Int?    // 1-10
+  releaseNotes          String? // summary to share with client / team
+
+  @@unique([projectId]) // one active sign-off per project
+}
+
+// Post-delivery issue — if the client reports something after release.
+// This is not a bug tracker. It is a QA accountability signal.
+// One record per client-reported issue. No sub-tracking.
+model PostDeliveryIssue {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  reportedAt    DateTime   @default(now())
+  reportedBy    String     // client name / channel (e.g. "John via WhatsApp")
+  description   String     // what the client said, verbatim or paraphrased
+  severity      String     @default("medium") // "low" | "medium" | "high" | "critical"
+  wasInScope    Boolean?   // was this something QA should have caught?
+  rootCause     String?    // why did QA miss this? honest assessment
+  resolvedAt    DateTime?
+  resolutionNotes String?
+  createdAt     DateTime   @default(now())
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────
+// In-app notifications. Created by API routes when key events happen.
+// Never emailed (yet). Shown as a badge + dropdown in the nav.
+
+model Notification {
+  id        String     @id @default(cuid())
+  memberId  String
+  member    TeamMember @relation(fields: [memberId], references: [id])
+
+  type      String
+  // "estimate_requested"   — dev needs to fill an estimate
+  // "estimate_confirmed"   — BD needs to review a confirmed estimate
+  // "estimate_revision"    — dev needs to revise their estimate
+  // "estimate_approved"    — dev's estimate was approved by BD
+  // "blocker_escalated"    — founder: a blocker was escalated
+  // "project_in_qa"        — QA: a project moved to QA stage
+  // "test_cycle_fail"      — dev: their project is blocked in QA
+  // "test_cycle_pass"      — QA: project ready for sign-off
+  // "eod_missing"          — reminder: EOD not submitted (set by cron)
+
+  message   String     // plain English: "Kavya requested an estimate for HealthCo"
+  linkTo    String?    // URL to navigate to on click
+  read      Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([memberId, read])
+  @@index([memberId, createdAt])
+}
