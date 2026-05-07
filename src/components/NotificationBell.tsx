@@ -44,7 +44,7 @@ export default function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/notifications', { cache: 'no-store' })
+      const res = await fetch('/api/notifications', { cache: 'no-store', credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
       setNotifications(data.notifications)
@@ -75,7 +75,7 @@ export default function NotificationBell() {
     if (!open && unread > 0) {
       // Mark all read when opening
       try {
-        await fetch('/api/notifications', { method: 'PATCH' })
+        await fetch('/api/notifications', { method: 'PATCH', credentials: 'include' })
         setNotifications(prev => prev.map(n => ({ ...n, read: true })))
         setUnread(0)
       } catch {}
@@ -120,7 +120,7 @@ export default function NotificationBell() {
             {notifications.some(n => !n.read) && (
               <button
                 onClick={async () => {
-                  await fetch('/api/notifications', { method: 'PATCH' })
+                  await fetch('/api/notifications', { method: 'PATCH', credentials: 'include' })
                   setNotifications(prev => prev.map(n => ({ ...n, read: true })))
                   setUnread(0)
                 }}

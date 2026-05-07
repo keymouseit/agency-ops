@@ -59,20 +59,21 @@ function checkApiAccess(path: string, role: string): boolean {
   if (['BD', 'Both', 'Founder'].includes(role)) {
     if (path.startsWith('/api/leads') || path.startsWith('/api/estimate')) return true
   }
-  // Dev can access project/daily/checkin APIs
+  // Dev can access project/daily/checkin/estimate APIs
   if (['Dev', 'Both', 'Founder'].includes(role)) {
     if (
       path.startsWith('/api/projects') ||
       path.startsWith('/api/daily') ||
-      path.startsWith('/api/scores')
+      path.startsWith('/api/scores') ||
+      path.startsWith('/api/estimate')
     ) return true
   }
   // QA can access QA and bug APIs
   if (['QA', 'Founder'].includes(role)) {
     if (path.startsWith('/api/qa') || path.startsWith('/api/blockers')) return true
   }
-  // Everyone can access scores, goals read
-  if (path.startsWith('/api/scores')) return true
+  // Everyone can access scores, notifications
+  if (path.startsWith('/api/scores') || path.startsWith('/api/notifications')) return true
   return false
 }
 

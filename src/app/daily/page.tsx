@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 import Link from 'next/link'
 import { format, startOfDay, subDays } from 'date-fns'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,14 +33,27 @@ export default async function DailyPage({
 }: {
   searchParams: { date?: string }
 }) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
   const targetDate = searchParams.date
     ? startOfDay(new Date(searchParams.date))
     : startOfDay(new Date())
 
+  const isFounder = session.user.role === 'Founder'
+
+  // Founders see all data, others see only their own
   const [members, logs] = await Promise.all([
-    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    isFounder
+      ? prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
+      : prisma.teamMember.findMany({ where: { id: session.user.id }, orderBy: { name: 'asc' } }),
     prisma.dailyLog.findMany({
-      where: { date: targetDate },
+      where: {
+        date: targetDate,
+        ...(isFounder ? {} : { memberId: session.user.id })
+      },
       include: {
         member: true,
         tasks: { include: { project: { select: { name: true } } }, orderBy: { priority: 'asc' } },
@@ -70,7 +85,9 @@ export default async function DailyPage({
       {/* Header with date nav */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Daily ops</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {isFounder ? 'Daily ops — Team view' : 'My daily log'}
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {format(targetDate, 'EEEE, d MMMM yyyy')}
             {isToday && <span className="ml-2 badge bg-blue-100 text-blue-800">Today</span>}
@@ -84,8 +101,8 @@ export default async function DailyPage({
         </div>
       </div>
 
-      {/* Alerts — missing submissions */}
-      {isToday && (noPlan.length > 0 || noEOD.length > 0) && (
+      {/* Alerts — missing submissions (Founder only) */}
+      {isFounder && isToday && (noPlan.length > 0 || noEOD.length > 0) && (
         <div className="grid grid-cols-2 gap-3 mb-6">
           {noPlan.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
@@ -114,8 +131,8 @@ export default async function DailyPage({
         </div>
       )}
 
-      {/* Blockers — elevated */}
-      {hasBlockers.length > 0 && (
+      {/* Blockers — elevated (Founder only) */}
+      {isFounder && hasBlockers.length > 0 && (
         <div className="mb-6 space-y-2">
           {hasBlockers.map(l => (
             <div key={l.id} className="flex gap-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm">
@@ -129,14 +146,14 @@ export default async function DailyPage({
         </div>
       )}
 
-      {/* Team summary row */}
+      {/* Team summary row (Founder only) or Personal summary */}
       {plannedTasks > 0 && (
         <div className="grid grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Tasks planned', value: plannedTasks.toString() },
-            { label: 'Tasks done', value: doneTasks.toString(), good: doneTasks === plannedTasks },
-            { label: 'Tasks blocked', value: blockedTasks.toString(), bad: blockedTasks > 0 },
-            { label: 'Hours logged', value: totalActHours > 0 ? `${totalActHours}h / ${totalEstHours}h` : `${totalEstHours}h planned` },
+            { label: isFounder ? 'Tasks planned' : 'Tasks planned today', value: plannedTasks.toString() },
+            { label: isFounder ? 'Tasks done' : 'Tasks completed', value: doneTasks.toString(), good: doneTasks === plannedTasks },
+            { label: isFounder ? 'Tasks blocked' : 'Tasks blocked', value: blockedTasks.toString(), bad: blockedTasks > 0 },
+            { label: isFounder ? 'Hours logged' : 'Hours logged', value: totalActHours > 0 ? `${totalActHours}h / ${totalEstHours}h` : `${totalEstHours}h planned` },
           ].map(k => (
             <div key={k.label} className="card p-4">
               <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{k.label}</div>
@@ -151,7 +168,9 @@ export default async function DailyPage({
       {/* Per-person cards */}
       {logs.length === 0 ? (
         <div className="card p-12 text-center">
-          <div className="text-gray-400 text-sm mb-2">No plans submitted for this day yet.</div>
+          <div className="text-gray-400 text-sm mb-2">
+            {isFounder ? 'No plans submitted for this day yet.' : 'You haven\'t submitted a morning plan for this day.'}
+          </div>
           {isToday && <Link href="/daily/plan" className="btn-primary text-sm">Submit morning plan →</Link>}
         </div>
       ) : (

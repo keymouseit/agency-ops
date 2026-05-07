@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; ownerId: string }
@@ -11,11 +12,19 @@ const DIM_LABELS: Record<string, string> = {
 }
 
 export default function CheckInClient({ members, projects }: { members: Member[]; projects: Project[] }) {
-  const [step, setStep] = useState<'who'|'project'|'self'|'done'>('who')
+  const { data: session } = useSession()
+  const [step, setStep] = useState<'project'|'self'|'done'>('project')
   const [memberId, setMemberId] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  // Auto-set memberId from session
+  useEffect(() => {
+    if (session?.user?.id) {
+      setMemberId(session.user.id)
+    }
+  }, [session])
 
   const member = members.find(m => m.id === memberId)
   const myProjects = projects.filter(p => p.ownerId === memberId)
@@ -29,6 +38,7 @@ export default function CheckInClient({ members, projects }: { members: Member[]
       await fetch(`/api/projects/${projectId}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ...Object.fromEntries(fd), submittedById: memberId }),
       })
     }
@@ -46,6 +56,7 @@ export default function CheckInClient({ members, projects }: { members: Member[]
     await fetch('/api/scores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data),
     })
     setLoading(false)
@@ -59,9 +70,16 @@ export default function CheckInClient({ members, projects }: { members: Member[]
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Check-in submitted</h1>
         <p className="text-gray-500 mb-6">Your scores and project status have been saved. See you next Monday.</p>
         <div className="flex gap-3 justify-center">
-          <button className="btn-secondary" onClick={() => { setStep('who'); setMemberId(''); setScores({}) }}>Submit another</button>
           <a href="/" className="btn-primary">Back to dashboard</a>
         </div>
+      </div>
+    )
+  }
+
+  if (!member) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20">
+        <div className="text-gray-400 mb-4">Loading your profile...</div>
       </div>
     )
   }
@@ -69,34 +87,17 @@ export default function CheckInClient({ members, projects }: { members: Member[]
   return (
     <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-semibold text-gray-900 mb-1">Weekly check-in</h1>
-      <p className="text-sm text-gray-500 mb-8">Every Monday before 10am. Takes 3 minutes.</p>
+      <p className="text-sm text-gray-500 mb-2">Every Monday before 10am. Takes 3 minutes.</p>
+      <p className="text-xs text-gray-400 mb-8">Submitting as: <strong>{member.name}</strong></p>
 
       {/* Step indicator */}
       <div className="flex gap-2 mb-8">
-        {[['who', 'Who are you?'], ['project', 'Project status'], ['self', 'Self-assessment']].map(([s, label]) => (
+        {[['project', 'Project status'], ['self', 'Self-assessment']].map(([s, label]) => (
           <div key={s} className={`flex-1 text-center py-1.5 rounded-lg text-xs font-medium ${step === s ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
             {label}
           </div>
         ))}
       </div>
-
-      {step === 'who' && (
-        <div className="card p-6 space-y-4">
-          <h2 className="text-base font-semibold">Who are you?</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {members.map(m => (
-              <button
-                key={m.id}
-                onClick={() => { setMemberId(m.id); setStep('project') }}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${memberId === m.id ? 'border-gray-900 bg-gray-50' : 'border-gray-100 hover:border-gray-300'}`}
-              >
-                <div className="font-medium text-gray-900">{m.name}</div>
-                <div className="text-xs text-gray-400">{m.role}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {step === 'project' && member && (
         <div className="card p-6">

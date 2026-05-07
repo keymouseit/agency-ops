@@ -23,7 +23,6 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   const existing = existingRequest?.record
 
   const [step, setStep] = useState<'request'|'estimate'|'review'>(
-    !existingRequest ? 'request' :
     existing?.devConfirmedAt ? 'review' :
     existingRequest ? 'estimate' :
     'request'
@@ -37,7 +36,33 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   const [requestNotes, setRequestNotes] = useState('')
   const [dueBy, setDueBy] = useState('')
 
-  // Auto-fill requestedBy with current user
+  // Estimation form
+  const [estimatedById, setEstimatedById] = useState(existingRequest?.assignee?.id ?? '')
+  const [lines, setLines] = useState<Line[]>(existing?.lines?.length ? existing.lines : [emptyLine(0)])
+  const [bufferPct, setBufferPct] = useState(existing?.bufferPct ?? 20)
+  const [ratePerHour, setRatePerHour] = useState<number>(existing?.ratePerHour ?? 25)
+  const [overallRisk, setOverallRisk] = useState(existing?.overallRisk ?? 'medium')
+  const [assumptions, setAssumptions] = useState(existing?.assumptions ?? '')
+  const [exclusions, setExclusions] = useState(existing?.exclusions ?? '')
+
+  // Set initial step based on role once session loads
+  useEffect(() => {
+    const userRole = session?.user?.role
+    const isDev = userRole && ['Dev'].includes(userRole)
+
+    if (existing?.devConfirmedAt) {
+      setStep('review')
+    } else if (existingRequest) {
+      setStep('estimate')
+    } else if (isDev) {
+      // Pure developers shouldn't see BD request tab, so if no request yet, show message
+      setStep('estimate')
+    } else {
+      setStep('request')
+    }
+  }, [session?.user?.role, existingRequest, existing?.devConfirmedAt])
+
+  // Auto-fill requestedBy with current user (BD)
   useEffect(() => {
     if (session?.user?.id && !existingRequest) {
       const currentUser = members.find(m => m.id === session.user.id)
@@ -47,14 +72,20 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
     }
   }, [session, members, existingRequest])
 
-  // Estimation form
-  const [estimatedById, setEstimatedById] = useState(existingRequest?.assignee?.id ?? '')
-  const [lines, setLines] = useState<Line[]>(existing?.lines?.length ? existing.lines : [emptyLine(0)])
-  const [bufferPct, setBufferPct] = useState(existing?.bufferPct ?? 20)
-  const [ratePerHour, setRatePerHour] = useState<number>(existing?.ratePerHour ?? 25)
-  const [overallRisk, setOverallRisk] = useState(existing?.overallRisk ?? 'medium')
-  const [assumptions, setAssumptions] = useState(existing?.assumptions ?? '')
-  const [exclusions, setExclusions] = useState(existing?.exclusions ?? '')
+  // Auto-fill estimatedById with current user (Dev) or assignedTo
+  useEffect(() => {
+    if (session?.user?.id && !estimatedById) {
+      const currentUser = members.find(m => m.id === session.user.id)
+      // If current user is a developer, auto-select them
+      if (currentUser && ['Dev', 'Both', 'Founder'].includes(currentUser.role)) {
+        setEstimatedById(session.user.id)
+      }
+      // Or if they were assigned to this estimation
+      else if (existingRequest?.assignee?.id === session.user.id) {
+        setEstimatedById(session.user.id)
+      }
+    }
+  }, [session, members, existingRequest, estimatedById])
 
   // Totals
   const rawHours = lines.reduce((s, l) => s + (Number(l.estimatedHours) || 0), 0)
@@ -72,14 +103,17 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   async function submitRequest(e: React.FormEvent) {
     e.preventDefault()
     setRequestLoading(true)
-    await fetch('/api/estimate/request', {
+    const response = await fetch('/api/estimate/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ leadId: lead.id, requestedBy, assignedTo, notes: requestNotes, dueBy }),
     })
     setRequestLoading(false)
-    router.refresh()
-    setStep('estimate')
+    if (response.ok) {
+      router.refresh()
+      // Stay on request tab to show confirmation message
+    }
   }
 
   async function saveEstimate(confirmNow: boolean) {
@@ -88,6 +122,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
     await fetch('/api/estimate/record', {
       method: existingRequest?.record ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         requestId,
         leadId: lead.id,
@@ -146,12 +181,27 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
 
       {/* Step tabs */}
       <div className="flex gap-1 mb-6">
-        {[['request','1. BD Request'],['estimate','2. Dev Estimate'],['review','3. Review & Confirm']].map(([s,l]) => (
-          <button key={s} onClick={() => setStep(s as 'request'|'estimate'|'review')}
-            className={`px-4 py-2 text-sm rounded-lg transition-colors ${step === s ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-            {l}
-          </button>
-        ))}
+        {[['request','BD Request'],['estimate','Dev Estimate'],['review','Review & Confirm']].map(([s,l]) => {
+          const userRole = session?.user?.role
+          const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
+          const isDev = userRole && ['Dev', 'Founder', 'Both'].includes(userRole)
+
+          // Hide BD Request tab from pure developers
+          if (s === 'request' && !isBD) return null
+
+          // Hide Dev Estimate tab from BD until dev confirms
+          if (s === 'estimate' && !isDev && !existing?.devConfirmedAt) return null
+
+          // Hide Dev Estimate tab from developers after they confirm (until BD sends back for revision)
+          if (s === 'estimate' && isDev && !isBD && existing?.devConfirmedAt) return null
+
+          return (
+            <button key={s} onClick={() => setStep(s as 'request'|'estimate'|'review')}
+              className={`px-4 py-2 text-sm rounded-lg transition-colors ${step === s ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              {l}
+            </button>
+          )
+        })}
       </div>
 
       {/* ── STEP 1: BD REQUEST ──────────────────────────────────────────────── */}
@@ -214,28 +264,40 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
       )}
 
       {/* ── STEP 2: DEV ESTIMATE ────────────────────────────────────────────── */}
-      {step === 'estimate' && (
+      {step === 'estimate' && !existingRequest && session?.user?.role === 'Dev' && (
+        <div className="card p-8 text-center">
+          <div className="text-gray-400 mb-2">📋</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No estimation request yet</h3>
+          <p className="text-sm text-gray-500">Ask your BD team to create an estimation request for this lead first.</p>
+        </div>
+      )}
+      {step === 'estimate' && (existingRequest || session?.user?.role !== 'Dev') && (
         <div className="space-y-4">
           {/* Header controls */}
           <div className="card p-4">
-            <div className="grid grid-cols-4 gap-4">
+            <div className={`grid gap-4 ${session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <div>
-                <label className="label">Estimated by (Developer) *</label>
-                <select className="input" value={estimatedById} onChange={e => setEstimatedById(e.target.value)}>
-                  <option value="">Select...</option>
-                  {devMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
+                <label className="label">Estimated by (Developer)</label>
+                <input
+                  type="text"
+                  className="input bg-gray-50"
+                  value={devMembers.find(m => m.id === estimatedById)?.name || session?.user?.name || ''}
+                  disabled
+                  readOnly
+                />
               </div>
               <div>
                 <label className="label">Buffer % (risk padding)</label>
                 <input type="number" min="0" max="100" className="input" value={bufferPct}
                   onChange={e => setBufferPct(Number(e.target.value))} />
               </div>
-              <div>
-                <label className="label">Rate / hour (USD)</label>
-                <input type="number" min="1" className="input" value={ratePerHour}
-                  onChange={e => setRatePerHour(Number(e.target.value))} />
-              </div>
+              {session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) && (
+                <div>
+                  <label className="label">Rate / hour (USD)</label>
+                  <input type="number" min="1" className="input" value={ratePerHour}
+                    onChange={e => setRatePerHour(Number(e.target.value))} />
+                </div>
+              )}
               <div>
                 <label className="label">Overall risk</label>
                 <select className="input" value={overallRisk} onChange={e => setOverallRisk(e.target.value)}>
@@ -256,21 +318,25 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
               <div className="text-xs text-gray-500 uppercase tracking-wide">{bufferPct}% buffer</div>
               <div className="text-2xl font-bold text-gray-900">{bufferedHours}h total</div>
             </div>
-            <div className="text-gray-300">×</div>
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Rate</div>
-              <div className="text-2xl font-bold text-gray-900">${ratePerHour}/h</div>
-            </div>
-            <div className="text-gray-300">=</div>
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Total quote</div>
-              <div className={`text-2xl font-bold ${totalPrice > (lead.budget ?? Infinity) ? 'text-red-600' : 'text-green-700'}`}>
-                ${totalPrice.toLocaleString()}
-              </div>
-              {lead.budget && totalPrice > lead.budget && (
-                <div className="text-xs text-red-600">⚠ ${(totalPrice - lead.budget).toLocaleString()} over client budget</div>
-              )}
-            </div>
+            {session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) && (
+              <>
+                <div className="text-gray-300">×</div>
+                <div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Rate</div>
+                  <div className="text-2xl font-bold text-gray-900">${ratePerHour}/h</div>
+                </div>
+                <div className="text-gray-300">=</div>
+                <div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Total quote</div>
+                  <div className={`text-2xl font-bold ${totalPrice > (lead.budget ?? Infinity) ? 'text-red-600' : 'text-green-700'}`}>
+                    ${totalPrice.toLocaleString()}
+                  </div>
+                  {lead.budget && totalPrice > lead.budget && (
+                    <div className="text-xs text-red-600">⚠ ${(totalPrice - lead.budget).toLocaleString()} over client budget</div>
+                  )}
+                </div>
+              </>
+            )}
             {riskLines.length > 0 && (
               <div className="ml-auto">
                 <span className="badge bg-amber-100 text-amber-800">{riskLines.length} risk flag{riskLines.length > 1 ? 's' : ''}</span>
@@ -280,25 +346,27 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
 
           {/* Line items */}
           <div className="card overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-12 gap-2 text-xs text-gray-400 uppercase tracking-wide font-medium">
-              <div className="col-span-2">Phase</div>
-              <div className="col-span-3">Feature / Task</div>
-              <div className="col-span-2">Description</div>
-              <div className="col-span-1 text-center">Hours</div>
-              <div className="col-span-1 text-center">Complexity</div>
-              <div className="col-span-2">Assumptions / Risks</div>
-              <div className="col-span-1" />
-            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[1200px]">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-12 gap-3 text-xs text-gray-400 uppercase tracking-wide font-medium">
+                  <div className="col-span-2">Phase</div>
+                  <div className="col-span-2">Feature / Task</div>
+                  <div className="col-span-2">Description</div>
+                  <div className="col-span-1 text-center">Hours</div>
+                  <div className="col-span-2 text-center">Complexity</div>
+                  <div className="col-span-2">Assumptions / Risks</div>
+                  <div className="col-span-1" />
+                </div>
 
-            <div className="divide-y divide-gray-50">
-              {lines.map((line, i) => (
-                <div key={i} className={`px-4 py-3 grid grid-cols-12 gap-2 items-start ${line.riskFlag ? 'bg-amber-50' : ''}`}>
+                <div className="divide-y divide-gray-50">
+                  {lines.map((line, i) => (
+                    <div key={i} className={`px-4 py-3 grid grid-cols-12 gap-3 items-start ${line.riskFlag ? 'bg-amber-50' : ''}`}>
                   <div className="col-span-2">
                     <select className="input text-xs py-1.5" value={line.phase} onChange={e => updateLine(i,'phase',e.target.value)}>
                       {PHASES.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <input className="input text-xs py-1.5" value={line.feature} placeholder="e.g. User login & auth"
                       onChange={e => updateLine(i,'feature',e.target.value)} />
                   </div>
@@ -311,7 +379,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                       value={line.estimatedHours || ''} placeholder="0"
                       onChange={e => updateLine(i,'estimatedHours',parseFloat(e.target.value)||0)} />
                   </div>
-                  <div className="col-span-1">
+                  <div className="col-span-2">
                     <select className={`input text-xs py-1.5 ${COMPLEXITY_COLORS[line.complexityLevel]}`}
                       value={line.complexityLevel} onChange={e => updateLine(i,'complexityLevel',e.target.value)}>
                       <option value="simple">Simple</option>
@@ -338,12 +406,14 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                   </div>
                 </div>
               ))}
-            </div>
+                </div>
 
-            <div className="px-4 py-3 border-t border-gray-50">
-              <button onClick={addLine} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                + Add feature / phase
-              </button>
+                <div className="px-4 py-3 border-t border-gray-50">
+                  <button onClick={addLine} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    + Add feature / phase
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -396,14 +466,18 @@ function EstimationReview({ record, estimateId, budget, currency }: {
   estimateId: string; budget: number | null; currency: string
 }) {
   const router = useRouter()
+  const { data: session } = useSession()
   const [approving, setApproving] = useState(false)
   const [revisionNote, setRevisionNote] = useState('')
   const [showRevision, setShowRevision] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Check if user has BD permissions
+  const isBD = session?.user?.role && ['BD', 'Both', 'Founder'].includes(session.user.role)
+
   async function approve() {
     setLoading(true)
-    await fetch(`/api/estimate/${estimateId}/approve`, { method: 'POST' })
+    await fetch(`/api/estimate/${estimateId}/approve`, { method: 'POST', credentials: 'include' })
     setLoading(false)
     router.refresh()
   }
@@ -413,6 +487,7 @@ function EstimationReview({ record, estimateId, budget, currency }: {
     await fetch(`/api/estimate/${estimateId}/revision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ note: revisionNote }),
     })
     setLoading(false)
@@ -431,13 +506,13 @@ function EstimationReview({ record, estimateId, budget, currency }: {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${isBD ? 'grid-cols-4' : 'grid-cols-2'}`}>
         {[
-          { label: 'Raw estimate', value: `${record.totalHoursRaw}h` },
-          { label: `+${record.bufferPct}% buffer`, value: `${record.totalHoursFinal}h total` },
-          { label: 'Rate', value: `$${record.ratePerHour}/h` },
-          { label: 'Quoted price', value: `$${record.totalPriceFinal?.toLocaleString() ?? '—'}`, highlight: budget && record.totalPriceFinal && record.totalPriceFinal > budget },
-        ].map(k => (
+          { label: 'Raw estimate', value: `${record.totalHoursRaw}h`, show: true },
+          { label: `+${record.bufferPct}% buffer`, value: `${record.totalHoursFinal}h total`, show: true },
+          { label: 'Rate', value: `$${record.ratePerHour}/h`, show: isBD },
+          { label: 'Quoted price', value: `$${record.totalPriceFinal?.toLocaleString() ?? '—'}`, highlight: budget && record.totalPriceFinal && record.totalPriceFinal > budget, show: isBD },
+        ].filter(k => k.show).map(k => (
           <div key={k.label} className={`card p-4 ${k.highlight ? 'bg-red-50' : ''}`}>
             <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{k.label}</div>
             <div className={`text-xl font-bold ${k.highlight ? 'text-red-600' : 'text-gray-900'}`}>{k.value}</div>
@@ -447,13 +522,18 @@ function EstimationReview({ record, estimateId, budget, currency }: {
       </div>
 
       {/* Confirmed/approved status */}
-      <div className="flex gap-4 text-sm">
+      <div className="flex gap-4 text-sm items-center">
         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${record.devConfirmedAt ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-400'}`}>
           {record.devConfirmedAt ? '✓ Dev confirmed' : '○ Awaiting dev confirmation'}
         </div>
         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${record.bdApprovedAt ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-400'}`}>
           {record.bdApprovedAt ? '✓ BD approved' : '○ Awaiting BD approval'}
         </div>
+        {!isBD && record.devConfirmedAt && !record.bdApprovedAt && (
+          <div className="text-xs text-gray-500 ml-auto">
+            Your estimate is locked while BD reviews it. You can edit again if they request changes.
+          </div>
+        )}
       </div>
 
       {/* Lines by phase */}
@@ -532,8 +612,8 @@ function EstimationReview({ record, estimateId, budget, currency }: {
         </div>
       )}
 
-      {/* BD actions */}
-      {!record.bdApprovedAt && (
+      {/* BD actions - Only visible to BD/Founder/Both */}
+      {!record.bdApprovedAt && isBD && (
         <div className="card p-4">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">BD review actions</h3>
           <div className="flex gap-3">
