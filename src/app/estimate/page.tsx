@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { fmtDate, fmtCurrency } from '@/lib/utils'
+import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,10 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_ORDER = ['revision', 'pending', 'in_progress', 'confirmed', 'submitted', 'approved', 'sent', 'won', 'lost']
 
 export default async function EstimatesPage() {
+  const session = await auth()
+  const userRole = session?.user?.role
+  const isDev = userRole && ['Dev', 'Both', 'Founder'].includes(userRole)
+
   const requests = await prisma.estimationRequest.findMany({
     include: {
       lead:     { select: { id: true, clientName: true, budget: true, currency: true, status: true } },
@@ -66,9 +71,11 @@ export default async function EstimatesPage() {
             All estimation requests. BD requests → Dev fills → BD approves → proposal sent.
           </p>
         </div>
-        <Link href="/pipeline" className="btn-secondary text-sm">
-          Request from lead →
-        </Link>
+        {userRole && ['BD', 'Founder', 'Both'].includes(userRole) && (
+          <Link href="/pipeline" className="btn-secondary text-sm">
+            Request from lead →
+          </Link>
+        )}
       </div>
 
       {/* Summary strip */}
@@ -98,7 +105,9 @@ export default async function EstimatesPage() {
               <th className="text-left px-3 py-3 font-medium">Requested by</th>
               <th className="text-center px-3 py-3 font-medium">Status</th>
               <th className="text-center px-3 py-3 font-medium">Hours</th>
-              <th className="text-center px-3 py-3 font-medium">Quote</th>
+              {userRole && ['BD', 'Founder', 'Both'].includes(userRole) && (
+                <th className="text-center px-3 py-3 font-medium">Quote</th>
+              )}
               <th className="text-center px-3 py-3 font-medium">Risk</th>
               <th className="text-center px-3 py-3 font-medium">Lines</th>
               <th className="text-center px-3 py-3 font-medium">Requested</th>
@@ -114,7 +123,7 @@ export default async function EstimatesPage() {
                 <tr key={r.id} className={`hover:bg-gray-50 ${r.status === 'revision' ? 'bg-red-50' : ''}`}>
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{r.lead.clientName}</div>
-                    {r.lead.budget && (
+                    {r.lead.budget && userRole && ['BD', 'Founder', 'Both'].includes(userRole) && (
                       <div className={`text-xs mt-0.5 ${overBudget ? 'text-red-500' : 'text-gray-400'}`}>
                         Budget: {fmtCurrency(r.lead.budget, r.lead.currency)}
                         {overBudget && ' ⚠ over'}
@@ -140,11 +149,13 @@ export default async function EstimatesPage() {
                         </span>
                       : '—'}
                   </td>
-                  <td className={`text-center px-3 py-3 font-medium ${overBudget ? 'text-red-600' : 'text-gray-800'}`}>
-                    {r.record?.totalPriceFinal
-                      ? fmtCurrency(r.record.totalPriceFinal, r.record.currency)
-                      : '—'}
-                  </td>
+                  {userRole && ['BD', 'Founder', 'Both'].includes(userRole) && (
+                    <td className={`text-center px-3 py-3 font-medium ${overBudget ? 'text-red-600' : 'text-gray-800'}`}>
+                      {r.record?.totalPriceFinal
+                        ? fmtCurrency(r.record.totalPriceFinal, r.record.currency)
+                        : '—'}
+                    </td>
+                  )}
                   <td className={`text-center px-3 py-3 text-xs font-medium capitalize ${RISK_COLORS[r.record?.overallRisk ?? ''] ?? 'text-gray-300'}`}>
                     {r.record?.overallRisk ?? '—'}
                   </td>
@@ -164,8 +175,8 @@ export default async function EstimatesPage() {
                       href={`/estimate/${r.leadId}`}
                       className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
                     >
-                      {r.status === 'revision' ? 'Revise →'
-                        : r.status === 'pending' || r.status === 'in_progress' ? 'Fill estimate →'
+                      {r.status === 'revision' ? (isDev ? 'Revise →' : 'View →')
+                        : r.status === 'pending' || r.status === 'in_progress' ? (isDev ? 'Fill estimate →' : 'View →')
                         : r.status === 'confirmed' ? 'Review →'
                         : 'View →'}
                     </Link>

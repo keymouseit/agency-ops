@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { notFound } from 'next/navigation'
 import ProjectActions from './ProjectActions'
+import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,12 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
+  const session = await auth()
+  const userRole = session?.user?.role
+  const userId = session?.user?.id
+  const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
+  const isDev = userRole === 'Dev'
+
   const [project, members] = await Promise.all([
     prisma.project.findUnique({
       where: { id: params.id },
@@ -26,6 +33,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   ])
 
   if (!project) notFound()
+
+  // Developers can only see their own projects
+  if (isDev && project.ownerId !== userId) notFound()
 
   const estAccuracy = project.actualHours && project.estimatedHours
     ? Math.round((project.actualHours / project.estimatedHours) * 100)
@@ -46,7 +56,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           <div className="flex gap-4 text-sm text-gray-500">
             <span>Owner: {project.owner.name}</span>
             {project.clientName && <span>Client: {project.clientName}</span>}
-            {project.contractValue && <span>Value: {fmtCurrency(project.contractValue, project.currency)}</span>}
+            {project.contractValue && isBD && <span>Value: {fmtCurrency(project.contractValue, project.currency)}</span>}
             {project.lead && <span>Source: {project.lead.source}</span>}
           </div>
         </div>
@@ -112,7 +122,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
                       </span>
                     </div>
                     <div className="text-gray-400 mt-0.5">
-                      {sc.hoursAdded ? `+${sc.hoursAdded}h` : ''} {sc.valueAdded ? `· +${fmtCurrency(sc.valueAdded)}` : ''} · {fmtDate(sc.createdAt)}
+                      {sc.hoursAdded ? `+${sc.hoursAdded}h` : ''} {sc.valueAdded && isBD ? `· +${fmtCurrency(sc.valueAdded)}` : ''} · {fmtDate(sc.createdAt)}
                     </div>
                   </div>
                 ))}

@@ -48,14 +48,19 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   // Set initial step based on role once session loads
   useEffect(() => {
     const userRole = session?.user?.role
-    const isDev = userRole && ['Dev'].includes(userRole)
+    const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
+    const isDev = userRole && ['Dev', 'Founder', 'Both'].includes(userRole)
 
     if (existing?.devConfirmedAt) {
       setStep('review')
-    } else if (existingRequest) {
+    } else if (existingRequest && isDev && !isBD) {
+      // Pure developers go to estimate tab
       setStep('estimate')
-    } else if (isDev) {
-      // Pure developers shouldn't see BD request tab, so if no request yet, show message
+    } else if (existingRequest) {
+      // BD users (or users with both roles) view the request tab
+      setStep('request')
+    } else if (isDev && !isBD) {
+      // Pure developers without a request see estimate tab with "no request yet" message
       setStep('estimate')
     } else {
       setStep('request')
@@ -159,7 +164,9 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
           <h1 className="text-2xl font-semibold text-gray-900">Estimation — {lead.clientName}</h1>
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
             <span>{lead.source}</span>
-            {lead.budget && <span>Client budget: ${lead.budget.toLocaleString()} {lead.currency}</span>}
+            {lead.budget && session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) && (
+              <span>Client budget: ${lead.budget.toLocaleString()} {lead.currency}</span>
+            )}
             <span>BD owner: {lead.owner.name}</span>
           </div>
           {lead.description && <p className="text-sm text-gray-600 mt-2 max-w-2xl">{lead.description}</p>}
@@ -189,8 +196,8 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
           // Hide BD Request tab from pure developers
           if (s === 'request' && !isBD) return null
 
-          // Hide Dev Estimate tab from BD until dev confirms
-          if (s === 'estimate' && !isDev && !existing?.devConfirmedAt) return null
+          // Hide Dev Estimate tab from BD users completely
+          if (s === 'estimate' && !isDev) return null
 
           // Hide Dev Estimate tab from developers after they confirm (until BD sends back for revision)
           if (s === 'estimate' && isDev && !isBD && existing?.devConfirmedAt) return null
@@ -219,11 +226,18 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                   <p><span className={`badge ${statusColors[existingRequest.status]}`}>{existingRequest.status}</span></p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-4">
-                <button className="btn-primary text-sm" onClick={() => setStep('estimate')}>
-                  {existing ? 'Edit estimate →' : 'Start estimate →'}
-                </button>
-              </div>
+              {session?.user?.role && ['Dev', 'Both', 'Founder'].includes(session.user.role) && (
+                <div className="flex gap-2 mt-4">
+                  <button className="btn-primary text-sm" onClick={() => setStep('estimate')}>
+                    {existing ? 'Edit estimate →' : 'Start estimate →'}
+                  </button>
+                </div>
+              )}
+              {session?.user?.role === 'BD' && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                  ✓ Estimation request sent to {existingRequest.assignee.name}. You'll be notified when they submit their estimate.
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={submitRequest} className="space-y-4">
@@ -308,7 +322,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
           </div>
 
           {/* Live totals bar */}
-          <div className={`card p-4 flex items-center gap-8 ${totalPrice > (lead.budget ?? Infinity) ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
+          <div className={`card p-4 flex items-center gap-8 ${session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) && totalPrice > (lead.budget ?? Infinity) ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Raw hours</div>
               <div className="text-2xl font-bold text-gray-900">{rawHours}h</div>
