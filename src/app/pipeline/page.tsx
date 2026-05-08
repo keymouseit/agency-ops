@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import Link from 'next/link'
 import AddLeadForm from './AddLeadForm'
+import { startOfDay, differenceInDays } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,8 @@ export default async function PipelinePage({ searchParams }: { searchParams: { s
     }),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
+
+  const today = startOfDay(new Date())
 
   const totalByStage = STAGES.reduce((acc, s) => {
     acc[s] = leads.filter(l => l.status === s).length
@@ -55,34 +58,46 @@ export default async function PipelinePage({ searchParams }: { searchParams: { s
               <th className="text-left px-4 py-3 font-medium">Owner</th>
               <th className="text-left px-4 py-3 font-medium">Budget</th>
               <th className="text-left px-4 py-3 font-medium">Status</th>
+              <th className="text-left px-4 py-3 font-medium">Last updated</th>
               <th className="text-left px-4 py-3 font-medium">Loss reason</th>
               <th className="text-left px-4 py-3 font-medium">Added</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {leads.map(l => (
-              <tr key={l.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900">{l.clientName}</td>
-                <td className="px-4 py-3 text-gray-600">{l.source}</td>
-                <td className="px-4 py-3 text-gray-600">{l.owner.name}</td>
-                <td className="px-4 py-3 text-gray-800">{fmtCurrency(l.budget, l.currency)}</td>
-                <td className="px-4 py-3">
-                  <span className={`badge ${STATUS_COLORS[l.status]}`}>{STAGE_LABELS[l.status]}</span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
-                  {l.lossAnalysis
-                    ? <span className="text-red-600 font-medium">{l.lossAnalysis.reason.replace(/_/g, ' ')}</span>
-                    : '—'}
-                </td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(l.createdAt)}</td>
-                <td className="px-4 py-3">
-                  <Link href={`/pipeline/${l.id}`} className="text-xs text-gray-400 hover:text-gray-700 underline">View</Link>
-                </td>
-              </tr>
-            ))}
+            {leads.map(l => {
+              const daysSince = differenceInDays(today, new Date(l.updatedAt))
+              const stale = daysSince >= 5 && ['new', 'proposal_sent', 'interview'].includes(l.status)
+              return (
+                <tr key={l.id} className={`hover:bg-gray-50 transition-colors ${stale ? 'bg-amber-50' : ''}`}>
+                  <td className="px-4 py-3 font-medium text-gray-900">{l.clientName}</td>
+                  <td className="px-4 py-3 text-gray-600">{l.source}</td>
+                  <td className="px-4 py-3 text-gray-600">{l.owner.name}</td>
+                  <td className="px-4 py-3 text-gray-800">{fmtCurrency(l.budget, l.currency)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`badge ${STATUS_COLORS[l.status]}`}>{STAGE_LABELS[l.status]}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {stale ? (
+                      <span className="text-xs text-amber-700 font-medium">No update in {daysSince}d</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">{fmtDate(l.updatedAt)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {l.lossAnalysis
+                      ? <span className="text-red-600 font-medium">{l.lossAnalysis.reason.replace(/_/g, ' ')}</span>
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(l.createdAt)}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/pipeline/${l.id}`} className="text-xs text-gray-400 hover:text-gray-700 underline">View</Link>
+                  </td>
+                </tr>
+              )
+            })}
             {leads.length === 0 && (
-              <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">No leads found. Add your first lead.</td></tr>
+              <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No leads found. Add your first lead.</td></tr>
             )}
           </tbody>
         </table>

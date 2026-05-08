@@ -29,6 +29,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   )
   const [requestLoading, setRequestLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   // Request form
   const [assignedTo, setAssignedTo] = useState(existingRequest?.assignee?.id ?? '')
@@ -122,7 +123,12 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   }
 
   async function saveEstimate(confirmNow: boolean) {
+    if (confirmNow && rawHours === 0) {
+      setSubmitAttempted(true)
+      return
+    }
     setSaveLoading(true)
+    setSubmitAttempted(false)
     const requestId = existingRequest?.id
     await fetch('/api/estimate/record', {
       method: existingRequest?.record ? 'PATCH' : 'POST',
@@ -142,8 +148,13 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
       }),
     })
     setSaveLoading(false)
-    router.refresh()
-    if (confirmNow) setStep('review')
+    if (confirmNow) {
+      router.refresh()
+      setStep('review')
+    } else {
+      // Redirect to estimates page after saving draft
+      router.push('/estimate')
+    }
   }
 
   const devMembers = members.filter(m => ['Dev','Both','Founder','QA'].includes(m.role))
@@ -445,13 +456,28 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
             </div>
           </div>
 
+          {/* Validation banner */}
+          {submitAttempted && rawHours === 0 && (
+            <div className="card p-4 bg-red-50 border-red-200">
+              <div className="flex items-center gap-2 text-red-800">
+                <span className="text-lg">⚠</span>
+                <div>
+                  <div className="text-sm font-semibold">Cannot submit estimate with 0 hours</div>
+                  <div className="text-xs text-red-700 mt-0.5">
+                    Please add estimated hours for at least one feature before confirming.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3">
             <button onClick={() => saveEstimate(false)} disabled={saveLoading || !estimatedById}
               className="btn-secondary">
               {saveLoading ? 'Saving...' : 'Save draft'}
             </button>
-            <button onClick={() => saveEstimate(true)} disabled={saveLoading || !estimatedById || rawHours === 0}
+            <button onClick={() => saveEstimate(true)} disabled={saveLoading || !estimatedById}
               className="btn-primary">
               {saveLoading ? 'Confirming...' : 'Confirm & submit to BD →'}
             </button>

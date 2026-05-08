@@ -176,8 +176,10 @@ export default async function EstimatesPage() {
                       className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
                     >
                       {r.status === 'revision' ? (isDev ? 'Revise →' : 'View →')
-                        : r.status === 'pending' || r.status === 'in_progress' ? (isDev ? 'Fill estimate →' : 'View →')
-                        : r.status === 'confirmed' ? 'Review →'
+                        : r.status === 'pending' ? (isDev ? 'Fill estimate →' : 'View →')
+                        : r.status === 'in_progress' ? (isDev ? 'Continue draft →' : 'View →')
+                        : r.status === 'confirmed' ? (isDev ? 'View →' : 'Review & Approve →')
+                        : r.status === 'approved' ? 'View →'
                         : 'View →'}
                     </Link>
                   </td>

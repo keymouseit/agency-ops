@@ -20,7 +20,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (!signOff) {
       return NextResponse.json(
-        { error: 'QA release sign-off is required before marking a project as delivered. Run a test cycle and submit sign-off first.' },
+        { error: 'QA release sign-off is required before marking a project as delivered.' },
         { status: 422 }
       )
     }

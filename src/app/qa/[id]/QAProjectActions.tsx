@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; status: string }
@@ -42,10 +43,12 @@ export default function QAProjectActions({
   issueMode?: boolean
 }) {
   const router = useRouter()
+  const { data: session } = useSession()
   const [view, setView] = useState<'cycle' | 'signoff' | 'issue' | null>(
     issueMode ? 'issue' : null
   )
   const [loading, setLoading] = useState(false)
+  const [cycleValidationError, setCycleValidationError] = useState('')
 
   // Test cycle form state
   const [cycleType, setCycleType] = useState('pre_release')
@@ -73,8 +76,43 @@ export default function QAProjectActions({
 
   const qaMembers = members.filter(m => ['QA', 'Both', 'Founder'].includes(m.role))
 
+  // Auto-assign logged-in user as conductedBy for test cycle
+  useEffect(() => {
+    if (session?.user?.id && !conductedById) {
+      const currentUser = members.find(m => m.id === session.user.id)
+      if (currentUser && ['QA', 'Both', 'Founder'].includes(currentUser.role)) {
+        setConductedById(session.user.id)
+      }
+    }
+  }, [session, members, conductedById])
+
+  // Auto-assign logged-in user as signedOffBy for sign-off
+  useEffect(() => {
+    if (session?.user?.id && !signedOffById) {
+      const currentUser = members.find(m => m.id === session.user.id)
+      if (currentUser && ['QA', 'Both', 'Founder'].includes(currentUser.role)) {
+        setSignedOffById(session.user.id)
+      }
+    }
+  }, [session, members, signedOffById])
+
   async function submitCycle(e: React.FormEvent) {
     e.preventDefault()
+
+    // Validate required fields
+    const errors: string[] = []
+    if (!conductedById) errors.push('Tested by is required')
+    if (!summary.trim()) errors.push('Test report summary is required')
+    if ((result === 'fail' || result === 'conditional') && !blockerNote.trim()) {
+      errors.push(result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required')
+    }
+
+    if (errors.length > 0) {
+      setCycleValidationError(errors.join('. '))
+      return
+    }
+
+    setCycleValidationError('')
     setLoading(true)
     await fetch(`/api/qa/${project.id}/cycle`, {
       method: 'POST',
@@ -159,6 +197,19 @@ export default function QAProjectActions({
       {view === 'cycle' && (
         <div className="card p-5 border-blue-100">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Log test cycle</h3>
+
+          {cycleValidationError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-2 text-red-800">
+                <span className="text-lg leading-none">⚠</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Required fields missing</div>
+                  <div className="text-xs text-red-700 mt-0.5">{cycleValidationError}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={submitCycle} className="space-y-4">
             {/* Cycle type */}
             <div>
@@ -175,20 +226,11 @@ export default function QAProjectActions({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Tested by *</label>
-                <select required className="input" value={conductedById} onChange={e => setConductedById(e.target.value)}>
-                  <option value="">Select...</option>
-                  {qaMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Environment</label>
-                <select className="input" value={environment} onChange={e => setEnvironment(e.target.value)}>
-                  {['local','staging','production'].map(e => <option key={e}>{e}</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="label">Environment</label>
+              <select className="input" value={environment} onChange={e => setEnvironment(e.target.value)}>
+                {['local','staging','production'].map(e => <option key={e}>{e}</option>)}
+              </select>
             </div>
 
             {/* What was tested */}
@@ -251,9 +293,9 @@ export default function QAProjectActions({
             )}
 
             <div className="flex gap-2">
-              <button type="submit" disabled={loading || !conductedById || !summary}
+              <button type="submit" disabled={loading}
                 className="btn-primary">{loading ? 'Saving...' : 'Save test cycle'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setView(null); setCycleValidationError('') }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -268,14 +310,6 @@ export default function QAProjectActions({
             You are putting your name on this.
           </p>
           <form onSubmit={submitSignOff} className="space-y-4">
-            <div>
-              <label className="label">Signed off by *</label>
-              <select required className="input" value={signedOffById} onChange={e => setSignedOffById(e.target.value)}>
-                <option value="">Select...</option>
-                {qaMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-
             <div>
               <label className="label">Pre-release checklist</label>
               <div className="space-y-2 mt-1">

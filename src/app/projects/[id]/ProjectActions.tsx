@@ -34,6 +34,7 @@ export default function ProjectActions({ project, members }: { project: Project;
   }
 
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
+  const canAddPostMortem = ['qa', 'delivered'].includes(project.status)
 
   return (
     <div className="space-y-3">
@@ -41,7 +42,7 @@ export default function ProjectActions({ project, members }: { project: Project;
         {isActive && <button className="btn-secondary text-xs" onClick={() => setView('checkin')}>+ Weekly check-in</button>}
         {isActive && <button className="btn-secondary text-xs" onClick={() => setView('scope')}>+ Scope change</button>}
         {isActive && <button className="btn-secondary text-xs" onClick={() => setView('milestone')}>+ Milestone</button>}
-        {!project.postMortem && <button className="btn-secondary text-xs" onClick={() => setView('postmortem')}>+ Post-mortem</button>}
+        {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => setView('postmortem')}>+ Post-mortem</button>}
         <button className="btn-secondary text-xs" onClick={() => setView('status')}>Update status</button>
       </div>
 

@@ -5,6 +5,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const deny = await checkRole(['Dev', 'Both', 'Founder'])
   if (deny) return deny
 
+  // Check project status - post-mortem only allowed for QA or Delivered projects
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { status: true },
+  })
+
+  if (!project) {
+    return NextResponse.json({ error: 'Project not found.' }, { status: 404 })
+  }
+
+  if (project.status !== 'qa' && project.status !== 'delivered') {
+    return NextResponse.json(
+      { error: 'Post-mortem can only be added for projects in QA or Delivered stage.' },
+      { status: 422 }
+    )
+  }
+
   const data = await req.json()
   const pm = await prisma.postMortem.upsert({
     where: { projectId: params.id },
