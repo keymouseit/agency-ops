@@ -76,6 +76,46 @@ export default async function QAProjectPage({ params }: { params: { id: string }
         </div>
       </div>
 
+      {/* QA Handoff Information */}
+      {project.qaModulesDelivered && (
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+          <div className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
+            📋 QA Handoff Information
+            {project.qaHandoffAt && (
+              <span className="text-xs text-purple-600 font-normal">
+                · Handed off on {fmtDate(project.qaHandoffAt)}
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="text-xs text-purple-700 font-medium mb-1">Modules/Features Delivered:</div>
+              <p className="text-sm text-purple-900">{project.qaModulesDelivered}</p>
+            </div>
+            {project.qaSuggestedTestType && (
+              <div>
+                <div className="text-xs text-purple-700 font-medium mb-1">Suggested Test Type:</div>
+                <span className="inline-block text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded capitalize">
+                  {project.qaSuggestedTestType}
+                </span>
+              </div>
+            )}
+            {project.qaTestingNotes && (
+              <div>
+                <div className="text-xs text-purple-700 font-medium mb-1">Testing Notes:</div>
+                <p className="text-sm text-purple-900 whitespace-pre-wrap">{project.qaTestingNotes}</p>
+              </div>
+            )}
+            {project.qaAreasChanged && (
+              <div>
+                <div className="text-xs text-purple-700 font-medium mb-1">Areas Changed:</div>
+                <p className="text-sm text-purple-900 whitespace-pre-wrap font-mono text-xs">{project.qaAreasChanged}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Sign-off status banner */}
       {hasSignOff ? (
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">

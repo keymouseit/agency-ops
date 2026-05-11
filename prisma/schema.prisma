@@ -110,6 +110,14 @@ model Project {
   clientName     String?
   clientScore    Int?
   onTime         Boolean?
+
+  // QA Handoff - captured when project moves to QA status
+  qaModulesDelivered  String?   // modules/features completed for QA testing
+  qaSuggestedTestType String?   // "sanity" | "regression" | "specific" | "full"
+  qaTestingNotes      String?   // instructions for QA team
+  qaAreasChanged      String?   // files/components modified
+  qaHandoffAt         DateTime? // when project was moved to QA
+
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -428,6 +436,7 @@ model EstimationRequest {
 
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  submittedAt  DateTime?  // when dev submitted/confirmed the estimate
 
   record       EstimationRecord?
 }

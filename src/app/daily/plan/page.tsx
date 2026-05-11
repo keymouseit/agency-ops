@@ -84,7 +84,11 @@ export default async function MorningPlanPage() {
           {member.name.split(' ')[0]}, your morning plan for today is already in.
         </p>
         <div className="flex gap-3 justify-center">
-          <Link href={`/daily/eod?logId=${todayLog?.id}`} className="btn-secondary text-sm">Submit EOD →</Link>
+          {todayLog?.id ? (
+            <Link href={`/daily/eod?logId=${todayLog.id}`} className="btn-secondary text-sm">Submit EOD →</Link>
+          ) : (
+            <Link href="/daily/eod" className="btn-secondary text-sm">Submit EOD →</Link>
+          )}
           <Link href="/me" className="btn-primary text-sm">Back to My Day →</Link>
         </div>
       </div>

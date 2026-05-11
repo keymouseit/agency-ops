@@ -9,15 +9,16 @@ const ALL_LINKS = [
   { href: '/me',           label: 'My Day',      roles: ['BD','Dev','QA','Both'] },
   { href: '/',             label: 'Dashboard',   roles: ['Founder'] },
   { href: '/intelligence', label: '⚡ Intel',     roles: ['Founder'] },
-  { href: '/pipeline',     label: 'BD Pipeline', roles: ['Founder','BD','Both'] },
-  { href: '/estimate',     label: 'Estimates',   roles: ['Founder','BD','Both','Dev'] },
-  { href: '/projects',     label: 'Projects',    roles: ['Founder','Dev','Both'] },
+  { href: '/pipeline',     label: 'BD Pipeline', roles: ['Founder','BD','Both','Manager'] },
+  { href: '/estimate',     label: 'Estimates',   roles: ['Founder','BD','Both','Dev','Manager'] },
+  { href: '/projects',     label: 'Projects',    roles: ['Founder','Dev','Both','Manager'] },
   { href: '/qa',           label: 'QA',          roles: ['Founder','QA'] },
   { href: '/team',         label: 'Team Scores', roles: ['Founder'] },
   { href: '/checkin',      label: 'Check-In',    roles: ['Founder','BD','Dev','QA','Both'] },
   { href: '/daily',        label: 'Daily',       roles: ['Founder','BD','Dev','QA','Both'] },
   { href: '/analytics',    label: 'Analytics',   roles: ['Founder'] },
   { href: '/goals',        label: 'Goals',       roles: ['Founder'] },
+  { href: '/settings',     label: '⚙ Settings',  roles: ['Founder','Manager'] },
 ]
 
 const ROLE_COLORS: Record<string, string> = {

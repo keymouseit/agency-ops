@@ -138,6 +138,11 @@ export default async function QAPage() {
                       {p.name}
                     </Link>
                     <span className={`badge text-xs ${statusLine.cls}`}>{statusLine.label}</span>
+                    {p.qaSuggestedTestType && (
+                      <span className="badge text-xs bg-purple-100 text-purple-700 capitalize">
+                        {p.qaSuggestedTestType} test
+                      </span>
+                    )}
                     {latestCycle?.result === 'fail' && latestCycle.blockerNote && (
                       <span className="text-xs text-red-700 font-medium">
                         Blocked: {latestCycle.blockerNote.slice(0, 60)}{latestCycle.blockerNote.length > 60 ? '…' : ''}

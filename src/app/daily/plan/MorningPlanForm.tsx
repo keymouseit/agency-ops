@@ -41,17 +41,34 @@ export default function MorningPlanForm({
     e.preventDefault()
     if (!canSubmit) return
     setLoading(true)
-    const res = await fetch('/api/daily/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // memberId comes from the session on the server — but the API still needs it
-      // We pass it here for the existing API contract; the server validates via auth
-      body: JSON.stringify({ memberId: member.id, planNotes, tasks }),
-    })
-    const data = await res.json()
-    setLogId(data.id)
-    setLoading(false)
-    setDone(true)
+
+    try {
+      const res = await fetch('/api/daily/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // memberId comes from the session on the server — but the API still needs it
+        // We pass it here for the existing API contract; the server validates via auth
+        body: JSON.stringify({ memberId: member.id, planNotes, tasks }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to submit plan')
+      }
+
+      const data = await res.json()
+
+      if (!data.id) {
+        throw new Error('No log ID returned from server')
+      }
+
+      setLogId(data.id)
+      setLoading(false)
+      setDone(true)
+    } catch (error) {
+      setLoading(false)
+      alert('Failed to submit plan. Please try again.')
+      console.error('Plan submission error:', error)
+    }
   }
 
   if (done) return (

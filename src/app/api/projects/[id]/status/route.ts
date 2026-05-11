@@ -1,13 +1,23 @@
 import { notify } from '@/lib/notify'
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { checkRole, getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['Dev', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager'])
   if (deny) return deny
 
-  const { status } = await req.json()
+  const { status, qaHandoff } = await req.json()
+  const session = await getSession()
+  const userRole = session?.user?.role
+
+  // Developers cannot set project to 'cancelled' (only Founder/Manager can)
+  if (status === 'cancelled' && userRole && ['Dev'].includes(userRole)) {
+    return NextResponse.json(
+      { error: 'Only Founder or Manager can cancel projects. Please contact your manager.' },
+      { status: 403 }
+    )
+  }
 
   // Hard gate: cannot mark delivered without QA sign-off and signed COs
   if (status === 'delivered') {
@@ -37,14 +47,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     data: {
       status,
       ...(status === 'delivered' && { actualEnd: new Date() }),
+      ...(status === 'qa' && qaHandoff && {
+        qaModulesDelivered: qaHandoff.modulesDelivered,
+        qaSuggestedTestType: qaHandoff.suggestedTestType,
+        qaTestingNotes: qaHandoff.testingNotes,
+        qaAreasChanged: qaHandoff.areasChanged,
+        qaHandoffAt: new Date(),
+      }),
     },
   })
+
   // Notify QA team when project moves to QA stage
   if (status === 'qa') {
     const qaMembers = await prisma.teamMember.findMany({ where: { role: { in: ['QA', 'Both'] }, active: true }, select: { id: true } })
     if (qaMembers.length) {
+      const handoffSummary = qaHandoff?.modulesDelivered
+        ? ` — ${qaHandoff.modulesDelivered.slice(0, 60)}${qaHandoff.modulesDelivered.length > 60 ? '...' : ''}`
+        : ''
       await notify('project_in_qa', qaMembers.map(m => m.id),
-        `${p.name} has moved to QA — testing needed before release`,
+        `${p.name} has moved to QA${handoffSummary}`,
         `/qa/${p.id}`)
     }
   }

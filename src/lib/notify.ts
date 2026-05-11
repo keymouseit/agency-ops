@@ -6,6 +6,7 @@ type NotificationType =
   | 'estimate_revision'
   | 'estimate_approved'
   | 'blocker_escalated'
+  | 'project_assigned'
   | 'project_in_qa'
   | 'test_cycle_fail'
   | 'test_cycle_pass'

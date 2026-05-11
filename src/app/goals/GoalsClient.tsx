@@ -21,22 +21,36 @@ const CAT_COLORS: Record<string,string> = {
 export default function GoalsClient({ members, goals }: { members: Member[]; goals: Goal[] }) {
   const [showNew, setShowNew] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [filterMember, setFilterMember] = useState('')
   const [filterQuarter, setFilterQuarter] = useState('')
   const router = useRouter()
 
   async function createGoal(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    await fetch('/api/goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(fd)),
-    })
-    setLoading(false)
-    setShowNew(false)
-    router.refresh()
+
+    try {
+      const fd = new FormData(e.currentTarget)
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(fd)),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Failed to create goal' }))
+        throw new Error(errData.error || 'Failed to create goal')
+      }
+
+      setLoading(false)
+      setShowNew(false)
+      router.refresh()
+    } catch (err) {
+      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to create goal. Please try again.')
+    }
   }
 
   async function updateProgress(goalId: string, progressPct: number) {
@@ -95,6 +109,20 @@ export default function GoalsClient({ members, goals }: { members: Member[]; goa
       {showNew && (
         <div className="card p-6 mb-6 bg-blue-50 border-blue-100">
           <h2 className="text-sm font-semibold text-blue-900 mb-4">Set a new goal</h2>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-2 text-red-800">
+                <span className="text-lg">⚠</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Failed to create goal</div>
+                  <div className="text-xs text-red-700 mt-0.5">{error}</div>
+                </div>
+                <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">✕</button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={createGoal} className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <div>

@@ -42,10 +42,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         `QA: ${project.name} is blocked — ${(data.blockerNote ?? 'see test report').slice(0, 80)}`,
         `/qa/${params.id}`)
     } else if (data.result === 'pass' || data.result === 'conditional') {
+      const label = data.result === 'conditional' ? 'conditional pass' : 'pass'
+
+      // Notify the dev project owner: their project passed QA
+      await notify('test_cycle_pass', [project.ownerId],
+        `QA: ${project.name} test cycle ${label} — great work!`,
+        `/qa/${params.id}`)
+
       // Notify QA team: project ready for sign-off
       const qaMembers = await prisma.teamMember.findMany({ where: { role: { in: ['QA','Both'] }, active: true }, select: { id: true } })
       if (qaMembers.length) {
-        const label = data.result === 'conditional' ? 'conditional pass' : 'pass'
         await notify('test_cycle_pass', qaMembers.map(m => m.id),
           `${project.name} test cycle: ${label} — ready for sign-off`,
           `/qa/${params.id}`)

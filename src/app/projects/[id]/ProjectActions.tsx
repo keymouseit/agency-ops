@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 type Member = { id: string; name: string }
 type Project = { id: string; status: string; postMortem: unknown }
 
-export default function ProjectActions({ project, members }: { project: Project; members: Member[] }) {
+export default function ProjectActions({ project, members, userRole }: { project: Project; members: Member[]; userRole?: string }) {
   const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|null>(null)
   const [loading, setLoading] = useState(false)
   const [statusError, setStatusError] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState(project.status)
   const router = useRouter()
 
   async function submitForm(e: React.FormEvent<HTMLFormElement>, url: string) {
@@ -16,7 +17,21 @@ export default function ProjectActions({ project, members }: { project: Project;
     setLoading(true)
     setStatusError('')
     const fd = new FormData(e.currentTarget)
-    const data = Object.fromEntries(fd)
+    let data: any = Object.fromEntries(fd)
+
+    // If changing to QA status, structure the QA handoff data
+    if (url.includes('/status') && data.status === 'qa') {
+      data = {
+        status: data.status,
+        qaHandoff: {
+          modulesDelivered: data.qaModulesDelivered || '',
+          suggestedTestType: data.qaSuggestedTestType || '',
+          testingNotes: data.qaTestingNotes || '',
+          areasChanged: data.qaAreasChanged || '',
+        }
+      }
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,6 +45,7 @@ export default function ProjectActions({ project, members }: { project: Project;
     }
     setLoading(false)
     setView(null)
+    setSelectedStatus(project.status)
     router.refresh()
   }
 
@@ -229,14 +245,81 @@ export default function ProjectActions({ project, members }: { project: Project;
               ⛔ {statusError}
             </div>
           )}
-          <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/status`)} className="flex gap-2">
-            <select name="status" defaultValue={project.status} className="input flex-1">
-              {['scoping','active','qa','delivered','cancelled'].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Update'}</button>
-            <button type="button" className="btn-secondary" onClick={() => { setView(null); setStatusError('') }}>Cancel</button>
+          <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/status`)} className="space-y-3">
+            <div className="flex gap-2">
+              <select
+                name="status"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="input flex-1"
+              >
+                {['scoping','active','qa','delivered','cancelled']
+                  .filter(s => {
+                    // Devs cannot set project to cancelled or delivered manually
+                    if (userRole === 'Dev' && (s === 'cancelled' || s === 'delivered')) return false
+                    return true
+                  })
+                  .map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+              </select>
+            </div>
+            {userRole === 'Dev' && (
+              <p className="text-xs text-gray-500">
+                Note: Projects move to 'delivered' automatically after QA sign-off. Contact manager to cancel a project.
+              </p>
+            )}
+
+            {selectedStatus === 'qa' && (
+              <div className="space-y-3 p-4 bg-purple-50 border border-purple-100 rounded-lg">
+                <p className="text-xs text-purple-900 font-medium mb-2">
+                  📋 QA Handoff — Help QA understand what to test
+                </p>
+                <div>
+                  <label className="label">Modules/Features delivered *</label>
+                  <textarea
+                    name="qaModulesDelivered"
+                    rows={2}
+                    required
+                    className="input"
+                    placeholder="e.g., User authentication, Payment integration, Admin dashboard"
+                  />
+                </div>
+                <div>
+                  <label className="label">Suggested test type *</label>
+                  <select name="qaSuggestedTestType" required className="input">
+                    <option value="">— Select —</option>
+                    <option value="sanity">Sanity (quick smoke test)</option>
+                    <option value="regression">Full regression</option>
+                    <option value="specific">Specific module testing</option>
+                    <option value="full">Full comprehensive test</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Testing notes/instructions</label>
+                  <textarea
+                    name="qaTestingNotes"
+                    rows={2}
+                    className="input"
+                    placeholder="Edge cases to check, special scenarios, login credentials, etc."
+                  />
+                </div>
+                <div>
+                  <label className="label">Areas changed (files/components)</label>
+                  <textarea
+                    name="qaAreasChanged"
+                    rows={2}
+                    className="input"
+                    placeholder="e.g., src/auth/*, components/payment/*, api/users/*"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Update'}</button>
+              <button type="button" className="btn-secondary" onClick={() => { setView(null); setStatusError(''); setSelectedStatus(project.status) }}>Cancel</button>
+            </div>
           </form>
         </div>
       )}

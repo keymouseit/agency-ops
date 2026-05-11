@@ -4,7 +4,7 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(_req: Request, { params }: { params: { recordId: string } }) {
-  const deny = await checkRole(['BD', 'Both', 'Founder'])
+  const deny = await checkRole(['BD', 'Both', 'Founder', 'Manager'])
   if (deny) return deny
 
   const record = await prisma.estimationRecord.update({

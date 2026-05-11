@@ -6,7 +6,7 @@ export const LOSS_REASONS = [
 ] as const
 export const FAULT_AREAS = ['BD', 'Estimation', 'Communication', 'Proposal_Quality', 'External'] as const
 export const PROJECT_STATUSES = ['scoping', 'active', 'qa', 'delivered', 'cancelled'] as const
-export const ROLES = ['BD', 'Dev', 'Both', 'Founder'] as const
+export const ROLES = ['BD', 'Dev', 'Both', 'Founder', 'Manager', 'QA'] as const
 
 export const STATUS_COLORS: Record<string, string> = {
   new: 'bg-blue-100 text-blue-800',
@@ -49,4 +49,11 @@ export function fmtCurrency(v: number | null, currency = 'USD') {
 export function fmtDate(d: Date | string | null) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export function fmtDateTime(d: Date | string | null) {
+  if (!d) return '—'
+  const date = new Date(d)
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }

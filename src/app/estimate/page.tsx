@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { fmtDate, fmtCurrency } from '@/lib/utils'
+import { fmtDate, fmtDateTime, fmtCurrency } from '@/lib/utils'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -163,10 +163,19 @@ export default async function EstimatesPage() {
                     {r.record ? `${r.record.lines.length} lines` : '—'}
                   </td>
                   <td className="text-center px-3 py-3 text-gray-400 text-xs">
-                    {fmtDate(r.createdAt)}
+                    <div>Requested: {fmtDate(r.createdAt)}</div>
+                    {r.submittedAt && (
+                      <div className="text-xs mt-0.5 text-green-600">
+                        Submitted: {fmtDateTime(r.submittedAt)}
+                      </div>
+                    )}
                     {r.dueBy && (
-                      <div className={`text-xs mt-0.5 ${new Date(r.dueBy) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                        Due: {fmtDate(r.dueBy)}
+                      <div className={`text-xs mt-0.5 ${
+                        new Date(r.dueBy) < new Date() && ['pending', 'in_progress', 'revision'].includes(r.status)
+                          ? 'text-red-500'
+                          : 'text-gray-400'
+                      }`}>
+                        Due: {fmtDateTime(r.dueBy)}
                       </div>
                     )}
                   </td>

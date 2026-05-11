@@ -49,6 +49,7 @@ export default function QAProjectActions({
   )
   const [loading, setLoading] = useState(false)
   const [cycleValidationError, setCycleValidationError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Test cycle form state
   const [cycleType, setCycleType] = useState('pre_release')
@@ -101,18 +102,30 @@ export default function QAProjectActions({
 
     // Validate required fields
     const errors: string[] = []
-    if (!conductedById) errors.push('Tested by is required')
-    if (!summary.trim()) errors.push('Test report summary is required')
+    const newFieldErrors: Record<string, string> = {}
+
+    if (!conductedById) {
+      errors.push('Tested by is required')
+      newFieldErrors.conductedById = 'Please select who conducted this test'
+    }
+    if (!summary.trim()) {
+      errors.push('Test report summary is required')
+      newFieldErrors.summary = 'Please provide a test summary describing what was tested'
+    }
     if ((result === 'fail' || result === 'conditional') && !blockerNote.trim()) {
-      errors.push(result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required')
+      const msg = result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required'
+      errors.push(msg)
+      newFieldErrors.blockerNote = msg
     }
 
     if (errors.length > 0) {
       setCycleValidationError(errors.join('. '))
+      setFieldErrors(newFieldErrors)
       return
     }
 
     setCycleValidationError('')
+    setFieldErrors({})
     setLoading(true)
     await fetch(`/api/qa/${project.id}/cycle`, {
       method: 'POST',
@@ -270,17 +283,49 @@ export default function QAProjectActions({
                 Test report summary *
                 <span className="text-gray-400 font-normal ml-1">— what you tested, what passed, what's the state</span>
               </label>
-              <textarea required rows={4} className="input" value={summary} onChange={e => setSummary(e.target.value)}
-                placeholder="e.g. Tested all core flows on staging. Auth, booking, and dashboard all working correctly. Payment integration passing. One edge case on mobile Safari noted as conditional — client is aware. Regression against v1.2 features: all passing." />
+              <textarea
+                rows={4}
+                className={`input ${fieldErrors.summary ? 'border-red-300 bg-red-50' : ''}`}
+                value={summary}
+                onChange={e => {
+                  setSummary(e.target.value)
+                  if (fieldErrors.summary) {
+                    setFieldErrors(prev => ({ ...prev, summary: '' }))
+                  }
+                }}
+                placeholder="e.g. Tested all core flows on staging. Auth, booking, and dashboard all working correctly. Payment integration passing. One edge case on mobile Safari noted as conditional — client is aware. Regression against v1.2 features: all passing."
+              />
+              {fieldErrors.summary && (
+                <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                  <span>⚠</span>
+                  <span>{fieldErrors.summary}</span>
+                </div>
+              )}
             </div>
 
             {(result === 'fail' || result === 'conditional') && (
               <div>
                 <label className={`label ${result === 'fail' ? 'text-red-600' : 'text-amber-700'}`}>
-                  {result === 'fail' ? 'What is blocking release? *' : 'What is the conditional issue?'}
+                  {result === 'fail' ? 'What is blocking release? *' : 'What is the conditional issue? *'}
                 </label>
-                <textarea required={result === 'fail'} rows={2} className="input" value={blockerNote} onChange={e => setBlockerNote(e.target.value)}
-                  placeholder={result === 'fail' ? 'Be specific — what exactly is broken and why it cannot go to client yet' : 'Describe the issue and why client can accept it as-is'} />
+                <textarea
+                  rows={2}
+                  className={`input ${fieldErrors.blockerNote ? 'border-red-300 bg-red-50' : ''}`}
+                  value={blockerNote}
+                  onChange={e => {
+                    setBlockerNote(e.target.value)
+                    if (fieldErrors.blockerNote) {
+                      setFieldErrors(prev => ({ ...prev, blockerNote: '' }))
+                    }
+                  }}
+                  placeholder={result === 'fail' ? 'Be specific — what exactly is broken and why it cannot go to client yet' : 'Describe the issue and why client can accept it as-is'}
+                />
+                {fieldErrors.blockerNote && (
+                  <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <span>⚠</span>
+                    <span>{fieldErrors.blockerNote}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -295,7 +340,7 @@ export default function QAProjectActions({
             <div className="flex gap-2">
               <button type="submit" disabled={loading}
                 className="btn-primary">{loading ? 'Saving...' : 'Save test cycle'}</button>
-              <button type="button" className="btn-secondary" onClick={() => { setView(null); setCycleValidationError('') }}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setView(null); setCycleValidationError(''); setFieldErrors({}) }}>Cancel</button>
             </div>
           </form>
         </div>

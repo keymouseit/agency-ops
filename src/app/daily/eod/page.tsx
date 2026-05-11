@@ -15,8 +15,8 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
   const today     = startOfDay(new Date())
   const yesterday = startOfDay(subDays(today, 1))
 
-  // If logId provided, use it directly (e.g. link from /me yesterday's EOD)
-  if (searchParams.logId) {
+  // If logId provided and valid, use it directly (e.g. link from /me yesterday's EOD)
+  if (searchParams.logId && searchParams.logId !== 'undefined' && searchParams.logId !== '') {
     const log = await prisma.dailyLog.findUnique({
       where: { id: searchParams.logId },
       include: {

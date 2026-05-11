@@ -16,7 +16,10 @@ export async function POST(req: Request) {
   // Update request status
   await prisma.estimationRequest.update({
     where: { id: data.requestId },
-    data: { status: data.confirm ? 'confirmed' : 'in_progress' },
+    data: {
+      status: data.confirm ? 'confirmed' : 'in_progress',
+      submittedAt: data.confirm ? new Date() : null,
+    },
   })
 
   const record = await prisma.estimationRecord.create({
@@ -128,7 +131,10 @@ export async function PATCH(req: Request) {
 
   await prisma.estimationRequest.update({
     where: { id: data.requestId },
-    data: { status: data.confirm ? 'confirmed' : 'in_progress' },
+    data: {
+      status: data.confirm ? 'confirmed' : 'in_progress',
+      submittedAt: data.confirm ? new Date() : null,
+    },
   })
 
   // Notify BD requester when dev confirms

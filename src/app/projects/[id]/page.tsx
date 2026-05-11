@@ -167,7 +167,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         </div>
       )}
 
-      <ProjectActions project={project} members={members} />
+      <ProjectActions project={project} members={members} userRole={userRole} />
     </div>
   )
 }

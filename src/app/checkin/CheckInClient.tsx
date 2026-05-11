@@ -17,6 +17,7 @@ export default function CheckInClient({ members, projects }: { members: Member[]
   const [memberId, setMemberId] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
 
   // Auto-set memberId from session
@@ -31,36 +32,60 @@ export default function CheckInClient({ members, projects }: { members: Member[]
 
   async function submitProject(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    const projectId = fd.get('projectId') as string
-    if (projectId) {
-      await fetch(`/api/projects/${projectId}/checkin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ...Object.fromEntries(fd), submittedById: memberId }),
-      })
+
+    try {
+      const fd = new FormData(e.currentTarget)
+      const projectId = fd.get('projectId') as string
+      if (projectId) {
+        const res = await fetch(`/api/projects/${projectId}/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...Object.fromEntries(fd), submittedById: memberId }),
+        })
+
+        if (!res.ok) {
+          throw new Error('Failed to submit project status')
+        }
+      }
+      setLoading(false)
+      setStep('self')
+    } catch (err) {
+      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
     }
-    setLoading(false)
-    setStep('self')
   }
 
   async function submitSelf(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    const data: Record<string, unknown> = Object.fromEntries(fd)
-    DIMS.forEach(d => { data[d] = scores[d] ?? 5 })
-    data.memberId = memberId
-    await fetch('/api/scores', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(data),
-    })
-    setLoading(false)
-    setStep('done')
+
+    try {
+      const fd = new FormData(e.currentTarget)
+      const data: Record<string, unknown> = Object.fromEntries(fd)
+      DIMS.forEach(d => { data[d] = scores[d] ?? 5 })
+      data.memberId = memberId
+
+      const res = await fetch('/api/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to submit check-in')
+      }
+
+      setLoading(false)
+      setStep('done')
+    } catch (err) {
+      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
+    }
   }
 
   if (step === 'done') {
@@ -89,6 +114,26 @@ export default function CheckInClient({ members, projects }: { members: Member[]
       <h1 className="text-2xl font-semibold text-gray-900 mb-1">Weekly check-in</h1>
       <p className="text-sm text-gray-500 mb-2">Every Monday before 10am. Takes 3 minutes.</p>
       <p className="text-xs text-gray-400 mb-8">Submitting as: <strong>{member.name}</strong></p>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <span className="text-xl text-red-600">⚠</span>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-900 mb-1">Submission failed</h3>
+              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-xs text-red-600 mt-2">Please check your connection and try again.</p>
+            </div>
+            <button
+              onClick={() => setError('')}
+              className="text-red-400 hover:text-red-600 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="flex gap-2 mb-8">
