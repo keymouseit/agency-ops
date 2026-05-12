@@ -33,6 +33,7 @@ model TeamMember {
   testCycles             TestCycle[]
   releaseSignOffs        ReleaseSignOff[]
   notifications          Notification[]
+  notificationPreference NotificationPreference?
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -649,4 +650,28 @@ model Notification {
 
   @@index([memberId, read])
   @@index([memberId, createdAt])
+}
+
+// ─── NOTIFICATION PREFERENCES ────────────────────────────────────
+// User-level preferences for which notifications they want to receive
+
+model NotificationPreference {
+  id                      String      @id @default(cuid())
+  memberId                String      @unique
+  member                  TeamMember  @relation(fields: [memberId], references: [id])
+
+  // Notification types
+  projectAssigned         Boolean     @default(true)
+  estimateRequested       Boolean     @default(true)
+  estimateNeedsReview     Boolean     @default(true)
+  qaTestFailed            Boolean     @default(true)
+  qaTestPassed            Boolean     @default(true)
+  releaseSignedOff        Boolean     @default(true)
+  deadlineApproaching     Boolean     @default(true)
+  missingEOD              Boolean     @default(true)
+  missingMorningPlan      Boolean     @default(true)
+  weeklyCheckInDue        Boolean     @default(true)
+
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 }
