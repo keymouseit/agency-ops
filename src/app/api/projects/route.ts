@@ -1,6 +1,6 @@
 import { notify } from '@/lib/notify'
 import { NextResponse } from 'next/server'
-import { checkRole, getSession } from '@/lib/auth'
+import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(req: Request) {
@@ -8,8 +8,16 @@ export async function POST(req: Request) {
   if (deny) return deny
 
   const data = await req.json()
-  const session = await getSession()
+  const session = await auth()
   const creatorId = session?.user?.id
+
+  // Validate estimated hours
+  if (data.estimatedHours && parseFloat(data.estimatedHours) <= 0) {
+    return NextResponse.json(
+      { error: 'Estimated hours must be greater than 0' },
+      { status: 400 }
+    )
+  }
 
   const project = await prisma.project.create({
     data: {

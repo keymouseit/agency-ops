@@ -10,6 +10,15 @@ export async function POST(req: Request) {
   const data = await req.json()
 
   const rawHours = data.lines.reduce((s: number, l: { estimatedHours: number }) => s + (Number(l.estimatedHours) || 0), 0)
+
+  // Validate hours when confirming
+  if (data.confirm && rawHours <= 0) {
+    return NextResponse.json(
+      { error: 'Cannot submit estimate with 0 hours. Please add estimated hours to at least one task.' },
+      { status: 400 }
+    )
+  }
+
   const bufferedHours = Math.ceil(rawHours * (1 + (data.bufferPct || 20) / 100))
   const totalPrice = bufferedHours * (data.ratePerHour || 25)
 
@@ -82,6 +91,15 @@ export async function PATCH(req: Request) {
   const data = await req.json()
 
   const rawHours = data.lines.reduce((s: number, l: { estimatedHours: number }) => s + (Number(l.estimatedHours) || 0), 0)
+
+  // Validate hours when confirming
+  if (data.confirm && rawHours <= 0) {
+    return NextResponse.json(
+      { error: 'Cannot submit estimate with 0 hours. Please add estimated hours to at least one task.' },
+      { status: 400 }
+    )
+  }
+
   const bufferedHours = Math.ceil(rawHours * (1 + (data.bufferPct || 20) / 100))
   const totalPrice = bufferedHours * (data.ratePerHour || 25)
 

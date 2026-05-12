@@ -8,20 +8,44 @@ type WonLead = { id: string; clientName: string }
 export default function AddProjectForm({ members, wonLeads }: { members: Member[]; wonLeads: WonLead[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(fd)),
-    })
-    setLoading(false)
-    setOpen(false)
-    router.refresh()
+    setError('')
+
+    try {
+      const fd = new FormData(e.currentTarget)
+      const data = Object.fromEntries(fd)
+
+      // Validate estimated hours > 0
+      const estimatedHours = parseFloat(data.estimatedHours as string)
+      if (estimatedHours <= 0) {
+        setError('Estimated hours must be greater than 0')
+        setLoading(false)
+        return
+      }
+
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Failed to create project' }))
+        throw new Error(errData.error || 'Failed to create project')
+      }
+
+      setLoading(false)
+      setOpen(false)
+      router.refresh()
+    } catch (err) {
+      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to create project. Please try again.')
+    }
   }
 
   return (
@@ -31,6 +55,20 @@ export default function AddProjectForm({ members, wonLeads }: { members: Member[
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">New project</h2>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-2 text-red-800">
+                  <span className="text-lg">⚠</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold">Failed to create project</div>
+                    <div className="text-xs text-red-700 mt-0.5">{error}</div>
+                  </div>
+                  <button type="button" onClick={() => setError('')} className="text-red-400 hover:text-red-600">✕</button>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={submit} className="space-y-3">
               <div>
                 <label className="label">Project name *</label>
