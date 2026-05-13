@@ -19,8 +19,20 @@ export default function ProjectActions({ project, members, userRole }: { project
     const fd = new FormData(e.currentTarget)
     let data: any = Object.fromEntries(fd)
 
-    // If changing to QA status, structure the QA handoff data
+    // If changing to QA status, validate and structure the QA handoff data
     if (url.includes('/status') && data.status === 'qa') {
+      // Validate required QA handoff fields
+      if (!data.qaModulesDelivered || !data.qaModulesDelivered.trim()) {
+        setStatusError('QA Handoff: "Modules/Features delivered" is required')
+        setLoading(false)
+        return
+      }
+      if (!data.qaSuggestedTestType) {
+        setStatusError('QA Handoff: "Suggested test type" is required')
+        setLoading(false)
+        return
+      }
+
       data = {
         status: data.status,
         qaHandoff: {

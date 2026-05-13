@@ -678,7 +678,7 @@ export default async function IntelligencePage() {
                     </td>
                     <td className="text-center px-3 py-2.5">
                       {burnPct == null ? <span className="text-gray-300 text-xs">No data</span>
-                        : burnPct > 130 ? <span className="badge bg-red-100 text-red-800 text-xs">Over budget</span>
+                        : (burnPct > 130 || (projectedCost && projectedCost > p.contractValue!)) ? <span className="badge bg-red-100 text-red-800 text-xs">Over budget</span>
                         : burnPct > 100 ? <span className="badge bg-amber-100 text-amber-800 text-xs">Watch</span>
                         : <span className="badge bg-green-100 text-green-800 text-xs">On budget</span>}
                     </td>

@@ -88,7 +88,8 @@ export default async function MePage() {
           take: 8,
           select: {
             id: true, clientName: true, status: true,
-            budget: true, currency: true, updatedAt: true,
+            budget: true, currency: true, updatedAt: true, createdAt: true,
+            proposals: { orderBy: { sentAt: 'desc' }, take: 1, select: { sentAt: true } },
           },
         })
       : Promise.resolve([]),
@@ -527,7 +528,10 @@ export default async function MePage() {
           </div>
           <div className="space-y-1.5">
             {myLeads.map(lead => {
-              const daysSince = differenceInDays(today, new Date(lead.updatedAt))
+              // Calculate staleness based on most recent meaningful activity
+              // Use latest proposal date if available, otherwise use lead creation date
+              const lastActivity = lead.proposals[0]?.sentAt || lead.createdAt
+              const daysSince = differenceInDays(today, new Date(lastActivity))
               const stale     = daysSince >= 5
               const STATUS_LABEL: Record<string, string> = {
                 new: 'New', proposal_sent: 'Proposal sent', interview: 'Interview',
