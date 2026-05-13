@@ -176,11 +176,12 @@ export default async function DailyPage({
       )}
 
       {/* Team summary row or Personal summary */}
-      {plannedTasks > 0 && (
-        <div className="grid grid-cols-4 gap-4 mb-6">
+      {(plannedTasks > 0 || logs.length > 0) && (
+        <div className={`grid ${showTeamView ? 'grid-cols-5' : 'grid-cols-4'} gap-4 mb-6`}>
           {[
+            ...(showTeamView ? [{ label: 'Plans submitted', value: `${logs.length}/${members.length}`, good: logs.length === members.length, bad: logs.length < members.length && isToday }] : []),
             { label: showTeamView ? 'Tasks planned' : 'Tasks planned today', value: plannedTasks.toString() },
-            { label: showTeamView ? 'Tasks done' : 'Tasks completed', value: doneTasks.toString(), good: doneTasks === plannedTasks },
+            { label: showTeamView ? 'Tasks done' : 'Tasks completed', value: doneTasks.toString(), good: doneTasks === plannedTasks && plannedTasks > 0 },
             { label: showTeamView ? 'Tasks blocked' : 'Tasks blocked', value: blockedTasks.toString(), bad: blockedTasks > 0 },
             { label: showTeamView ? 'Hours logged' : 'Hours logged', value: totalActHours > 0 ? `${totalActHours}h / ${totalEstHours}h` : `${totalEstHours}h planned` },
           ].map(k => (

@@ -6,7 +6,7 @@ import { startOfWeek, subWeeks, startOfDay, format } from 'date-fns'
 export const dynamic = 'force-dynamic'
 
 export default async function Dashboard() {
-  const [leads, projects, scores, members, dailyLogs] = await Promise.all([
+  const [leads, projects, scores, members, dailyLogs, allQAIssues] = await Promise.all([
     prisma.lead.findMany({ include: { owner: true } }),
     prisma.project.findMany({ include: { owner: true, checkIns: { orderBy: { weekOf: 'desc' }, take: 1 }, scopeChanges: true, releaseSignOff: true, postDeliveryIssues: { where: { resolvedAt: null }, take: 1 } } }),
     prisma.weeklyScore.findMany({
@@ -20,6 +20,9 @@ export default async function Dashboard() {
         member: true,
         tasks: true,
       },
+    }),
+    prisma.postDeliveryIssue.findMany({
+      select: { id: true, severity: true, wasInScope: true, resolvedAt: true },
     }),
   ])
 
@@ -35,6 +38,10 @@ export default async function Dashboard() {
   const avgTeamScore = scores.length
     ? avg(scores.map(s => avg([s.delivery, s.process, s.communication, s.growth, s.culture])))
     : 0
+
+  // QA miss metrics
+  const qaMissCount = allQAIssues.filter(i => i.wasInScope === true).length
+  const unresolvedQAMisses = allQAIssues.filter(i => i.wasInScope === true && !i.resolvedAt).length
 
   const projectsWithClientIssues = projects.filter(p => (p.postDeliveryIssues ?? []).length > 0)
   const projectsNeedingQASignOff = projects.filter(p =>
@@ -70,17 +77,21 @@ export default async function Dashboard() {
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[
-          { label: 'Active pipeline', value: fmtCurrency(totalPipeline), sub: `${leads.filter(l => !['won','lost'].includes(l.status)).length} open leads` },
-          { label: 'Won revenue (total)', value: fmtCurrency(wonRevenue), sub: `${winRate}% win rate` },
-          { label: 'Active projects', value: activeProjects.length.toString(), sub: `${atRisk.length} at risk` },
-          { label: 'Avg team score', value: avgTeamScore.toFixed(1), sub: `This week · out of 10` },
+          { label: 'Active pipeline', value: fmtCurrency(totalPipeline), sub: `${leads.filter(l => !['won','lost'].includes(l.status)).length} open leads`, danger: false },
+          { label: 'Won revenue (total)', value: fmtCurrency(wonRevenue), sub: `${winRate}% win rate`, danger: false },
+          { label: 'Active projects', value: activeProjects.length.toString(), sub: `${atRisk.length} at risk`, danger: false },
+          { label: 'Avg team score', value: avgTeamScore.toFixed(1), sub: `This week · out of 10`, danger: false },
+          { label: 'QA miss (total)', value: qaMissCount.toString(), sub: `${unresolvedQAMisses} unresolved`, danger: unresolvedQAMisses > 0, link: '/qa' },
         ].map(k => (
           <div key={k.label} className="card p-5">
             <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{k.label}</div>
-            <div className="text-2xl font-semibold text-gray-900">{k.value}</div>
+            <div className={`text-2xl font-semibold ${k.danger ? 'text-red-600' : 'text-gray-900'}`}>{k.value}</div>
             <div className="text-xs text-gray-500 mt-0.5">{k.sub}</div>
+            {k.link && (
+              <Link href={k.link} className="text-xs text-blue-600 hover:underline mt-1 block">View details →</Link>
+            )}
           </div>
         ))}
       </div>

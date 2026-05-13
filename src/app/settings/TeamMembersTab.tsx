@@ -349,6 +349,30 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
           </div>
         </div>
       )}
+
+      {/* Team Activity Log */}
+      <div className="mt-8">
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Team Activity Log</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Track all team member changes including additions, updates, and status changes
+              </p>
+            </div>
+            <a
+              href="/settings/audit-log?entityType=TeamMember"
+              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              View full audit log →
+            </a>
+          </div>
+          <p className="text-sm text-gray-500">
+            All team management activities are tracked in the audit log for compliance and transparency.
+            You can view detailed change history, including who made changes and when.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

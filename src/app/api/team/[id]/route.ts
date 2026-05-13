@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { logger } from '@/lib/logger'
+import { logTeamMemberChange, captureChanges, getClientIP } from '@/lib/audit'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['Founder', 'Manager'])
@@ -48,40 +50,78 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data: updateData,
   })
 
+  // Log audit trail
+  const changes = captureChanges(member, updateData)
+  if (Object.keys(changes).length > 0) {
+    // Determine action based on what changed
+    const action = changes.active !== undefined
+      ? (changes.active.new ? 'activated' : 'deactivated')
+      : 'updated'
+
+    await logTeamMemberChange(
+      action,
+      params.id,
+      updated.name,
+      changes,
+      req
+    )
+
+    logger.info('Team member updated', { memberId: params.id, changes })
+  }
+
   // Update password if provided
   if (data.password) {
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
-    // Check if user account exists
-    const userAccount = await prisma.userAccount.findUnique({
-      where: { memberId: params.id },
-    })
-
-    if (userAccount) {
-      // Update existing account
-      await prisma.userAccount.update({
+    try {
+      // Check if user account exists
+      const userAccount = await prisma.userAccount.findUnique({
         where: { memberId: params.id },
-        data: { password: hashedPassword },
       })
-    } else {
-      // Create new account
-      await prisma.userAccount.create({
-        data: {
-          memberId: params.id,
-          email: updated.email,
-          password: hashedPassword,
-        },
-      })
-    }
 
-    // Also update email in user account if it changed
-    if (data.email && data.email !== member.email) {
-      await prisma.userAccount.update({
-        where: { memberId: params.id },
-        data: { email: data.email },
+      if (userAccount) {
+        // Update existing account
+        await prisma.userAccount.update({
+          where: { memberId: params.id },
+          data: { passwordHash: hashedPassword },
+        })
+      } else {
+        // Create new account
+        await prisma.userAccount.create({
+          data: {
+            memberId: params.id,
+            passwordHash: hashedPassword,
+          },
+        })
+      }
+
+      // Log password change
+      await logTeamMemberChange(
+        'password_changed',
+        params.id,
+        updated.name,
+        undefined,
+        req
+      )
+      logger.info('Password changed for team member', { memberId: params.id })
+    } catch (err) {
+      // Password update failed, but member was updated
+      return NextResponse.json({
+        success: true,
+        warning: 'Team member updated but password change failed. Please try again.',
+        member: {
+          ...updated,
+          createdAt: updated.createdAt.toISOString(),
+        }
       })
     }
   }
 
-  return NextResponse.json(updated)
+  return NextResponse.json({
+    success: true,
+    member: {
+      ...updated,
+      createdAt: updated.createdAt.toISOString(),
+    }
+  })
 }

@@ -3,6 +3,7 @@ import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { notFound } from 'next/navigation'
 import ProjectActions from './ProjectActions'
 import { auth } from '@/lib/auth'
+import EntityAuditTrail from '@/components/EntityAuditTrail'
 
 export const dynamic = 'force-dynamic'
 
@@ -166,6 +167,13 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           {project.postMortem.preventionAction && <div><span className="label text-blue-700">Action items</span><p className="text-blue-800 text-sm">{project.postMortem.preventionAction}</p></div>}
         </div>
       )}
+
+      {/* Audit Trail */}
+      <EntityAuditTrail
+        entityType="Project"
+        entityId={params.id}
+        title="Project History"
+      />
 
       <ProjectActions project={project} members={members} userRole={userRole} />
     </div>

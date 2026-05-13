@@ -20,3 +20,7 @@ prisma/*.db-journal
 .DS_Store
 *.pem
 npm-debug.log*
+
+# Logs
+logs/
+*.log

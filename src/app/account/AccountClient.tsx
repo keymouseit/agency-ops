@@ -3,6 +3,7 @@ import { useState } from 'react'
 import ProfileTab from './ProfileTab'
 import SecurityTab from './SecurityTab'
 import NotificationsTab from './NotificationsTab'
+import EntityAuditTrail from '@/components/EntityAuditTrail'
 
 type Member = {
   id: string
@@ -52,11 +53,18 @@ export default function AccountClient({ member }: { member: Member }) {
       </div>
 
       {/* Tab Content */}
-      <div>
+      <div className="mb-6">
         {activeTab === 'profile' && <ProfileTab member={member} />}
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'notifications' && <NotificationsTab memberId={member.id} />}
       </div>
+
+      {/* Account Activity History */}
+      <EntityAuditTrail
+        entityType="TeamMember"
+        entityId={member.id}
+        title="Account Activity History"
+      />
     </div>
   )
 }

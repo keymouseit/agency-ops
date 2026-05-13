@@ -34,6 +34,7 @@ model TeamMember {
   releaseSignOffs        ReleaseSignOff[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
+  auditLogs              AuditLog[]
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -674,4 +675,40 @@ model NotificationPreference {
 
   createdAt               DateTime    @default(now())
   updatedAt               DateTime    @updatedAt
+}
+
+// ─── AUDIT LOG ───────────────────────────────────────────────────
+// Comprehensive audit trail for all critical system changes
+// Tracks who did what, when, and what changed
+
+model AuditLog {
+  id            String   @id @default(cuid())
+
+  // Who did it
+  userId        String?
+  user          TeamMember? @relation(fields: [userId], references: [id])
+  userEmail     String?  // Stored in case user is deleted
+  userName      String?  // Stored in case user is deleted
+
+  // What happened
+  action        String   // "created", "updated", "deleted", "status_changed", etc.
+  entityType    String   // "TeamMember", "Project", "Lead", "Estimate", etc.
+  entityId      String   // ID of the affected record
+  entityName    String?  // Human-readable name (project name, member name)
+
+  // When
+  timestamp     DateTime @default(now())
+
+  // Details
+  changes       String?  // JSON: { field: { old: "value", new: "value" } }
+  metadata      String?  // JSON: Additional context
+
+  // Context
+  ipAddress     String?
+  userAgent     String?
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([action])
 }

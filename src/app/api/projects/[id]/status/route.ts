@@ -2,8 +2,11 @@ import { notify } from '@/lib/notify'
 import { NextResponse } from 'next/server'
 import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
+import { logProjectChange, getClientIP } from '@/lib/audit'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const startTime = Date.now()
   try {
     const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager'])
     if (deny) return deny
@@ -11,6 +14,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const { status, qaHandoff } = await req.json()
     const session = await auth()
     const userRole = session?.user?.role
+
+    logger.logApiRequest('POST', `/api/projects/${params.id}/status`, session?.user?.id)
+    logger.info('Project status change requested', { projectId: params.id, newStatus: status, userRole })
+
+    // Get current project data for audit trail
+    const oldProject = await prisma.project.findUnique({
+      where: { id: params.id },
+      select: { name: true, status: true },
+    })
+
+    if (!oldProject) {
+      logger.warn('Project not found for status update', { projectId: params.id })
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
     // Validate QA handoff data when moving to QA status
     if (status === 'qa') {
@@ -80,6 +97,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
     })
 
+    // Log audit trail
+    await logProjectChange(
+      'status_changed',
+      params.id,
+      p.name,
+      {
+        status: { old: oldProject.status, new: status },
+      },
+      {
+        qaHandoff: status === 'qa' && qaHandoff ? qaHandoff : undefined,
+        deliveredWithSignOff: status === 'delivered',
+      },
+      req
+    )
+
+    logger.info('Project status updated', {
+      projectId: params.id,
+      projectName: p.name,
+      oldStatus: oldProject.status,
+      newStatus: status,
+    })
+
     // Notify QA team when project moves to QA stage
     if (status === 'qa') {
       const qaMembers = await prisma.teamMember.findMany({ where: { role: { in: ['QA', 'Both'] }, active: true }, select: { id: true } })
@@ -93,8 +132,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     }
 
+    logger.logApiResponse('POST', `/api/projects/${params.id}/status`, 200, Date.now() - startTime)
     return NextResponse.json(p)
   } catch (error) {
+    logger.error('Error updating project status', error as Error, { projectId: params.id })
+    logger.logApiResponse('POST', `/api/projects/${params.id}/status`, 500, Date.now() - startTime)
     console.error('[projects/status] Error updating project status:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update project status' },

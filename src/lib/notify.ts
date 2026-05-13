@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { logger } from './logger'
 
 type NotificationType =
   | 'estimate_requested'
@@ -26,7 +27,13 @@ export async function notify(
   message: string,
   linkTo?: string
 ): Promise<void> {
-  if (!memberIds.length) return
+  if (!memberIds.length) {
+    logger.warn('notify called with empty memberIds array', { type, message })
+    return
+  }
+
+  logger.debug('Creating notifications', { type, memberIds, message: message.substring(0, 100), linkTo })
+
   try {
     await prisma.notification.createMany({
       data: memberIds.map(memberId => ({
@@ -36,8 +43,10 @@ export async function notify(
         linkTo: linkTo ?? null,
       })),
     })
+    logger.info('Notifications created successfully', { type, count: memberIds.length, memberIds })
   } catch (err) {
     // Log but never propagate — notifications are best-effort
+    logger.error('Failed to create notifications', err as Error, { type, memberIds, message })
     console.error('[notify] Failed to create notification:', err)
   }
 }

@@ -3,6 +3,7 @@ import { fmtCurrency, fmtDate, LOSS_REASONS, FAULT_AREAS, STATUS_COLORS } from '
 import { notFound } from 'next/navigation'
 import LeadActions from './LeadActions'
 import Link from 'next/link'
+import EntityAuditTrail from '@/components/EntityAuditTrail'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,6 +207,13 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
           )}
         </div>
       )}
+
+      {/* Audit Trail */}
+      <EntityAuditTrail
+        entityType="Lead"
+        entityId={params.id}
+        title="Lead Activity History"
+      />
 
       <LeadActions lead={lead} members={members} />
     </div>

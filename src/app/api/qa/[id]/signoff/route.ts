@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
+import { logQAAction, getClientIP } from '@/lib/audit'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const startTime = Date.now()
+  logger.logApiRequest('POST', `/api/qa/${params.id}/signoff`, undefined)
+
   const deny = await checkRole(['QA', 'Founder'])
-  if (deny) return deny
+  if (deny) {
+    logger.logApiResponse('POST', `/api/qa/${params.id}/signoff`, deny.status, Date.now() - startTime)
+    return deny
+  }
 
   const data = await req.json()
+  logger.info('Processing QA release sign-off', { projectId: params.id, signedOffBy: data.signedOffById })
 
   // Verify the cycle linked to this sign-off actually passed or conditional
   const cycle = await prisma.testCycle.findUnique({
@@ -66,5 +75,36 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     },
   })
 
+  // Get project name for audit log
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { name: true },
+  })
+
+  // Log audit trail
+  if (project) {
+    await logQAAction(
+      'signed_off',
+      'ReleaseSignOff',
+      signOff.id,
+      project.name,
+      {
+        qualityScore: signOff.qualityScore,
+        cycleId: data.cycleId,
+        signedOffById: data.signedOffById,
+        allChecksPassed: data.sanityPassed && data.regressionPassed && data.noBlockersOpen,
+      },
+      req
+    )
+
+    logger.info('QA release sign-off created', {
+      projectId: params.id,
+      projectName: project.name,
+      signOffId: signOff.id,
+      qualityScore: signOff.qualityScore,
+    })
+  }
+
+  logger.logApiResponse('POST', `/api/qa/${params.id}/signoff`, 200, Date.now() - startTime)
   return NextResponse.json(signOff)
 }

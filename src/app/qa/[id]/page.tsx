@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { fmtDate } from '@/lib/utils'
 import QAProjectActions from './QAProjectActions'
+import EntityAuditTrail from '@/components/EntityAuditTrail'
 
 export const dynamic = 'force-dynamic'
 
@@ -336,6 +337,13 @@ export default async function QAProjectPage({ params }: { params: { id: string }
           </div>
         )}
       </div>
+
+      {/* Audit Trail */}
+      <EntityAuditTrail
+        entityType="Project"
+        entityId={params.id}
+        title="QA & Project History"
+      />
     </div>
   )
 }
