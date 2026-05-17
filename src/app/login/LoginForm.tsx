@@ -23,13 +23,12 @@ export default function LoginForm() {
       redirect: false,
     })
 
-    setLoading(false)
-
     if (result?.error) {
+      setLoading(false)
       setError('Incorrect email or password. Check your credentials and try again.')
     } else {
-      router.push(callbackUrl)
-      router.refresh()
+      // Use full page reload to ensure session is properly loaded
+      window.location.href = callbackUrl
     }
   }
 

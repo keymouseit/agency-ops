@@ -5,21 +5,66 @@ import { useSession, signOut } from 'next-auth/react'
 import { useState } from 'react'
 import NotificationBell from './NotificationBell'
 
-const ALL_LINKS = [
-  { href: '/me',           label: 'My Day',      roles: ['BD','Dev','QA','Both'] },
-  { href: '/',             label: 'Dashboard',   roles: ['Founder'] },
-  { href: '/intelligence', label: '⚡ Intel',     roles: ['Founder'] },
-  { href: '/pipeline',     label: 'BD Pipeline', roles: ['Founder','BD','Both','Manager'] },
-  { href: '/estimate',     label: 'Estimates',   roles: ['Founder','BD','Both','Dev','Manager'] },
-  { href: '/projects',     label: 'Projects',    roles: ['Founder','Dev','Both','Manager'] },
-  { href: '/qa',           label: 'QA',          roles: ['Founder','QA'] },
-  { href: '/team',         label: 'Team Scores', roles: ['Founder'] },
-  { href: '/checkin',      label: 'Check-In',    roles: ['Founder','BD','Dev','QA','Both'] },
-  { href: '/daily',        label: 'Daily',       roles: ['Founder','BD','Dev','QA','Both'] },
-  { href: '/analytics',    label: 'Analytics',   roles: ['Founder'] },
-  { href: '/goals',        label: 'Goals',       roles: ['Founder'] },
-  { href: '/settings',     label: '⚙ Settings',  roles: ['Founder','Manager'] },
-]
+// Navigation structure with dropdowns
+const NAV_STRUCTURE = {
+  Founder: [
+    { href: '/', label: 'Dashboard' },
+    {
+      label: 'Operations',
+      items: [
+        { href: '/pipeline', label: 'BD Pipeline' },
+        { href: '/projects', label: 'Projects' },
+        { href: '/estimate', label: 'Estimates' },
+        { href: '/qa', label: 'QA' },
+      ]
+    },
+    {
+      label: 'Team',
+      items: [
+        { href: '/team', label: 'Team Scores' },
+        { href: '/checkin', label: 'Check-In' },
+        { href: '/daily', label: 'Daily' },
+        { href: '/goals', label: 'Goals' },
+      ]
+    },
+    {
+      label: 'Intelligence',
+      items: [
+        { href: '/intelligence', label: '⚡ Intel' },
+        { href: '/analytics', label: 'Analytics' },
+      ]
+    },
+    { href: '/settings', label: '⚙ Settings' },
+  ],
+  BD: [
+    { href: '/me', label: 'My Day' },
+    { href: '/pipeline', label: 'Pipeline' },
+    { href: '/estimate', label: 'Estimates' },
+    { href: '/checkin', label: 'Check-In' },
+    { href: '/daily', label: 'Daily' },
+  ],
+  Dev: [
+    { href: '/me', label: 'My Day' },
+    { href: '/projects', label: 'Projects' },
+    { href: '/estimate', label: 'Estimates' },
+    { href: '/checkin', label: 'Check-In' },
+    { href: '/daily', label: 'Daily' },
+  ],
+  QA: [
+    { href: '/me', label: 'My Day' },
+    { href: '/qa', label: 'QA' },
+    { href: '/checkin', label: 'Check-In' },
+    { href: '/daily', label: 'Daily' },
+  ],
+  Both: [
+    { href: '/me', label: 'My Day' },
+    { href: '/pipeline', label: 'Pipeline' },
+    { href: '/projects', label: 'Projects' },
+    { href: '/estimate', label: 'Estimates' },
+    { href: '/checkin', label: 'Check-In' },
+    { href: '/daily', label: 'Daily' },
+  ],
+}
 
 const ROLE_COLORS: Record<string, string> = {
   Founder: 'bg-purple-100 text-purple-800',
@@ -29,20 +74,67 @@ const ROLE_COLORS: Record<string, string> = {
   Both:    'bg-amber-100 text-amber-800',
 }
 
+function NavDropdown({ label, items, currentPath }: { label: string; items: { href: string; label: string }[]; currentPath: string }) {
+  const [open, setOpen] = useState(false)
+  const isActive = items.some(item => currentPath === item.href || currentPath.startsWith(item.href + '/'))
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className={`px-3 py-1.5 rounded-md text-sm transition-colors whitespace-nowrap flex items-center gap-1 ${
+          isActive
+            ? 'bg-gray-900 text-white'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+        }`}
+      >
+        {label}
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className="absolute top-full left-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+        >
+          {items.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className={`block px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                currentPath === item.href || currentPath.startsWith(item.href + '/')
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Nav() {
   const path = usePathname()
   const { data: session } = useSession()
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
 
   const role = session?.user?.role ?? ''
   const firstName = (session?.user?.name ?? '').split(' ')[0]
-  const links = ALL_LINKS.filter(l => l.roles.includes(role))
+  const navItems = NAV_STRUCTURE[role as keyof typeof NAV_STRUCTURE] || []
 
   async function handleSignOut() {
     setSigningOut(true)
-    // Use callbackUrl to force a full page reload and clear session
     await signOut({ callbackUrl: '/login' })
   }
 
@@ -54,25 +146,36 @@ export default function Nav() {
         <span className="font-semibold text-gray-900 mr-4 text-sm tracking-tight flex-shrink-0">
           Agency Ops
         </span>
+
+        {/* Navigation Links */}
         <div className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
-          {links.map(l => (
-            <Link key={l.href} href={l.href}
-              className={`px-3 py-1.5 rounded-md text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
-                path === l.href || (l.href !== '/' && path.startsWith(l.href))
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}>
-              {l.label}
-            </Link>
-          ))}
+          {navItems.map((item, idx) =>
+            'items' in item ? (
+              <NavDropdown key={idx} label={item.label} items={item.items} currentPath={path} />
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
+                  path === item.href || (item.href !== '/' && path.startsWith(item.href))
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          )}
         </div>
+
+        {/* Right Section: Notifications & User Menu */}
         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
           <NotificationBell />
 
           {/* User Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
             >
               <span className="text-sm text-gray-700 font-medium hidden sm:block">{firstName}</span>
@@ -86,12 +189,11 @@ export default function Nav() {
               </svg>
             </button>
 
-            {/* Dropdown Menu */}
-            {dropdownOpen && (
+            {userDropdownOpen && (
               <>
                 <div
                   className="fixed inset-0 z-10"
-                  onClick={() => setDropdownOpen(false)}
+                  onClick={() => setUserDropdownOpen(false)}
                 />
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
                   <div className="px-4 py-3 border-b border-gray-100">
@@ -101,7 +203,7 @@ export default function Nav() {
                   <div className="py-1">
                     <Link
                       href="/account"
-                      onClick={() => setDropdownOpen(false)}
+                      onClick={() => setUserDropdownOpen(false)}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -112,7 +214,7 @@ export default function Nav() {
                     </Link>
                     <button
                       onClick={() => {
-                        setDropdownOpen(false)
+                        setUserDropdownOpen(false)
                         handleSignOut()
                       }}
                       disabled={signingOut}
