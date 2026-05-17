@@ -22,20 +22,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
+        console.log('[AUTH] Login attempt:', { email: credentials?.email })
+
+        if (!credentials?.email || !credentials?.password) {
+          console.log('[AUTH] Missing credentials')
+          return null
+        }
 
         const account = await prisma.userAccount.findFirst({
           where: { member: { email: credentials.email as string } },
           include: { member: true },
         })
-        if (!account) return null
 
+        if (!account) {
+          console.log('[AUTH] Account not found for email:', credentials.email)
+          return null
+        }
+
+        console.log('[AUTH] Account found, checking password...')
         const valid = await bcrypt.compare(
           credentials.password as string,
           account.passwordHash
         )
-        if (!valid) return null
 
+        if (!valid) {
+          console.log('[AUTH] Invalid password for:', credentials.email)
+          return null
+        }
+
+        console.log('[AUTH] Login successful for:', credentials.email)
         await prisma.userAccount.update({
           where: { id: account.id },
           data: { lastLoginAt: new Date() },
