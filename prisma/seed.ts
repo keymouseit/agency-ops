@@ -69,7 +69,8 @@ async function main() {
     data: {
       name: 'HealthSync Patient Portal',
       leadId: lead1.id,
-      ownerId: vishal.id,
+      developerId: vishal.id,
+      bdMemberId: kavya.id,
       status: 'active',
       contractValue: 17500,
       estimatedHours: 280,
@@ -157,7 +158,8 @@ async function main() {
     data: {
       name: 'PropList Real Estate App',
       leadId: lead3.id,
-      ownerId: rahul.id,
+      developerId: rahul.id,
+      bdMemberId: kavya.id,
       status: 'active',
       contractValue: 21000,
       estimatedHours: 320,
@@ -271,7 +273,8 @@ async function main() {
     data: {
       name: 'ShopEasy E-commerce Rebuild',
       leadId: lead6.id,
-      ownerId: amit.id,
+      developerId: amit.id,
+      bdMemberId: kavya.id,
       status: 'delivered',
       contractValue: 14500,
       estimatedHours: 200,
