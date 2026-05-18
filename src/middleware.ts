@@ -55,9 +55,9 @@ export default auth((req) => {
 })
 
 function checkApiAccess(path: string, role: string): boolean {
-  // BD can access lead/proposal/estimation APIs
+  // BD can access lead/proposal/estimation/project APIs
   if (['BD', 'Both', 'Founder'].includes(role)) {
-    if (path.startsWith('/api/leads') || path.startsWith('/api/estimate')) return true
+    if (path.startsWith('/api/leads') || path.startsWith('/api/estimate') || path.startsWith('/api/projects')) return true
   }
   // Dev can access project/daily/checkin/estimate APIs
   if (['Dev', 'Both', 'Founder'].includes(role)) {

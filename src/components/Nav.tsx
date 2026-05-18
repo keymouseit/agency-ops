@@ -39,6 +39,7 @@ const NAV_STRUCTURE = {
   BD: [
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
+    { href: '/projects', label: 'Projects' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
@@ -79,11 +80,13 @@ function NavDropdown({ label, items, currentPath }: { label: string; items: { hr
   const isActive = items.some(item => currentPath === item.href || currentPath.startsWith(item.href + '/'))
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
       <button
         onClick={() => setOpen(!open)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
         className={`px-3 py-1.5 rounded-md text-sm transition-colors whitespace-nowrap flex items-center gap-1 ${
           isActive
             ? 'bg-gray-900 text-white'
@@ -97,11 +100,7 @@ function NavDropdown({ label, items, currentPath }: { label: string; items: { hr
       </button>
 
       {open && (
-        <div
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          className="absolute top-full left-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
-        >
+        <div className="absolute top-full left-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           {items.map(item => (
             <Link
               key={item.href}
@@ -148,7 +147,7 @@ export default function Nav() {
         </span>
 
         {/* Navigation Links */}
-        <div className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-0.5 flex-1">
           {navItems.map((item, idx) =>
             'items' in item ? (
               <NavDropdown key={idx} label={item.label} items={item.items} currentPath={path} />

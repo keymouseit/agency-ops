@@ -19,9 +19,10 @@ export default async function ProjectsPage() {
 
   const [projects, members, leads] = await Promise.all([
     prisma.project.findMany({
-      where: isDev ? { ownerId: userId } : undefined,
+      where: isDev ? { developerId: userId } : undefined,
       include: {
-        owner: true,
+        developer: true,
+        bdMember: true,
         checkIns: { orderBy: { weekOf: 'desc' }, take: 1 },
         scopeChanges: true,
         milestones: true,
@@ -29,7 +30,7 @@ export default async function ProjectsPage() {
       },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
     prisma.lead.findMany({ where: { status: 'won', project: null }, select: { id: true, clientName: true } }),
   ])
 
@@ -43,7 +44,7 @@ export default async function ProjectsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
           <p className="text-sm text-gray-500 mt-0.5">Full lifecycle — scoping to delivery. Every scope change logged.</p>
         </div>
-        {!isDev && <AddProjectForm members={members} wonLeads={leads} />}
+        {!isDev && <AddProjectForm members={members} wonLeads={leads} currentUserId={userId} currentUserRole={userRole} />}
       </div>
 
       {/* Unsigned scope changes alert */}
@@ -77,7 +78,8 @@ export default async function ProjectsPage() {
                     {overdue && <span className="badge bg-red-100 text-red-800">Overdue</span>}
                   </div>
                   <div className="flex gap-4 text-xs text-gray-400 mb-3">
-                    <span>Owner: {p.owner.name}</span>
+                    <span>Dev: {p.developer.name}</span>
+                    {p.bdMember && <span>BD: {p.bdMember.name}</span>}
                     {p.contractValue && isBD && <span>Value: {fmtCurrency(p.contractValue, p.currency)}</span>}
                     {p.estimatedEnd && <span>Due: {fmtDate(p.estimatedEnd)}</span>}
                     {estAccuracy && <span className={estAccuracy > 120 ? 'text-red-500' : 'text-gray-400'}>Est. usage: {estAccuracy}%</span>}
@@ -110,7 +112,8 @@ export default async function ProjectsPage() {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-xs text-gray-400 uppercase tracking-wide">
                   <th className="text-left px-4 py-3 font-medium">Project</th>
-                  <th className="text-left px-4 py-3 font-medium">Owner</th>
+                  <th className="text-left px-4 py-3 font-medium">Developer</th>
+                  <th className="text-left px-4 py-3 font-medium">BD</th>
                   {isBD && <th className="text-left px-4 py-3 font-medium">Value</th>}
                   <th className="text-left px-4 py-3 font-medium">On time?</th>
                   <th className="text-left px-4 py-3 font-medium">Client score</th>
@@ -126,7 +129,8 @@ export default async function ProjectsPage() {
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{p.owner.name}</td>
+                      <td className="px-4 py-3 text-gray-500">{p.developer.name}</td>
+                      <td className="px-4 py-3 text-gray-500">{p.bdMember?.name || '—'}</td>
                       {isBD && <td className="px-4 py-3">{fmtCurrency(p.contractValue, p.currency)}</td>}
                       <td className="px-4 py-3">
                         {p.onTime == null ? '—' : p.onTime

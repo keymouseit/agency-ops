@@ -56,7 +56,7 @@ export default async function CheckInPage() {
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.project.findMany({
       where: { status: { in: ['scoping', 'active', 'qa'] } },
-      select: { id: true, name: true, ownerId: true },
+      select: { id: true, name: true, developerId: true },
       orderBy: { name: 'asc' },
     }),
   ])

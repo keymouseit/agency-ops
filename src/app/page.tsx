@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function Dashboard() {
   const [leads, projects, scores, members, dailyLogs, allQAIssues] = await Promise.all([
     prisma.lead.findMany({ include: { owner: true } }),
-    prisma.project.findMany({ include: { owner: true, checkIns: { orderBy: { weekOf: 'desc' }, take: 1 }, scopeChanges: true, releaseSignOff: true, postDeliveryIssues: { where: { resolvedAt: null }, take: 1 } } }),
+    prisma.project.findMany({ include: { developer: true, checkIns: { orderBy: { weekOf: 'desc' }, take: 1 }, scopeChanges: true, releaseSignOff: true, postDeliveryIssues: { where: { resolvedAt: null }, take: 1 } } }),
     prisma.weeklyScore.findMany({
       where: { weekOf: { gte: subWeeks(startOfWeek(new Date()), 0) } },
       include: { member: true },
@@ -189,7 +189,7 @@ export default async function Dashboard() {
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5">{p.owner.name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{p.developer.name}</div>
                 </div>
               )
             })}

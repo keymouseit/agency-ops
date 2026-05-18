@@ -66,7 +66,7 @@ export default async function IntelligencePage() {
     await Promise.all([
       prisma.project.findMany({
         include: {
-          owner: true,
+          developer: true,
           milestones: true,
           scopeChanges: true,
           postDeliveryIssues: { select: { id: true } },
@@ -324,7 +324,7 @@ export default async function IntelligencePage() {
 
                     {/* Blocker + phase time mini row */}
                     <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
-                      <span>Owner: {p.owner.name}</span>
+                      <span>Owner: {p.developer.name}</span>
                       {p.contractValue && <span>Value: {fmtCurrency(p.contractValue, p.currency)}</span>}
                       {ci?.blockers && <span className="text-amber-700 font-medium">⚠ {ci.blockers.slice(0, 60)}{ci.blockers.length > 60 ? '…' : ''}</span>}
                       {/* Mini task type breakdown */}

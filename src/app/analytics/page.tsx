@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export default async function AnalyticsPage() {
   const [leads, projects, scores, members, lossAnalyses] = await Promise.all([
     prisma.lead.findMany({ include: { owner: true, lossAnalysis: true } }),
-    prisma.project.findMany({ include: { owner: true, scopeChanges: true, postMortem: true } }),
+    prisma.project.findMany({ include: { developer: true, scopeChanges: true, postMortem: true } }),
     prisma.weeklyScore.findMany({
       where: { weekOf: { gte: subWeeks(startOfWeek(new Date()), 7) } },
       include: { member: true },
@@ -214,7 +214,7 @@ export default async function AnalyticsPage() {
                   return (
                     <tr key={p.id}>
                       <td className="py-2 font-medium text-gray-800">{p.name}</td>
-                      <td className="py-2 text-gray-500">{p.owner.name}</td>
+                      <td className="py-2 text-gray-500">{p.developer.name}</td>
                       <td className="text-center py-2">{p.estimatedHours}h</td>
                       <td className="text-center py-2">{p.actualHours}h</td>
                       <td className="text-center py-2">

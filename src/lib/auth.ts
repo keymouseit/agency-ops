@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
   Founder: ['/', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate'],
-  BD:      ['/me', '/pipeline', '/checkin', '/daily', '/estimate'],
+  BD:      ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
   Dev:     ['/me', '/projects', '/checkin', '/daily', '/estimate'],
   QA:      ['/me', '/qa', '/checkin', '/daily'],
   Both:    ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],

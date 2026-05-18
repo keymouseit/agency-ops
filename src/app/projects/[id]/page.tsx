@@ -22,7 +22,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     prisma.project.findUnique({
       where: { id: params.id },
       include: {
-        owner: true,
+        developer: true,
+        bdMember: true,
         lead: { select: { id: true, clientName: true, source: true } },
         milestones: { orderBy: { dueDate: 'asc' } },
         scopeChanges: { include: { approvedBy: true }, orderBy: { createdAt: 'desc' } },
@@ -30,13 +31,13 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         postMortem: true,
       },
     }),
-    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
   ])
 
   if (!project) notFound()
 
   // Developers can only see their own projects
-  if (isDev && project.ownerId !== userId) notFound()
+  if (isDev && project.developerId !== userId) notFound()
 
   const estAccuracy = project.actualHours && project.estimatedHours
     ? Math.round((project.actualHours / project.estimatedHours) * 100)
@@ -55,7 +56,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             <span className={`badge ${STATUS_COLORS[project.status]}`}>{STATUS_LABELS[project.status]}</span>
           </div>
           <div className="flex gap-4 text-sm text-gray-500">
-            <span>Owner: {project.owner.name}</span>
+            <span>Developer: {project.developer.name}</span>
+            {project.bdMember && <span>BD: {project.bdMember.name}</span>}
             {project.clientName && <span>Client: {project.clientName}</span>}
             {project.contractValue && isBD && <span>Value: {fmtCurrency(project.contractValue, project.currency)}</span>}
             {project.lead && <span>Source: {project.lead.source}</span>}

@@ -37,7 +37,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
     prisma.project.findUnique({
       where: { id: params.id },
       include: {
-        owner: true,
+        developer: true,
         testCycles: {
           orderBy: { startedAt: 'desc' },
           include: { conductedBy: true, signOff: { include: { signedOffBy: true } } },
@@ -68,7 +68,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-            <span>Dev owner: {project.owner.name}</span>
+            <span>Dev owner: {project.developer.name}</span>
             <span>·</span>
             <span className={`badge ${project.status === 'qa' ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600'}`}>
               {project.status}

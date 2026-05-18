@@ -68,7 +68,7 @@ export default async function MePage() {
     // BD and QA do not own projects
     isDev
       ? prisma.project.findMany({
-          where: { ownerId: memberId, status: { in: ['scoping', 'active', 'qa'] } },
+          where: { developerId: memberId, status: { in: ['scoping', 'active', 'qa'] } },
           include: {
             milestones:     { where: { status: { not: 'done' } }, orderBy: { dueDate: 'asc' }, take: 1 },
             checkIns:       { orderBy: { weekOf: 'desc' }, take: 1 },

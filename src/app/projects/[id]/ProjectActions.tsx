@@ -2,11 +2,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Member = { id: string; name: string }
-type Project = { id: string; status: string; postMortem: unknown }
+type Member = { id: string; name: string; role?: string }
+type Project = { id: string; status: string; postMortem: unknown; bdMemberId?: string | null }
 
 export default function ProjectActions({ project, members, userRole }: { project: Project; members: Member[]; userRole?: string }) {
-  const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|null>(null)
+  const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|'assignbd'|null>(null)
   const [loading, setLoading] = useState(false)
   const [statusError, setStatusError] = useState('')
   const [selectedStatus, setSelectedStatus] = useState(project.status)
@@ -63,6 +63,7 @@ export default function ProjectActions({ project, members, userRole }: { project
 
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
   const canAddPostMortem = ['qa', 'delivered'].includes(project.status)
+  const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
 
   return (
     <div className="space-y-3">
@@ -72,6 +73,7 @@ export default function ProjectActions({ project, members, userRole }: { project
         {isActive && <button className="btn-secondary text-xs" onClick={() => setView('milestone')}>+ Milestone</button>}
         {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => setView('postmortem')}>+ Post-mortem</button>}
         <button className="btn-secondary text-xs" onClick={() => setView('status')}>Update status</button>
+        {canAssignBD && <button className="btn-secondary text-xs" onClick={() => setView('assignbd')}>{project.bdMemberId ? 'Change BD' : 'Assign BD'}</button>}
       </div>
 
       {view === 'checkin' && (
@@ -331,6 +333,27 @@ export default function ProjectActions({ project, members, userRole }: { project
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Update'}</button>
               <button type="button" className="btn-secondary" onClick={() => { setView(null); setStatusError(''); setSelectedStatus(project.status) }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {view === 'assignbd' && (
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold mb-3">{project.bdMemberId ? 'Change BD (Client Manager)' : 'Assign BD (Client Manager)'}</h3>
+          <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/assign-bd`)} className="space-y-3">
+            <div>
+              <label className="label">BD Member</label>
+              <select name="bdMemberId" className="input" defaultValue={project.bdMemberId || ''}>
+                <option value="">No BD assigned</option>
+                {members.filter(m => ['BD', 'Both', 'Founder'].includes(m.role || '')).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Save'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
             </div>
           </form>
         </div>

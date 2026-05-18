@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
-type Project = { id: string; name: string; ownerId: string }
+type Project = { id: string; name: string; developerId: string }
 
 const DIMS = ['delivery', 'process', 'communication', 'growth', 'culture'] as const
 const DIM_LABELS: Record<string, string> = {
@@ -28,7 +28,7 @@ export default function CheckInClient({ members, projects }: { members: Member[]
   }, [session])
 
   const member = members.find(m => m.id === memberId)
-  const myProjects = projects.filter(p => p.ownerId === memberId)
+  const myProjects = projects.filter(p => p.developerId === memberId)
 
   async function submitProject(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

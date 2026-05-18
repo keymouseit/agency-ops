@@ -2,14 +2,31 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Member = { id: string; name: string }
+type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
 
-export default function AddProjectForm({ members, wonLeads }: { members: Member[]; wonLeads: WonLead[] }) {
+export default function AddProjectForm({
+  members,
+  wonLeads,
+  currentUserId,
+  currentUserRole
+}: {
+  members: Member[]
+  wonLeads: WonLead[]
+  currentUserId?: string
+  currentUserRole?: string
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  // Check if current user is BD or Both (should be auto-assigned as client manager)
+  const isBDRole = ['BD', 'Both'].includes(currentUserRole || '')
+  const canChangeBD = ['Founder', 'Manager'].includes(currentUserRole || '')
+
+  // Get current user's name for display
+  const currentUserName = members.find(m => m.id === currentUserId)?.name
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -85,15 +102,32 @@ export default function AddProjectForm({ members, wonLeads }: { members: Member[
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Project owner *</label>
-                  <select name="ownerId" required className="input">
-                    {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  <label className="label">Developer (technical owner) *</label>
+                  <select name="developerId" required className="input">
+                    <option value="">Select developer...</option>
+                    {members.filter(m => ['Dev', 'Both'].includes(m.role)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Client name</label>
-                  <input name="clientName" className="input" placeholder="Client company" />
+                  <label className="label">BD (client manager)</label>
+                  {isBDRole ? (
+                    <>
+                      <input type="hidden" name="bdMemberId" value={currentUserId || ''} />
+                      <div className="input bg-gray-50 text-gray-500 cursor-not-allowed">
+                        {currentUserName} (you)
+                      </div>
+                    </>
+                  ) : (
+                    <select name="bdMemberId" className="input">
+                      <option value="">No BD assigned</option>
+                      {members.filter(m => ['BD', 'Both', 'Founder'].includes(m.role)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  )}
                 </div>
+              </div>
+              <div>
+                <label className="label">Client name</label>
+                <input name="clientName" className="input" placeholder="Client company" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

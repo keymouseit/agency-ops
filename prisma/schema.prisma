@@ -17,7 +17,8 @@ model TeamMember {
 
   leadsOwned       Lead[]
   proposalsWritten Proposal[]
-  projectsOwned    Project[]
+  projectsAsDeveloper Project[] @relation("ProjectDeveloper")
+  projectsAsBD        Project[] @relation("ProjectBD")
   weeklyScores     WeeklyScore[]
   scopeChanges     ScopeChange[]
   checkIns         ProjectCheckIn[]
@@ -97,8 +98,13 @@ model Project {
   name           String
   leadId         String?    @unique
   lead           Lead?      @relation(fields: [leadId], references: [id])
-  ownerId        String
-  owner          TeamMember @relation(fields: [ownerId], references: [id])
+
+  // Team assignment - both dev and BD
+  developerId    String
+  developer      TeamMember @relation("ProjectDeveloper", fields: [developerId], references: [id])
+  bdMemberId     String?
+  bdMember       TeamMember? @relation("ProjectBD", fields: [bdMemberId], references: [id])
+
   status         String     @default("scoping")
   channel        String?
   contractValue  Float?

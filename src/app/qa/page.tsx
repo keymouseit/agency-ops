@@ -17,7 +17,7 @@ export default async function QAPage() {
     prisma.project.findMany({
       where: { status: { in: ['active', 'qa', 'scoping'] } },
       include: {
-        owner: true,
+        developer: true,
         testCycles: {
           orderBy: { startedAt: 'desc' },
           take: 1,
@@ -150,7 +150,7 @@ export default async function QAPage() {
                     )}
                   </div>
                   <div className="flex gap-4 text-xs text-gray-400">
-                    <span>Dev owner: {p.owner.name}</span>
+                    <span>Dev owner: {p.developer.name}</span>
                     {latestCycle && <span>Last cycle: {fmtDate(latestCycle.startedAt)} by {latestCycle.conductedBy.name}</span>}
                     {latestCycle && <span>Type: {latestCycle.cycleType.replace('_', ' ')}</span>}
                     {daysSinceStart !== null && <span>{p.testCycles.length} cycle{p.testCycles.length !== 1 ? 's' : ''} run</span>}
