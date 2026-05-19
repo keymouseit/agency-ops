@@ -24,3 +24,15 @@ npm-debug.log*
 # Logs
 logs/
 *.log
+
+# Testing
+/playwright-report/
+/test-results/
+/playwright/.cache/
+.env.test
+
+# QA Documents
+*.xlsx
+
+# IDE
+.idea/

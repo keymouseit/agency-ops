@@ -155,8 +155,14 @@ export default function ProjectActions({ project, members, userRole }: { project
                 <input name="hoursAdded" type="number" className="input" />
               </div>
               <div>
-                <label className="label">Value added (USD)</label>
-                <input name="valueAdded" type="number" className="input" />
+                <label className="label">Value added (USD) {userRole === 'Dev' && <span className="text-xs text-gray-400">(Founder/BD only)</span>}</label>
+                <input
+                  name="valueAdded"
+                  type="number"
+                  className="input"
+                  disabled={userRole === 'Dev'}
+                  title={userRole === 'Dev' ? 'Only Founders and BD can set monetary values' : ''}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

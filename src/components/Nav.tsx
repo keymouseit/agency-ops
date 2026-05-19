@@ -100,21 +100,23 @@ function NavDropdown({ label, items, currentPath }: { label: string; items: { hr
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-          {items.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={`block px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                currentPath === item.href || currentPath.startsWith(item.href + '/')
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <div className="absolute top-full left-0 pt-1">
+          <div className="w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+            {items.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={`block px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                  currentPath === item.href || currentPath.startsWith(item.href + '/')
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>

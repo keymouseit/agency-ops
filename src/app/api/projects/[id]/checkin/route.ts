@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     data: {
       projectId: params.id,
       submittedById: data.submittedById,
-      weekOf: startOfWeek(new Date()),
+      weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }), // Monday = start of week
       progressPct: parseInt(data.progressPct),
       onTrack: data.onTrack || 'yes',
       scopeChange: data.scopeChange || 'none',

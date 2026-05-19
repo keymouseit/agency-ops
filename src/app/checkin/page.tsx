@@ -11,7 +11,7 @@ export default async function CheckInPage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
 
-  const weekOf = startOfWeek(new Date())
+  const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
 
   // Check if user already submitted check-in this week
   const existingCheckIn = await prisma.weeklyScore.findUnique({

@@ -1,15 +1,33 @@
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logAudit, getClientIP } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['Dev', 'Both', 'Founder'])
-  if (deny) return deny
+  // Use requireRole to get the user's role
+  let userInfo
+  try {
+    userInfo = await requireRole(['Dev', 'Both', 'Founder'])
+  } catch (e: unknown) {
+    const err = e as { message: string; status?: number }
+    const isUnauthed = err.message === 'UNAUTHORIZED'
+    return NextResponse.json(
+      { error: isUnauthed ? 'Sign in required.' : 'You do not have permission for this action.' },
+      { status: isUnauthed ? 401 : 403 }
+    )
+  }
 
   try {
     const data = await req.json()
+
+    // Developers cannot set monetary values - only Founders and BD
+    if (userInfo.role === 'Dev' && data.valueAdded) {
+      return NextResponse.json(
+        { error: 'Developers cannot set monetary values for scope changes. Only Founders and BD can set valueAdded.' },
+        { status: 403 }
+      )
+    }
 
     // Get project info for audit trail
     const project = await prisma.project.findUnique({
@@ -23,7 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         requestedBy: data.requestedBy || 'client',
         description: data.description,
         hoursAdded: data.hoursAdded ? parseFloat(data.hoursAdded) : null,
-        valueAdded: data.valueAdded ? parseFloat(data.valueAdded) : null,
+        valueAdded: data.valueAdded && userInfo.role !== 'Dev' ? parseFloat(data.valueAdded) : null,
         changeOrderSigned: data.changeOrderSigned === 'true' || data.changeOrderSigned === true,
         approvedById: data.approvedById || null,
       },
