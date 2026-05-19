@@ -478,16 +478,6 @@ export default async function MePage() {
                           Check-in due →
                         </Link>
                       )}
-                      {needsCycle && (
-                        <Link href={`/qa/${p.id}`} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">
-                          Log test cycle →
-                        </Link>
-                      )}
-                      {needsSignOff && (
-                        <Link href={`/qa/${p.id}`} className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded hover:bg-green-200">
-                          Submit sign-off →
-                        </Link>
-                      )}
                     </div>
                   </div>
 

@@ -68,9 +68,13 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/estimate')
     ) return true
   }
-  // QA can access QA and bug APIs
+  // QA can access QA and bug APIs, plus milestone updates
   if (['QA', 'Founder'].includes(role)) {
-    if (path.startsWith('/api/qa') || path.startsWith('/api/blockers')) return true
+    if (
+      path.startsWith('/api/qa') ||
+      path.startsWith('/api/blockers') ||
+      path.startsWith('/api/projects/milestones')
+    ) return true
   }
   // Everyone can access scores, notifications
   if (path.startsWith('/api/scores') || path.startsWith('/api/notifications')) return true

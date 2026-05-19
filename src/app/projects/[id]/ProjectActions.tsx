@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Member = { id: string; name: string; role?: string }
-type Project = { id: string; status: string; postMortem: unknown; bdMemberId?: string | null }
+type Project = { id: string; status: string; postMortem: unknown; bdMemberId?: string | null; releaseSignOff?: unknown }
 
 export default function ProjectActions({ project, members, userRole }: { project: Project; members: Member[]; userRole?: string }) {
   const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|'assignbd'|null>(null)
@@ -62,7 +62,7 @@ export default function ProjectActions({ project, members, userRole }: { project
   }
 
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
-  const canAddPostMortem = ['qa', 'delivered'].includes(project.status)
+  const canAddPostMortem = ['qa', 'delivered'].includes(project.status) && !!project.releaseSignOff
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
 
   return (

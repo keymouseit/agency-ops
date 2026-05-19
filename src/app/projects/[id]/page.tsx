@@ -29,6 +29,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         scopeChanges: { include: { approvedBy: true }, orderBy: { createdAt: 'desc' } },
         checkIns: { include: { submittedBy: true }, orderBy: { weekOf: 'desc' }, take: 8 },
         postMortem: true,
+        releaseSignOff: true,
       },
     }),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),

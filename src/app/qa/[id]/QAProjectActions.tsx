@@ -34,13 +34,14 @@ const SIGNOFF_ITEMS = [
 ]
 
 export default function QAProjectActions({
-  project, members, canSignOff, latestCycleId, issueMode = false,
+  project, members, canSignOff, latestCycleId, issueMode = false, hasSignOff = false,
 }: {
   project: Project
   members: Member[]
   canSignOff: boolean
   latestCycleId?: string
   issueMode?: boolean
+  hasSignOff?: boolean
 }) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -195,9 +196,11 @@ export default function QAProjectActions({
               ✓ Submit release sign-off
             </button>
           )}
-          <button className="btn-secondary text-xs" onClick={() => setView('issue')}>
-            + Post-delivery issue
-          </button>
+          {hasSignOff && (
+            <button className="btn-secondary text-xs" onClick={() => setView('issue')}>
+              + Post-delivery issue
+            </button>
+          )}
         </div>
       )}
       {issueMode && view === null && (
