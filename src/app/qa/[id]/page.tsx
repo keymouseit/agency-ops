@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { fmtDate } from '@/lib/utils'
 import QAProjectActions from './QAProjectActions'
+import MilestoneApproval from './MilestoneApproval'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       where: { id: params.id },
       include: {
         developer: true,
+        milestones: { orderBy: { dueDate: 'asc' } },
         testCycles: {
           orderBy: { startedAt: 'desc' },
           include: { conductedBy: true, signOff: { include: { signedOffBy: true } } },
@@ -162,6 +164,12 @@ export default async function QAProjectPage({ params }: { params: { id: string }
           </div>
         </div>
       )}
+
+      {/* Milestone approval */}
+      <div className="card p-5 mb-4">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">Milestone Approval</h2>
+        <MilestoneApproval milestones={project.milestones} projectId={project.id} />
+      </div>
 
       {/* Test cycle history */}
       <div className="card p-5 mb-4">

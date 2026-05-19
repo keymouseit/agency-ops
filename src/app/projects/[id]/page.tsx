@@ -45,6 +45,13 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const totalScopeHours = project.scopeChanges.reduce((s, c) => s + (c.hoursAdded || 0), 0)
   const unsignedCOs = project.scopeChanges.filter(s => !s.changeOrderSigned)
 
+  // Calculate progress based on milestone completion
+  const totalMilestones = project.milestones.length
+  const completedMilestones = project.milestones.filter(m => m.status === 'done').length
+  const calculatedProgress = totalMilestones > 0
+    ? Math.round((completedMilestones / totalMilestones) * 100)
+    : 0
+
   return (
     <div className="max-w-4xl">
       <div className="text-xs text-gray-400 mb-2">← <a href="/projects" className="hover:text-gray-700">Projects</a></div>
@@ -68,6 +75,37 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       {unsignedCOs.length > 0 && (
         <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800">
           ⚠️ {unsignedCOs.length} scope change(s) without a signed change order. Do not proceed with this work until signed.
+        </div>
+      )}
+
+      {/* Overall Progress */}
+      {totalMilestones > 0 && (
+        <div className="card p-5 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-900">Overall Progress</h2>
+            <span className={`text-lg font-bold ${
+              calculatedProgress >= 80 ? 'text-green-600' :
+              calculatedProgress >= 50 ? 'text-amber-600' :
+              calculatedProgress >= 25 ? 'text-blue-600' :
+              'text-gray-500'
+            }`}>
+              {calculatedProgress}%
+            </span>
+          </div>
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+            <div
+              className={`h-full rounded-full transition-all ${
+                calculatedProgress >= 80 ? 'bg-green-500' :
+                calculatedProgress >= 50 ? 'bg-amber-400' :
+                calculatedProgress >= 25 ? 'bg-blue-500' :
+                'bg-gray-400'
+              }`}
+              style={{ width: `${calculatedProgress}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            {completedMilestones} of {totalMilestones} milestones completed
+          </p>
         </div>
       )}
 

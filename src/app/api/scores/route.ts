@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (deny) return deny
 
   const data = await req.json()
-  const weekOf = startOfWeek(new Date())
+  const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
   const score = await prisma.weeklyScore.upsert({
     where: { memberId_weekOf_founderScore: { memberId: data.memberId, weekOf, founderScore: false } },
     update: {

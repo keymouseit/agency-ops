@@ -59,7 +59,12 @@ export default async function ProjectsPage() {
       <div className="space-y-3 mb-8">
         {active.map(p => {
           const ci = p.checkIns[0]
-          const pct = ci?.progressPct ?? 0
+          // Calculate progress based on milestones
+          const totalMilestones = p.milestones.length
+          const completedMilestones = p.milestones.filter(m => m.status === 'done').length
+          const pct = totalMilestones > 0
+            ? Math.round((completedMilestones / totalMilestones) * 100)
+            : 0
           const onTrack = ci?.onTrack ?? 'yes'
           const unsigned = p.scopeChanges.filter(s => !s.changeOrderSigned).length
           const overdue = p.estimatedEnd && new Date(p.estimatedEnd) < new Date() && p.status !== 'delivered'
@@ -87,11 +92,16 @@ export default async function ProjectsPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1 max-w-xs h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${onTrack === 'yes' ? 'bg-green-500' : onTrack === 'at_risk' ? 'bg-amber-400' : 'bg-red-500'}`}
+                        className={`h-full rounded-full ${
+                          pct >= 80 ? 'bg-green-500'
+                          : pct >= 50 ? 'bg-amber-400'
+                          : pct >= 25 ? 'bg-blue-500'
+                          : 'bg-gray-400'
+                        }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-xs text-gray-500">{pct}% complete</span>
+                    <span className="text-xs text-gray-500">{pct}% · {completedMilestones}/{totalMilestones} milestones</span>
                   </div>
                   {ci?.blockers && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">Blocker: {ci.blockers}</p>}
                 </div>

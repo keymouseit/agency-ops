@@ -22,7 +22,7 @@ export default async function MePage() {
   const memberId = session.user.id
   const role     = session.user.role as 'Dev' | 'BD' | 'QA' | 'Both'
   const today    = startOfDay(new Date())
-  const thisWeek = startOfWeek(new Date())
+  const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
   const isWeekday = !isWeekend(today)
 
   const isDev = role === 'Dev' || role === 'Both'
@@ -70,7 +70,7 @@ export default async function MePage() {
       ? prisma.project.findMany({
           where: { developerId: memberId, status: { in: ['scoping', 'active', 'qa'] } },
           include: {
-            milestones:     { where: { status: { not: 'done' } }, orderBy: { dueDate: 'asc' }, take: 1 },
+            milestones:     { orderBy: { dueDate: 'asc' } }, // Get all milestones for progress calculation
             checkIns:       { orderBy: { weekOf: 'desc' }, take: 1 },
             testCycles:     { orderBy: { startedAt: 'desc' }, take: 1 },
             releaseSignOff: true,
@@ -428,11 +428,20 @@ export default async function MePage() {
           <div className="space-y-3">
             {myProjects.map(p => {
               const ci            = p.checkIns[0]
-              const milestone     = p.milestones[0]
+              // Calculate progress based on milestones
+              const totalMilestones = p.milestones.length
+              const completedMilestones = p.milestones.filter(m => m.status === 'done').length
+              const calculatedProgress = totalMilestones > 0
+                ? Math.round((completedMilestones / totalMilestones) * 100)
+                : null
+              // Find next upcoming milestone (not done)
+              const milestone     = p.milestones.find(m => m.status !== 'done')
               const daysLeft      = milestone?.dueDate ? differenceInDays(new Date(milestone.dueDate), today) : null
               const isLate        = daysLeft !== null && daysLeft < 0
               const isUrgent      = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3
-              const needsCheckin  = !ci || differenceInDays(today, new Date(ci.weekOf)) > 7
+              // Only show check-in button on Mondays OR if truly overdue (>7 days)
+              const isMonday = today.getDay() === 1
+              const needsCheckin  = (!ci || differenceInDays(today, new Date(ci.weekOf)) > 7) && (isMonday || (ci && differenceInDays(today, new Date(ci.weekOf)) > 7))
               const inQA          = p.status === 'qa'
               const needsSignOff  = inQA && !p.releaseSignOff && p.testCycles[0]?.result === 'pass'
               const needsCycle    = inQA && !p.releaseSignOff && !p.testCycles[0]
@@ -484,19 +493,20 @@ export default async function MePage() {
 
                   {/* Progress + milestone */}
                   <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                    {ci?.progressPct !== undefined && (
+                    {calculatedProgress !== null && (
                       <div className="flex items-center gap-1.5">
                         <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
-                              ci.onTrack === 'no'       ? 'bg-red-400'
-                              : ci.onTrack === 'at_risk' ? 'bg-amber-400'
-                              : 'bg-green-400'
+                              calculatedProgress >= 80 ? 'bg-green-500'
+                              : calculatedProgress >= 50 ? 'bg-amber-400'
+                              : calculatedProgress >= 25 ? 'bg-blue-500'
+                              : 'bg-gray-400'
                             }`}
-                            style={{ width: `${ci.progressPct}%` }}
+                            style={{ width: `${calculatedProgress}%` }}
                           />
                         </div>
-                        <span>{ci.progressPct}%</span>
+                        <span>{calculatedProgress}%</span>
                       </div>
                     )}
                     {milestone && (
