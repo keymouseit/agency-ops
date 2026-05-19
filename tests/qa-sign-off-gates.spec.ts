@@ -43,7 +43,7 @@ test.describe('QA Sign-Off Gates', () => {
       await expect(progressText).toBeVisible()
     })
 
-    test('QA role has access to milestone API endpoint', async ({ request }) => {
+    test('QA role has access to milestone API endpoint', async ({ page }) => {
       // Setup: Create project with milestones
       const users = await prisma.teamMember.findMany()
       const dev = users.find(u => u.role === 'Dev')!
@@ -52,15 +52,10 @@ test.describe('QA Sign-Off Gates', () => {
       const milestone = project.milestones[0]
 
       // Login as QA to get session
-      const loginResponse = await request.post('/api/auth/callback/credentials', {
-        data: {
-          username: TEST_USERS.qa.email,
-          password: TEST_USERS.qa.password,
-        },
-      })
+      await login(page, TEST_USERS.qa)
 
       // Attempt to update milestone
-      const response = await request.patch(`/api/projects/milestones/${milestone.id}`, {
+      const response = await page.request.patch(`/api/projects/milestones/${milestone.id}`, {
         data: { status: 'done' },
       })
 
@@ -145,11 +140,11 @@ test.describe('QA Sign-Off Gates', () => {
       await page.waitForLoadState('networkidle')
 
       // Post-delivery issue button should be visible in post-delivery section
-      await expect(page.locator('text=Post-delivery issues')).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Post-delivery issues' })).toBeVisible()
       await expect(page.locator('button:has-text("Post-delivery issue")')).toBeVisible()
     })
 
-    test('Cannot submit post-delivery issue via API without sign-off', async ({ request }) => {
+    test('Cannot submit post-delivery issue via API without sign-off', async ({ page }) => {
       // Setup: Create project without sign-off
       const users = await prisma.teamMember.findMany()
       const dev = users.find(u => u.role === 'Dev')!
@@ -161,15 +156,10 @@ test.describe('QA Sign-Off Gates', () => {
       })
 
       // Login as QA
-      await request.post('/api/auth/callback/credentials', {
-        data: {
-          username: TEST_USERS.qa.email,
-          password: TEST_USERS.qa.password,
-        },
-      })
+      await login(page, TEST_USERS.qa)
 
       // Attempt to create post-delivery issue
-      const response = await request.post(`/api/qa/${project.id}/issue`, {
+      const response = await page.request.post(`/api/qa/${project.id}/issue`, {
         data: {
           description: 'Client found bug',
           severity: 'high',
@@ -371,7 +361,7 @@ test.describe('QA Sign-Off Gates', () => {
       await page.waitForLoadState('networkidle')
 
       // Should see project needing attention
-      await expect(page.locator(`text=${project.name}`)).toBeVisible()
+      await expect(page.getByRole('link', { name: project.name }).first()).toBeVisible()
 
       // Navigate to project
       await page.goto(`/qa/${project.id}`)

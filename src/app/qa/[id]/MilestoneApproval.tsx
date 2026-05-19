@@ -98,6 +98,7 @@ export default function MilestoneApproval({
             >
               <input
                 type="checkbox"
+                data-testid="milestone-checkbox"
                 checked={m.status === 'done'}
                 onChange={() => toggleMilestone(m.id, m.status)}
                 disabled={loading === m.id}

@@ -45,9 +45,7 @@ export default function QAProjectActions({
 }) {
   const router = useRouter()
   const { data: session } = useSession()
-  const [view, setView] = useState<'cycle' | 'signoff' | 'issue' | null>(
-    issueMode ? 'issue' : null
-  )
+  const [view, setView] = useState<'cycle' | 'signoff' | 'issue' | null>(null)
   const [loading, setLoading] = useState(false)
   const [cycleValidationError, setCycleValidationError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -198,14 +196,14 @@ export default function QAProjectActions({
           )}
           {hasSignOff && (
             <button className="btn-secondary text-xs" onClick={() => setView('issue')}>
-              + Post-delivery issue
+              Post-delivery issue
             </button>
           )}
         </div>
       )}
       {issueMode && view === null && (
         <button className="btn-secondary text-xs" onClick={() => setView('issue')}>
-          + Log post-delivery issue
+          Post-delivery issue
         </button>
       )}
 
