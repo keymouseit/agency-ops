@@ -381,131 +381,120 @@ async function seedQA() {
   const proj1 = projects[0]
   const proj2 = projects[1]
 
-  // QA check-ins for proj1 (healthy)
+  // Project check-ins for proj1 (healthy)
   for (let w = 3; w >= 1; w--) {
-    await prisma2.qACheckIn.upsert({
-      where: { projectId_weekOf: { projectId: proj1.id, weekOf: startOfWeek(subWeeks(new Date(), w), { weekStartsOn: 1 }) } },
-      update: {},
-      create: {
+    await prisma2.projectCheckIn.create({
+      data: {
         projectId: proj1.id,
         submittedById: qa.id,
         weekOf: startOfWeek(subWeeks(new Date(), w), { weekStartsOn: 1 }),
-        testCasesTotal: 40 + (3 - w) * 15,
-        testCasesPassed: 35 + (3 - w) * 14,
-        testCasesFailed: 2,
-        testCasesPending: 3 + (3 - w),
-        bugsOpenCritical: 0,
-        bugsOpenMajor: w === 3 ? 2 : 1,
-        bugsOpenMinor: w === 3 ? 5 : w === 2 ? 3 : 1,
-        bugsClosedThisWeek: w === 3 ? 0 : 4,
-        readyForDelivery: w === 1,
+        progressPct: 70 + (3 - w) * 10,
+        onTrack: w === 1 ? 'yes' : 'mostly',
+        scopeChange: 'none',
+        clientUpdated: true,
+        blockers: w === 3 ? 'Minor API integration issues' : null,
         notes: w === 1 ? 'All critical and major bugs resolved. Ready for client UAT.' : 'Testing in progress — auth module done, appointment module in progress.',
       },
     })
   }
 
   // Bugs for proj1
-  await prisma2.bug.createMany({
-    skipDuplicates: true,
-    data: [
-      {
-        projectId: proj1.id, title: 'Session timeout not handled on appointment booking',
-        description: 'User loses form data when session expires mid-booking.',
-        severity: 'major', type: 'functional', status: 'verified',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        assignedToId: vishal.id, assignedAt: subDays(new Date(), 18),
-        fixedAt: subDays(new Date(), 16), verifiedById: qa.id, verifiedAt: subDays(new Date(), 15),
-        qaChecklistMiss: false,
-      },
-      {
-        projectId: proj1.id, title: 'Date picker UI broken on mobile Safari',
-        description: 'Appointment date picker does not open on iOS Safari 17.',
-        severity: 'major', type: 'ui', status: 'fixed',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        assignedToId: vishal.id, assignedAt: subDays(new Date(), 10),
-        fixedAt: subDays(new Date(), 8),
-        qaChecklistMiss: false,
-      },
-      {
-        projectId: proj1.id, title: 'EHR sync shows duplicate records under load',
-        description: 'When syncing >100 records simultaneously, duplicates appear.',
-        severity: 'critical', type: 'functional', status: 'in_progress',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        assignedToId: vishal.id, assignedAt: subDays(new Date(), 3),
-        qaChecklistMiss: false,
-      },
-      {
-        projectId: proj1.id, title: 'Notification emails have wrong sender name',
-        description: 'Appointment confirmation emails show "undefined" as sender.',
-        severity: 'minor', type: 'functional', status: 'open',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        qaChecklistMiss: false,
-      },
-    ],
-  })
+  // TODO: Bug model removed from schema - need to update seed data
+  // await prisma2.bug.createMany({
+  //   skipDuplicates: true,
+  //   data: [
+  //     {
+  //       projectId: proj1.id, title: 'Session timeout not handled on appointment booking',
+  //       description: 'User loses form data when session expires mid-booking.',
+  //       severity: 'major', type: 'functional', status: 'verified',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       assignedToId: vishal.id, assignedAt: subDays(new Date(), 18),
+  //       fixedAt: subDays(new Date(), 16), verifiedById: qa.id, verifiedAt: subDays(new Date(), 15),
+  //       qaChecklistMiss: false,
+  //     },
+  //     {
+  //       projectId: proj1.id, title: 'Date picker UI broken on mobile Safari',
+  //       description: 'Appointment date picker does not open on iOS Safari 17.',
+  //       severity: 'major', type: 'ui', status: 'fixed',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       assignedToId: vishal.id, assignedAt: subDays(new Date(), 10),
+  //       fixedAt: subDays(new Date(), 8),
+  //       qaChecklistMiss: false,
+  //     },
+  //     {
+  //       projectId: proj1.id, title: 'EHR sync shows duplicate records under load',
+  //       description: 'When syncing >100 records simultaneously, duplicates appear.',
+  //       severity: 'critical', type: 'functional', status: 'in_progress',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       assignedToId: vishal.id, assignedAt: subDays(new Date(), 3),
+  //       qaChecklistMiss: false,
+  //     },
+  //     {
+  //       projectId: proj1.id, title: 'Notification emails have wrong sender name',
+  //       description: 'Appointment confirmation emails show "undefined" as sender.',
+  //       severity: 'minor', type: 'functional', status: 'open',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       qaChecklistMiss: false,
+  //     },
+  //   ],
+  // })
 
-  // QA check-in for proj2 (at-risk project)
-  await prisma2.qACheckIn.upsert({
-    where: { projectId_weekOf: { projectId: proj2.id, weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }) } },
-    update: {},
-    create: {
+  // Project check-in for proj2 (at-risk project)
+  await prisma2.projectCheckIn.create({
+    data: {
       projectId: proj2.id,
       submittedById: qa.id,
       weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }),
-      testCasesTotal: 20,
-      testCasesPassed: 6,
-      testCasesFailed: 8,
-      testCasesPending: 6,
-      bugsOpenCritical: 3,
-      bugsOpenMajor: 5,
-      bugsOpenMinor: 4,
-      bugsClosedThisWeek: 1,
-      readyForDelivery: false,
+      progressPct: 40,
+      onTrack: 'no',
+      scopeChange: 'minor',
+      clientUpdated: true,
       blockers: 'AR module not stable enough to test. Dev changes breaking existing test cases daily.',
       notes: 'Cannot proceed with QA until dev stabilises the AR feature branch.',
     },
   })
 
   // Bugs for proj2 — including one client-reported (red flag)
-  await prisma2.bug.createMany({
-    skipDuplicates: true,
-    data: [
-      {
-        projectId: proj2.id, title: 'Map search returns wrong results for Arabic address input',
-        description: 'RTL text input breaks the geocoding query.',
-        severity: 'critical', type: 'functional', status: 'open',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        assignedToId: rahul.id, assignedAt: subDays(new Date(), 5),
-        qaChecklistMiss: false,
-      },
-      {
-        projectId: proj2.id, title: 'Property listing images not loading on 3G connection',
-        description: 'No lazy loading, no fallback. Blank boxes shown.',
-        severity: 'major', type: 'performance', status: 'open',
-        foundById: qa.id, environment: 'staging', clientReported: false,
-        qaChecklistMiss: false,
-      },
-      {
-        projectId: proj2.id, title: 'App crashes on Android 12 when opening AR preview',
-        description: 'NullPointerException in AR module — reproduced consistently.',
-        severity: 'critical', type: 'functional', status: 'open',
-        foundById: qa.id, environment: 'dev', clientReported: false,
-        assignedToId: rahul.id, assignedAt: subDays(new Date(), 2),
-        qaChecklistMiss: false,
-      },
-      // This one is the red flag — client found it
-      {
-        projectId: proj2.id, title: 'Filter by price range not working — client demo failure',
-        description: 'Client showed the app to their investors. Price filter returned no results. QA did not test this flow.',
-        severity: 'critical', type: 'functional', status: 'fixed',
-        foundById: qa.id, environment: 'production', clientReported: true,
-        assignedToId: rahul.id, assignedAt: subDays(new Date(), 7),
-        fixedAt: subDays(new Date(), 6), verifiedById: qa.id, verifiedAt: subDays(new Date(), 6),
-        qaChecklistMiss: true,
-        rootCause: 'Price filter test case existed but was marked skip due to time pressure. Should never have been skipped.',
-      },
-    ],
-  })
+  // TODO: Bug model removed from schema - need to update seed data
+  // await prisma2.bug.createMany({
+  //   skipDuplicates: true,
+  //   data: [
+  //     {
+  //       projectId: proj2.id, title: 'Map search returns wrong results for Arabic address input',
+  //       description: 'RTL text input breaks the geocoding query.',
+  //       severity: 'critical', type: 'functional', status: 'open',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       assignedToId: rahul.id, assignedAt: subDays(new Date(), 5),
+  //       qaChecklistMiss: false,
+  //     },
+  //     {
+  //       projectId: proj2.id, title: 'Property listing images not loading on 3G connection',
+  //       description: 'No lazy loading, no fallback. Blank boxes shown.',
+  //       severity: 'major', type: 'performance', status: 'open',
+  //       foundById: qa.id, environment: 'staging', clientReported: false,
+  //       qaChecklistMiss: false,
+  //     },
+  //     {
+  //       projectId: proj2.id, title: 'App crashes on Android 12 when opening AR preview',
+  //       description: 'NullPointerException in AR module — reproduced consistently.',
+  //       severity: 'critical', type: 'functional', status: 'open',
+  //       foundById: qa.id, environment: 'dev', clientReported: false,
+  //       assignedToId: rahul.id, assignedAt: subDays(new Date(), 2),
+  //       qaChecklistMiss: false,
+  //     },
+  //     // This one is the red flag — client found it
+  //     {
+  //       projectId: proj2.id, title: 'Filter by price range not working — client demo failure',
+  //       description: 'Client showed the app to their investors. Price filter returned no results. QA did not test this flow.',
+  //       severity: 'critical', type: 'functional', status: 'fixed',
+  //       foundById: qa.id, environment: 'production', clientReported: true,
+  //       assignedToId: rahul.id, assignedAt: subDays(new Date(), 7),
+  //       fixedAt: subDays(new Date(), 6), verifiedById: qa.id, verifiedAt: subDays(new Date(), 6),
+  //       qaChecklistMiss: true,
+  //       rootCause: 'Price filter test case existed but was marked skip due to time pressure. Should never have been skipped.',
+  //     },
+  //   ],
+  // })
 
   console.log('✅ QA seed complete — Neha Joshi added, bugs and check-ins seeded')
   // prisma2 is alias for prisma

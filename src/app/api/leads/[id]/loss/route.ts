@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Log audit trail
     await logAudit({
       action: existingAnalysis ? 'updated' : 'created',
-      entityType: 'LossAnalysis',
+      entityType: 'Lead',
       entityId: analysis.id,
       entityName: lead?.clientName || 'Unknown Lead',
       metadata: {

@@ -35,6 +35,34 @@ export default async function EstimatePage({ params }: { params: { leadId: strin
 
   if (!lead) notFound()
 
+  // Serialize dates for client component
+  const serializedRequest = existingRequest ? {
+    ...existingRequest,
+    createdAt: existingRequest.createdAt.toISOString(),
+    updatedAt: existingRequest.updatedAt.toISOString(),
+    dueBy: existingRequest.dueBy?.toISOString() || null,
+    record: existingRequest.record ? {
+      ...existingRequest.record,
+      createdAt: existingRequest.record.createdAt.toISOString(),
+      updatedAt: existingRequest.record.updatedAt.toISOString(),
+      devConfirmedAt: existingRequest.record.devConfirmedAt?.toISOString() || null,
+      bdApprovedAt: existingRequest.record.bdApprovedAt?.toISOString() || null,
+      lines: existingRequest.record.lines.map(line => ({
+        ...line,
+        createdAt: line.createdAt.toISOString(),
+        updatedAt: line.updatedAt.toISOString(),
+      })),
+    } : null,
+    assignee: {
+      ...existingRequest.assignee,
+      createdAt: existingRequest.assignee.createdAt.toISOString(),
+    },
+    requester: {
+      ...existingRequest.requester,
+      createdAt: existingRequest.requester.createdAt.toISOString(),
+    },
+  } : null
+
   return (
     <EstimateForm
       lead={{
@@ -47,7 +75,7 @@ export default async function EstimatePage({ params }: { params: { leadId: strin
         owner: lead.owner,
       }}
       members={members}
-      existingRequest={existingRequest}
+      existingRequest={serializedRequest}
     />
   )
 }

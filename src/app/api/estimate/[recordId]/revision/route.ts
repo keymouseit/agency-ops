@@ -38,8 +38,8 @@ export async function POST(request: Request, { params }: { params: { recordId: s
 
     // Log audit trail
     await logAudit({
-      action: 'revision_requested',
-      entityType: 'EstimationRecord',
+      action: 'rejected',
+      entityType: 'Estimate',
       entityId: record.id,
       entityName: estReq?.lead.clientName || 'Unknown Lead',
       metadata: {

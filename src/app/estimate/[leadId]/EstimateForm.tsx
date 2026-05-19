@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
 type Lead = { id: string; clientName: string; description: string | null; budget: number | null; currency: string; source: string; owner: { name: string } }
-type Line = { id?: string; phase: string; feature: string; description: string; estimatedHours: number; complexityLevel: string; riskFlag: boolean; riskNote: string; assumptions: string; sortOrder: number; actualHours?: number | null; variancePct?: number | null }
+type Line = { id?: string; phase: string; feature: string; description: string | null; estimatedHours: number; complexityLevel: string; riskFlag: boolean; riskNote: string | null; assumptions: string | null; sortOrder: number; actualHours?: number | null; variancePct?: number | null }
 type ExistingRecord = { id: string; status: string; assignee: { id: string; name: string }; requester: { name: string }; record: { id: string; totalHoursRaw: number; totalHoursFinal: number; bufferPct: number; ratePerHour: number | null; totalPriceFinal: number | null; overallRisk: string; assumptions: string | null; exclusions: string | null; devConfirmedAt: string | null; bdApprovedAt: string | null; bdRevisionNote: string | null; lines: Line[] } | null } | null
 
 const PHASES = ['discovery','design','frontend','backend','mobile','qa','devops','integration','other']
@@ -396,7 +396,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                       onChange={e => updateLine(i,'feature',e.target.value)} />
                   </div>
                   <div className="col-span-2">
-                    <input className="input text-xs py-1.5" value={line.description} placeholder="What's included"
+                    <input className="input text-xs py-1.5" value={line.description || ''} placeholder="What's included"
                       onChange={e => updateLine(i,'description',e.target.value)} />
                   </div>
                   <div className="col-span-1">
@@ -418,10 +418,10 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                       <span className="text-xs text-amber-700">Risk flag</span>
                     </label>
                     {line.riskFlag && (
-                      <input className="input text-xs py-1" value={line.riskNote} placeholder="Why risky?"
+                      <input className="input text-xs py-1" value={line.riskNote || ''} placeholder="Why risky?"
                         onChange={e => updateLine(i,'riskNote',e.target.value)} />
                     )}
-                    <input className="input text-xs py-1" value={line.assumptions} placeholder="Assumptions"
+                    <input className="input text-xs py-1" value={line.assumptions || ''} placeholder="Assumptions"
                       onChange={e => updateLine(i,'assumptions',e.target.value)} />
                   </div>
                   <div className="col-span-1 flex items-center justify-center">

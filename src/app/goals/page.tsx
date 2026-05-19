@@ -10,5 +10,23 @@ export default async function GoalsPage() {
       orderBy: [{ quarter: 'desc' }, { memberId: 'asc' }],
     }),
   ])
-  return <GoalsClient members={members} goals={goals} />
+
+  // Serialize dates for client component
+  const serializedMembers = members.map(m => ({
+    ...m,
+    createdAt: m.createdAt.toISOString(),
+  }))
+
+  const serializedGoals = goals.map(g => ({
+    ...g,
+    createdAt: g.createdAt.toISOString(),
+    updatedAt: g.updatedAt.toISOString(),
+    targetDate: g.targetDate?.toISOString() || null,
+    member: {
+      ...g.member,
+      createdAt: g.member.createdAt.toISOString(),
+    },
+  }))
+
+  return <GoalsClient members={serializedMembers} goals={serializedGoals} />
 }

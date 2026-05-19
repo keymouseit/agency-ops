@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: { recordId: s
     // Log audit trail
     await logAudit({
       action: 'approved',
-      entityType: 'EstimationRecord',
+      entityType: 'Estimate',
       entityId: record.id,
       entityName: req?.lead.clientName || 'Unknown Lead',
       metadata: {
