@@ -96,7 +96,7 @@ async function main() {
     data: {
       projectId: proj1.id,
       submittedById: vishal.id,
-      weekOf: startOfWeek(new Date()),
+      weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }),
       progressPct: 72,
       onTrack: 'yes',
       scopeChange: 'none',
@@ -198,7 +198,7 @@ async function main() {
     data: {
       projectId: proj2.id,
       submittedById: rahul.id,
-      weekOf: startOfWeek(new Date()),
+      weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }),
       progressPct: 45,
       onTrack: 'no',
       scopeChange: 'unlogged',
@@ -323,7 +323,7 @@ async function main() {
   const memberKeys = ['v', 'r', 'p', 'a', 'k'] as const
 
   for (let w = 0; w < 6; w++) {
-    const weekOf = startOfWeek(subWeeks(new Date(), 5 - w))
+    const weekOf = startOfWeek(subWeeks(new Date(), 5 - w), { weekStartsOn: 1 })
     const row = weeklyData[w] as Record<string, number[]>
     for (let mi = 0; mi < members.length; mi++) {
       const key = memberKeys[mi]
@@ -384,12 +384,12 @@ async function seedQA() {
   // QA check-ins for proj1 (healthy)
   for (let w = 3; w >= 1; w--) {
     await prisma2.qACheckIn.upsert({
-      where: { projectId_weekOf: { projectId: proj1.id, weekOf: startOfWeek(subWeeks(new Date(), w)) } },
+      where: { projectId_weekOf: { projectId: proj1.id, weekOf: startOfWeek(subWeeks(new Date(), w), { weekStartsOn: 1 }) } },
       update: {},
       create: {
         projectId: proj1.id,
         submittedById: qa.id,
-        weekOf: startOfWeek(subWeeks(new Date(), w)),
+        weekOf: startOfWeek(subWeeks(new Date(), w), { weekStartsOn: 1 }),
         testCasesTotal: 40 + (3 - w) * 15,
         testCasesPassed: 35 + (3 - w) * 14,
         testCasesFailed: 2,
@@ -446,12 +446,12 @@ async function seedQA() {
 
   // QA check-in for proj2 (at-risk project)
   await prisma2.qACheckIn.upsert({
-    where: { projectId_weekOf: { projectId: proj2.id, weekOf: startOfWeek(new Date()) } },
+    where: { projectId_weekOf: { projectId: proj2.id, weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }) } },
     update: {},
     create: {
       projectId: proj2.id,
       submittedById: qa.id,
-      weekOf: startOfWeek(new Date()),
+      weekOf: startOfWeek(new Date(), { weekStartsOn: 1 }),
       testCasesTotal: 20,
       testCasesPassed: 6,
       testCasesFailed: 8,
