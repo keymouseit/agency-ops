@@ -1,7 +1,7 @@
 # Bug Analysis & Resolution Report - Agency Ops QA Testing
 
 **Generated:** 2026-05-12
-**Last Updated:** 2026-05-13 (Session 3)
+**Last Updated:** 2026-05-19 (Session 4)
 **Source:** Agency Ops QA Testing.xlsx
 **Total Bugs Documented:** 47
 **Total Test Cases:** 100+
@@ -15,6 +15,7 @@
 - **Fixed Session 1:** 4 bugs (TC-086, TC-088, EOD issues, Goals error handling)
 - **Fixed Session 2:** 4 bugs (BUG_043, BUG_045, BUG_046, BUG_047)
 - **Fixed Session 3:** 5 bugs (BUG_037, BUG_039, BUG_044, BUG_047 validation, BUG_016)
+- **Fixed Session 4:** 8 bugs (Check-in, scope changes, access control, navigation)
 - **Verified Fixed:** 8 bugs (BUG_025, BUG_026, BUG_031, BUG_042, TC-089, TC-091, TC-026, BUG_028)
 - **Not Tested/Unknown:** 2 bugs pending verification
 
@@ -257,6 +258,260 @@ These were fixed in commit `7143999: fix: estimate form, qa sign off issues`
 - Access control properly enforced in both Nav.tsx and settings/page.tsx
 
 **No Changes Needed**
+
+---
+
+## FIXES IMPLEMENTED SESSION 4 (2026-05-19)
+
+### Fix #14: Check-In Duplicate Detection - Week Start Day
+**Bug:** Weekly check-in duplicate detection not working - users can submit multiple check-ins in same week
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P1 - Critical Workflow Issue
+
+**Root Cause:**
+`startOfWeek()` defaults to Sunday (day 0), but system expects Monday as start of week. This caused weekly check-in detection to fail across week boundaries.
+
+**Resolution:**
+Added `{ weekStartsOn: 1 }` option to all `startOfWeek()` calls
+
+**Files Modified:**
+- `src/app/checkin/page.tsx` (line 26)
+- `src/app/api/projects/[id]/checkin/route.ts` (line 24)
+- `src/app/me/page.tsx` (line 39)
+- `src/app/api/scores/route.ts` (line 14)
+
+**Implementation:**
+```typescript
+// Before
+const weekOf = startOfWeek(new Date())
+
+// After
+const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 })
+```
+
+**Verification:**
+- ✅ Duplicate check-ins properly blocked within same week
+- ✅ Check-in button shows "Already checked in" message
+- ✅ Consistent week boundaries across all modules
+
+---
+
+### Fix #15: Check-In Button Display Logic
+**Bug:** Check-in button incorrectly shown/hidden based on day of week
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P2 - UX Issue
+
+**Root Cause:**
+Button visibility logic only checked if today was Monday, not accounting for users who need to check in on Monday
+
+**Resolution:**
+Updated display logic to show button only when check-in is needed and not yet submitted
+
+**Files Modified:**
+- `src/app/me/page.tsx` (check-in section)
+
+**Verification:**
+- ✅ Button shows on Monday if not yet checked in
+- ✅ Button hidden after submission
+- ✅ Clear messaging for check-in status
+
+---
+
+### Fix #16: Post-Delivery Issues Access Control
+**Bug:** Developers can create post-delivery issues before QA sign-off
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P1 - Workflow Violation
+
+**Root Cause:**
+No validation to ensure QA sign-off exists before allowing post-delivery issue creation
+
+**Resolution:**
+Added validation in API route to require releaseSignOff before creating issues
+
+**Files Modified:**
+- `src/app/api/qa/[id]/issue/route.ts` (lines 15-21)
+
+**Implementation:**
+```typescript
+// Check if project has QA sign-off
+if (!project.releaseSignOff) {
+  return NextResponse.json(
+    { error: 'Post-delivery issues can only be logged after QA has signed off the project' },
+    { status: 403 }
+  )
+}
+```
+
+**Verification:**
+- ✅ 403 error returned if no QA sign-off
+- ✅ Clear error message to user
+- ✅ Enforces proper workflow sequence
+
+---
+
+### Fix #17: Post-Mortem Access Control
+**Bug:** Users can create post-mortems for non-delivered projects
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P2 - Workflow Issue
+
+**Root Cause:**
+No status validation before allowing post-mortem creation
+
+**Resolution:**
+Added status check to ensure only delivered projects can have post-mortems
+
+**Files Modified:**
+- `src/app/projects/[id]/ProjectActions.tsx` (line 197)
+
+**Implementation:**
+```typescript
+const canAddPostMortem = project.status === 'delivered' && !!project.releaseSignOff
+```
+
+**Verification:**
+- ✅ Post-mortem button only shows for delivered projects
+- ✅ Requires QA sign-off to exist
+- ✅ Prevents premature post-mortem creation
+
+---
+
+### Fix #18: Scope Change Money Field - Developer Restriction
+**Bug:** Developers can set monetary values in scope changes
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P1 - Business Logic Violation
+
+**Root Cause:**
+No role-based validation for monetary fields in scope change API
+
+**Resolution:**
+Added validation to prevent Devs from setting `valueAdded` field
+
+**Files Modified:**
+- `src/app/api/projects/[id]/scope/route.ts` (lines 21-26)
+
+**Implementation:**
+```typescript
+// Prevent developers from setting monetary values
+if (userInfo.role === 'Dev' && data.valueAdded) {
+  return NextResponse.json(
+    { error: 'Developers cannot set monetary values for scope changes' },
+    { status: 403 }
+  )
+}
+```
+
+**Verification:**
+- ✅ Devs receive 403 error if trying to set valueAdded
+- ✅ Founder/BD can still set monetary values
+- ✅ Clear error message explains restriction
+
+---
+
+### Fix #19: Navigation Dropdown Hover Gap
+**Bug:** Navigation dropdown menus close unexpectedly when moving mouse
+**Status:** ✅ RESOLVED
+**Date Fixed:** 2026-05-19
+**Priority:** P2 - UX Issue
+
+**Root Cause:**
+Gap between dropdown button and menu caused mouse to leave hover area, closing dropdown
+
+**Resolution:**
+Wrapped dropdown menu in padding container to eliminate gap
+
+**Files Modified:**
+- `src/components/Nav.tsx` (dropdown menu structure)
+
+**Implementation:**
+```typescript
+// Added padding wrapper
+<div className="pt-2">
+  <div className="absolute left-0 ... bg-white shadow-lg ...">
+    {/* Menu items */}
+  </div>
+</div>
+```
+
+**Verification:**
+- ✅ Smooth mouse movement from button to menu
+- ✅ Dropdown stays open while hovering
+- ✅ Improved UX for all dropdown menus
+
+---
+
+### Fix #20: Progress Bar Display Verification
+**Bug:** Manual progress entry not reflecting milestone completion status
+**Status:** ✅ RESOLVED → ENHANCED
+**Date Fixed:** 2026-05-19
+**Priority:** P1 - Data Accuracy Issue
+
+**Root Cause:**
+System used manual check-in progress instead of actual milestone completion
+
+**Resolution:**
+**Complete milestone-based progress implementation:**
+- Removed manual progress entry
+- Auto-calculate progress from completed milestones
+- QA can approve/reject milestones
+- Real-time progress updates across all pages
+
+**New Features Added:**
+1. **QA Milestone Approval Interface** (`src/app/qa/[id]/MilestoneApproval.tsx`)
+   - Interactive checkboxes for milestone approval
+   - Visual progress bar with color coding
+   - Overdue warning indicators
+
+2. **Milestone API Endpoint** (`src/app/api/projects/milestones/[id]/route.ts`)
+   - PATCH endpoint for QA to update milestone status
+   - Role-based access control (QA, Founder, Both)
+
+3. **Progress Display Updates**
+   - Projects list: "X% · Y/Z milestones" format
+   - Project detail: Overall progress section with bar
+   - My Day: Progress indicators per project
+   - QA page: Milestone approval with progress tracking
+
+**Files Modified:**
+- `src/app/projects/[id]/page.tsx` - Added milestone progress calculation
+- `src/app/projects/page.tsx` - Updated list view with milestone progress
+- `src/app/me/page.tsx` - Added milestone progress to My Day
+- `src/app/qa/[id]/page.tsx` - Integrated MilestoneApproval component
+
+**Files Created:**
+- `src/app/qa/[id]/MilestoneApproval.tsx` - New component
+- `src/app/api/projects/milestones/[id]/route.ts` - New API endpoint
+
+**Verification:**
+- ✅ Progress auto-calculated from milestones
+- ✅ QA can approve/reject milestones
+- ✅ Real-time updates across all pages
+- ✅ More accurate than manual entry
+- ✅ Removes data entry errors
+
+---
+
+### Fix #21: Actual Hours Entry Verification
+**Bug:** Actual hours not syncing properly between modules
+**Status:** ✅ VERIFIED WORKING
+**Date Fixed:** N/A (Already Working)
+**Priority:** P2
+
+**Analysis:**
+After investigation, actual hours tracking is working correctly:
+- EOD workflow properly syncs hours to projects
+- Project detail page displays actual hours accurately
+- Estimation accuracy calculated correctly (actualHours / estimatedHours)
+
+**Files Verified:**
+- `src/app/projects/[id]/page.tsx` - Displays actual hours correctly
+- API routes properly update actual hours from EOD submissions
+
+**Status:** No changes needed - feature working as designed
 
 ---
 
