@@ -3,7 +3,7 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'QA', 'Both', 'Founder'])
   if (deny) return deny
 
   const data = await req.json()
