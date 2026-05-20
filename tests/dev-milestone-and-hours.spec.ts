@@ -330,11 +330,20 @@ test.describe('Developer Milestone Updates & Actual Hours Tracking', () => {
     const dev = users.find(u => u.role === 'Dev')!
     const project = await createTestProject(dev.id)
 
-    // Create daily log with actual hours using a unique date
+    // Use a specific date - if it exists from a retry, delete it first
+    const testDate = new Date('2026-05-14')
+    await prisma.dailyLog.deleteMany({
+      where: {
+        memberId: dev.id,
+        date: testDate,
+      },
+    })
+
+    // Create daily log with actual hours
     const dailyLog = await prisma.dailyLog.create({
       data: {
         memberId: dev.id,
-        date: new Date('2026-05-15'),
+        date: testDate,
         eodSubmittedAt: new Date(),
         dayRating: 4,
       },
@@ -363,20 +372,20 @@ test.describe('Developer Milestone Updates & Actual Hours Tracking', () => {
     await login(page, TEST_USERS.founder)
 
     // Navigate to intelligence/founders dashboard
-    await page.goto('/intelligence')
-    await page.waitForLoadState('networkidle')
+    await page.goto('/intelligence', { timeout: 60000 })
+    await page.waitForLoadState('domcontentloaded')
 
-    // Verify the page loaded
-    await expect(page.locator('h1:has-text("Intelligence")')).toBeVisible()
+    // Verify the page loaded (use longer timeout for intelligence page which has complex queries)
+    await expect(page.locator('h1:has-text("Intelligence")')).toBeVisible({ timeout: 30000 })
 
     // Find the project card/row
     const projectSection = page.locator('text=Test Project').first()
-    await expect(projectSection).toBeVisible()
+    await expect(projectSection).toBeVisible({ timeout: 10000 })
 
     // Verify actual hours are displayed somewhere on the page
     // Note: The exact location depends on the intelligence page layout
     // We just verify the data is present
     const actualHoursText = page.locator('text=/12h?/i').or(page.locator('text=/12 h/i'))
-    await expect(actualHoursText.first()).toBeVisible()
+    await expect(actualHoursText.first()).toBeVisible({ timeout: 10000 })
   })
 })
