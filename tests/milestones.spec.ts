@@ -78,8 +78,10 @@ test.describe('Milestone & Progress Tracking', () => {
 
     // Should show overall progress section
     await expect(page.locator('text=Overall Progress')).toBeVisible()
-    await expect(page.locator('text=67%')).toBeVisible()
     await expect(page.locator('text=2 of 3 milestones completed')).toBeVisible()
+
+    // Check progress percentage appears (using .first() to handle multiple 67% on page)
+    await expect(page.locator('text=67%').first()).toBeVisible()
   })
 
   test('Progress displays correctly on My Day page', async ({ page }) => {

@@ -51,14 +51,26 @@ export default function MilestoneApproval({
     )
   }
 
-  const completedCount = milestones.filter(m => m.status === 'done').length
-  const progressPct = Math.round((completedCount / milestones.length) * 100)
+  const approvedCount = milestones.filter(m => m.status === 'done').length
+  const readyForQACount = milestones.filter(m => m.status === 'ready_for_qa').length
+  const pendingCount = milestones.filter(m => m.status === 'pending').length
+  const progressPct = Math.round((approvedCount / milestones.length) * 100)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-gray-500">
-          {completedCount} of {milestones.length} milestones approved
+          {approvedCount} of {milestones.length} milestones approved
+          {readyForQACount > 0 && (
+            <span className="ml-2 text-blue-600 font-medium">
+              · {readyForQACount} ready to test
+            </span>
+          )}
+          {pendingCount > 0 && (
+            <span className="ml-2 text-gray-400">
+              · {pendingCount} pending dev
+            </span>
+          )}
         </div>
         <div className={`text-sm font-semibold ${
           progressPct >= 80 ? 'text-green-600' :
@@ -84,6 +96,8 @@ export default function MilestoneApproval({
       <div className="space-y-2">
         {milestones.map(m => {
           const isOverdue = new Date(m.dueDate) < new Date() && m.status !== 'done'
+          const isReadyForQA = m.status === 'ready_for_qa'
+          const isPending = m.status === 'pending'
 
           return (
             <label
@@ -91,6 +105,10 @@ export default function MilestoneApproval({
               className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                 m.status === 'done'
                   ? 'bg-green-50 border-green-200'
+                  : isReadyForQA
+                  ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                  : isPending
+                  ? 'bg-gray-50 border-gray-200 opacity-60'
                   : isOverdue
                   ? 'bg-red-50 border-red-200'
                   : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
@@ -101,8 +119,9 @@ export default function MilestoneApproval({
                 data-testid="milestone-checkbox"
                 checked={m.status === 'done'}
                 onChange={() => toggleMilestone(m.id, m.status)}
-                disabled={loading === m.id}
-                className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                disabled={loading === m.id || isPending}
+                className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
+                title={isPending ? 'Waiting for developer to mark as ready for QA' : 'Toggle QA approval'}
               />
               <div className="flex-1">
                 <div className={`text-sm font-medium ${
@@ -110,11 +129,21 @@ export default function MilestoneApproval({
                 }`}>
                   {m.title}
                 </div>
-                <div className="text-xs text-gray-400 mt-0.5">
-                  Due: {fmtDate(m.dueDate)}
-                  {isOverdue && <span className="text-red-600 ml-2">⚠ Overdue</span>}
+                <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                  <span>Due: {fmtDate(m.dueDate)}</span>
+                  {isPending && (
+                    <span className="badge bg-gray-100 text-gray-500">
+                      Waiting for dev
+                    </span>
+                  )}
+                  {isReadyForQA && !m.completedAt && (
+                    <span className="badge bg-blue-100 text-blue-700">
+                      Ready to test
+                    </span>
+                  )}
+                  {isOverdue && <span className="text-red-600">⚠ Overdue</span>}
                   {m.completedAt && (
-                    <span className="text-green-600 ml-2">
+                    <span className="text-green-600">
                       ✓ Approved {fmtDate(m.completedAt)}
                     </span>
                   )}
@@ -129,7 +158,7 @@ export default function MilestoneApproval({
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        ℹ️ Check milestones as QA-approved. Project progress is calculated from approved milestones.
+        ℹ️ Check milestones to approve them after testing. Blue badges indicate milestones ready for QA. Gray milestones are still in development.
       </p>
     </div>
   )

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import ProjectActions from './ProjectActions'
 import { auth } from '@/lib/auth'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
+import DeveloperMilestones from './DeveloperMilestones'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,23 +130,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         {/* Milestones */}
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Milestones</h2>
-          {project.milestones.length === 0
-            ? <p className="text-sm text-gray-400">No milestones added.</p>
-            : (
-              <div className="space-y-2">
-                {project.milestones.map(m => (
-                  <div key={m.id} className="flex items-center gap-2 text-sm">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      m.status === 'done' ? 'bg-green-500' :
-                      m.status === 'missed' ? 'bg-red-500' :
-                      m.status === 'at_risk' ? 'bg-amber-400' : 'bg-gray-300'
-                    }`} />
-                    <span className={`flex-1 ${m.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{m.title}</span>
-                    <span className="text-xs text-gray-400">{fmtDate(m.dueDate)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+          <DeveloperMilestones milestones={project.milestones} projectId={project.id} />
         </div>
 
         {/* Scope changes */}

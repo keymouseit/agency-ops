@@ -10,10 +10,16 @@ import { createTestProject, prisma } from './helpers/database'
 test.describe('QA Sign-Off Gates', () => {
   test.describe('Bug Fix 1: QA Can Update Milestones', () => {
     test('QA can mark milestones as complete', async ({ page }) => {
-      // Setup: Create project with milestones
+      // Setup: Create project with milestones ready for QA
       const users = await prisma.teamMember.findMany()
       const dev = users.find(u => u.role === 'Dev')!
       const project = await createTestProject(dev.id)
+
+      // Mark first milestone as ready for QA (developer completed it)
+      await prisma.milestone.update({
+        where: { id: project.milestones[0].id },
+        data: { status: 'ready_for_qa' },
+      })
 
       // Login as QA
       await login(page, TEST_USERS.qa)
@@ -548,6 +554,163 @@ test.describe('QA Sign-Off Gates', () => {
 
       // Sign-off button should NOT be visible (failed test)
       await expect(page.locator('button:has-text("Submit release sign-off")')).not.toBeVisible()
+    })
+  })
+
+  test.describe('Milestone Validation for Sign-Off', () => {
+    test('Shows warning and requires acknowledgment when signing off with unapproved milestones', async ({ page }) => {
+      // Setup: Create project with milestones - some approved, some not
+      const users = await prisma.teamMember.findMany()
+      const dev = users.find(u => u.role === 'Dev')!
+      const qa = users.find(u => u.role === 'QA')!
+      const project = await createTestProject(dev.id)
+
+      // Approve only 1 of 3 milestones
+      await prisma.milestone.update({
+        where: { id: project.milestones[0].id },
+        data: { status: 'done', completedAt: new Date() },
+      })
+
+      // Move to QA and create passing test cycle
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { status: 'qa' },
+      })
+
+      const cycle = await prisma.testCycle.create({
+        data: {
+          projectId: project.id,
+          cycleType: 'pre_release',
+          environment: 'staging',
+          conductedById: qa.id,
+          result: 'pass',
+          summary: 'All tests passed',
+          testedAuth: true,
+          testedCoreFlows: true,
+        },
+      })
+
+      // Login as QA
+      await login(page, TEST_USERS.qa)
+      await page.goto(`/qa/${project.id}`)
+      await page.waitForLoadState('networkidle')
+
+      // Click sign-off button to open form
+      await page.click('button:has-text("Submit release sign-off")')
+      await page.waitForTimeout(500)
+
+      // ── Verify warning is shown ──
+      await expect(page.locator('text=2 milestones not QA-approved')).toBeVisible()
+      await expect(page.locator('text=Only 1 of 3 milestones have been marked as complete')).toBeVisible()
+
+      // ── Verify acknowledgment text exists ──
+      await expect(page.locator('text=I acknowledge that 2 milestones are still pending QA approval')).toBeVisible()
+
+      // ── Verify submit button is disabled without acknowledgment ──
+      const submitButton = page.locator('button:has-text("Sign off — ready to deliver")')
+      await expect(submitButton).toBeDisabled()
+
+      // ── Check the milestone acknowledgment checkbox (it's in an amber box) ──
+      const ackCheckbox = page.locator('.bg-amber-50 input[type="checkbox"]')
+      await expect(ackCheckbox).toBeVisible()
+      await ackCheckbox.check()
+      await page.waitForTimeout(300)
+
+      // Fill required fields - quality score
+      await page.click('button[type="button"]:has-text("10")')
+      await page.waitForTimeout(200)
+
+      // Check all pre-release checklist items (these are in white boxes with border)
+      const checklistItems = page.locator('.bg-white.border.border-gray-100 input[type="checkbox"]')
+      const itemCount = await checklistItems.count()
+      for (let i = 0; i < itemCount; i++) {
+        await checklistItems.nth(i).check()
+        await page.waitForTimeout(100)
+      }
+      await page.waitForTimeout(500)
+
+      // ── Now submit button should be enabled ──
+      await expect(submitButton).toBeEnabled()
+
+      // ── Submit sign-off ──
+      await submitButton.click()
+      await page.waitForTimeout(1500)
+
+      // ── Verify sign-off was created ──
+      const signOff = await prisma.releaseSignOff.findUnique({
+        where: { projectId: project.id },
+      })
+      expect(signOff).toBeTruthy()
+      expect(signOff?.projectId).toBe(project.id)
+    })
+
+    test('Sign-off succeeds without warning when all milestones are approved', async ({ page }) => {
+      // Setup: Create project with all milestones approved
+      const users = await prisma.teamMember.findMany()
+      const dev = users.find(u => u.role === 'Dev')!
+      const qa = users.find(u => u.role === 'QA')!
+      const project = await createTestProject(dev.id)
+
+      // Approve ALL milestones
+      await Promise.all(
+        project.milestones.map(m =>
+          prisma.milestone.update({
+            where: { id: m.id },
+            data: { status: 'done', completedAt: new Date() },
+          })
+        )
+      )
+
+      // Move to QA and create passing test cycle
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { status: 'qa' },
+      })
+
+      const cycle = await prisma.testCycle.create({
+        data: {
+          projectId: project.id,
+          cycleType: 'pre_release',
+          environment: 'staging',
+          conductedById: qa.id,
+          result: 'pass',
+          summary: 'All tests passed',
+          testedAuth: true,
+          testedCoreFlows: true,
+        },
+      })
+
+      // Login as QA
+      await login(page, TEST_USERS.qa)
+      await page.goto(`/qa/${project.id}`)
+      await page.waitForLoadState('networkidle')
+
+      // Click sign-off button to open form
+      await page.click('button:has-text("Submit release sign-off")')
+      await page.waitForTimeout(500)
+
+      // ── Verify NO warning is shown ──
+      await expect(page.locator('text=milestones not QA-approved')).not.toBeVisible()
+
+      // ── Verify NO acknowledgment checkbox in amber box ──
+      await expect(page.locator('.bg-amber-50 input[type="checkbox"]')).not.toBeVisible()
+
+      // Fill required fields - quality score
+      await page.click('button[type="button"]:has-text("10")')
+      await page.waitForTimeout(200)
+
+      // Check all pre-release checklist items (these are in white boxes with border)
+      const checklistItems = page.locator('.bg-white.border.border-gray-100 input[type="checkbox"]')
+      const itemCount = await checklistItems.count()
+      for (let i = 0; i < itemCount; i++) {
+        await checklistItems.nth(i).check()
+        await page.waitForTimeout(100)
+      }
+      await page.waitForTimeout(500)
+
+      // ── Submit button should be enabled (no milestone warning to acknowledge) ──
+      const submitButton = page.locator('button:has-text("Sign off — ready to deliver")')
+      await expect(submitButton).toBeEnabled()
     })
   })
 })
