@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; status: string }
+type Milestone = { id: string; title: string; status: string; dueDate: Date }
 
 const CYCLE_TYPES = [
   { value: 'sanity',       label: 'Sanity check', desc: 'Quick smoke test — does the core still work after changes?' },
@@ -34,7 +35,7 @@ const SIGNOFF_ITEMS = [
 ]
 
 export default function QAProjectActions({
-  project, members, canSignOff, latestCycleId, issueMode = false, hasSignOff = false,
+  project, members, canSignOff, latestCycleId, issueMode = false, hasSignOff = false, milestones = [],
 }: {
   project: Project
   members: Member[]
@@ -42,6 +43,7 @@ export default function QAProjectActions({
   latestCycleId?: string
   issueMode?: boolean
   hasSignOff?: boolean
+  milestones?: Milestone[]
 }) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -73,6 +75,9 @@ export default function QAProjectActions({
   const [issueReportedBy, setIssueReportedBy] = useState('')
   const [issueInScope, setIssueInScope] = useState<boolean | null>(null)
   const [issueRootCause, setIssueRootCause] = useState('')
+
+  // Milestone acknowledgment
+  const [milestoneAck, setMilestoneAck] = useState(false)
 
   const qaMembers = members.filter(m => ['QA', 'Both', 'Founder'].includes(m.role))
 
@@ -180,6 +185,12 @@ export default function QAProjectActions({
   }
 
   const allSigned = SIGNOFF_ITEMS.every(i => signoffChecklist[i.key])
+
+  // Milestone validation
+  const totalMilestones = milestones.length
+  const approvedMilestones = milestones.filter(m => m.status === 'done').length
+  const hasPendingMilestones = totalMilestones > 0 && approvedMilestones < totalMilestones
+  const pendingMilestoneCount = totalMilestones - approvedMilestones
 
   return (
     <div className="space-y-3">
@@ -355,6 +366,25 @@ export default function QAProjectActions({
             This is the formal gate. Once signed off, the project can be marked as delivered.
             You are putting your name on this.
           </p>
+
+          {/* Milestone warning */}
+          {hasPendingMilestones && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-2 text-amber-800">
+                <span className="text-lg leading-none">⚠</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">
+                    {pendingMilestoneCount} milestone{pendingMilestoneCount !== 1 ? 's' : ''} not QA-approved
+                  </div>
+                  <div className="text-xs text-amber-700 mt-1">
+                    Only {approvedMilestones} of {totalMilestones} milestones have been marked as complete by QA.
+                    Signing off now means releasing with untested/unverified work.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={submitSignOff} className="space-y-4">
             <div>
               <label className="label">Pre-release checklist</label>
@@ -383,6 +413,24 @@ export default function QAProjectActions({
               </div>
             )}
 
+            {/* Milestone acknowledgment if pending */}
+            {hasPendingMilestones && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={milestoneAck}
+                    onChange={e => setMilestoneAck(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-amber-900">
+                    I acknowledge that {pendingMilestoneCount} milestone{pendingMilestoneCount !== 1 ? 's are' : ' is'} still pending QA approval,
+                    and I am signing off on this release with incomplete milestone verification.
+                  </span>
+                </label>
+              </div>
+            )}
+
             <div>
               <label className="label">Quality score for this release (1 = poor, 10 = excellent)</label>
               <div className="flex gap-2 mt-1">
@@ -404,8 +452,16 @@ export default function QAProjectActions({
             </div>
 
             <div className="flex gap-2">
-              <button type="submit" disabled={loading || !signedOffById || (!allSigned && !exceptionsNotes)}
-                className="btn-primary bg-green-700 hover:bg-green-800">
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  !signedOffById ||
+                  (!allSigned && !exceptionsNotes) ||
+                  (hasPendingMilestones && !milestoneAck)
+                }
+                className="btn-primary bg-green-700 hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {loading ? 'Submitting...' : '✓ Sign off — ready to deliver'}
               </button>
               <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>

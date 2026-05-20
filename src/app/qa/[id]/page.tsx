@@ -182,6 +182,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
               canSignOff={canSignOff}
               latestCycleId={latestCycle?.id}
               hasSignOff={hasSignOff}
+              milestones={project.milestones}
             />
           )}
         </div>

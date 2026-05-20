@@ -67,24 +67,35 @@ export async function POST(
   // Find every project touched in this log that has actual hours logged
   const projectIds = [...new Set(
     tasks
-      .filter(t => t.projectId && t.actualHours)
+      .filter(t => t.projectId && t.actualHours !== null && t.actualHours !== undefined)
       .map(t => t.projectId as string)
   )]
 
   if (projectIds.length > 0) {
-    await Promise.all(
-      projectIds.map(async (projectId) => {
-        // Sum ALL actual hours ever logged against this project across all daily tasks
-        const agg = await prisma.dailyTask.aggregate({
-          where: { projectId, actualHours: { not: null } },
-          _sum: { actualHours: true },
+    try {
+      await Promise.all(
+        projectIds.map(async (projectId) => {
+          // Sum ALL actual hours ever logged against this project across all daily tasks
+          const agg = await prisma.dailyTask.aggregate({
+            where: {
+              projectId,
+              actualHours: { not: null }
+            },
+            _sum: { actualHours: true },
+          })
+
+          const totalHours = agg._sum.actualHours ?? 0
+
+          await prisma.project.update({
+            where: { id: projectId },
+            data: { actualHours: totalHours },
+          })
         })
-        await prisma.project.update({
-          where: { id: projectId },
-          data: { actualHours: agg._sum.actualHours ?? 0 },
-        })
-      })
-    )
+      )
+    } catch (error) {
+      console.error('Error syncing project actual hours:', error)
+      // Continue anyway - don't fail the EOD submission
+    }
   }
 
   return NextResponse.json(log)
