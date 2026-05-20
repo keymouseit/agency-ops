@@ -17,7 +17,11 @@ export async function POST(req: Request) {
       select: { id: true, name: true }
     })
 
-    const results = []
+    const results: Array<{
+      projectId: string
+      projectName: string
+      actualHours: number
+    }> = []
 
     for (const project of projects) {
       // Sum ALL actual hours ever logged against this project
