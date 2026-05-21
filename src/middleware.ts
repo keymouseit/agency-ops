@@ -72,12 +72,13 @@ function checkApiAccess(path: string, role: string): boolean {
   if (['BD', 'Both', 'Founder'].includes(role)) {
     if (path.startsWith('/api/daily')) return true
   }
-  // QA can access QA and bug APIs, plus milestone updates
+  // QA can access QA and bug APIs, plus milestone updates and daily plans
   if (['QA', 'Founder'].includes(role)) {
     if (
       path.startsWith('/api/qa') ||
       path.startsWith('/api/blockers') ||
-      path.startsWith('/api/projects/milestones')
+      path.startsWith('/api/projects/milestones') ||
+      path.startsWith('/api/daily')
     ) return true
   }
   // Everyone can access scores, notifications
