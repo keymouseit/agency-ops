@@ -68,6 +68,10 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/estimate')
     ) return true
   }
+  // BD can access daily APIs
+  if (['BD', 'Both', 'Founder'].includes(role)) {
+    if (path.startsWith('/api/daily')) return true
+  }
   // QA can access QA and bug APIs, plus milestone updates
   if (['QA', 'Founder'].includes(role)) {
     if (

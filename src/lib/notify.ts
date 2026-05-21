@@ -9,6 +9,7 @@ type NotificationType =
   | 'blocker_escalated'
   | 'project_assigned'
   | 'project_in_qa'
+  | 'milestone_ready_for_qa'
   | 'test_cycle_fail'
   | 'test_cycle_pass'
   | 'eod_missing'

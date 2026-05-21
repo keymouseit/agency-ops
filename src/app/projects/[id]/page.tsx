@@ -5,6 +5,7 @@ import ProjectActions from './ProjectActions'
 import { auth } from '@/lib/auth'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 import DeveloperMilestones from './DeveloperMilestones'
+import QAReadyPrompt from './QAReadyPrompt'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,15 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     ? Math.round((completedMilestones / totalMilestones) * 100)
     : 0
 
+  // Check if all milestones are ready for QA but project status is not QA
+  const allMilestonesReadyForQA = totalMilestones > 0 &&
+    project.milestones.every(m => m.status === 'ready_for_qa' || m.status === 'done')
+  const showQAPrompt = allMilestonesReadyForQA &&
+    project.status !== 'qa' &&
+    project.status !== 'delivered' &&
+    project.status !== 'cancelled' &&
+    (userRole === 'Dev' || userRole === 'Founder' || userRole === 'Both')
+
   return (
     <div className="max-w-4xl">
       <div className="text-xs text-gray-400 mb-2">← <a href="/projects" className="hover:text-gray-700">Projects</a></div>
@@ -78,6 +88,11 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800">
           ⚠️ {unsignedCOs.length} scope change(s) without a signed change order. Do not proceed with this work until signed.
         </div>
+      )}
+
+      {/* Smart prompt to move project to QA when all milestones are ready */}
+      {showQAPrompt && (
+        <QAReadyPrompt projectId={project.id} projectName={project.name} />
       )}
 
       {/* Overall Progress */}

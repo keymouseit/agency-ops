@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['Dev', 'Both', 'Founder'])
+  const deny = await checkRole(['BD', 'Dev', 'Both', 'Founder'])
   if (deny) return deny
 
   const data = await req.json()

@@ -43,6 +43,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     )
   }
 
+  // Validation: Project status must be "qa" before sign-off
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { status: true, name: true },
+  })
+
+  if (!project) {
+    return NextResponse.json(
+      { error: 'Project not found.' },
+      { status: 404 }
+    )
+  }
+
+  if (project.status !== 'qa') {
+    return NextResponse.json(
+      { error: 'Project must be in QA status before sign-off. Please ask the developer to move the project to QA status first.' },
+      { status: 422 }
+    )
+  }
+
   const signOff = await prisma.releaseSignOff.upsert({
     where: { projectId: params.id },
     update: {
@@ -75,35 +95,27 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     },
   })
 
-  // Get project name for audit log
-  const project = await prisma.project.findUnique({
-    where: { id: params.id },
-    select: { name: true },
-  })
-
-  // Log audit trail
-  if (project) {
-    await logQAAction(
-      'signed_off',
-      'ReleaseSignOff',
-      signOff.id,
-      project.name,
-      {
-        qualityScore: signOff.qualityScore,
-        cycleId: data.cycleId,
-        signedOffById: data.signedOffById,
-        allChecksPassed: data.sanityPassed && data.regressionPassed && data.noBlockersOpen,
-      },
-      req
-    )
-
-    logger.info('QA release sign-off created', {
-      projectId: params.id,
-      projectName: project.name,
-      signOffId: signOff.id,
+  // Log audit trail (project already fetched above for validation)
+  await logQAAction(
+    'signed_off',
+    'ReleaseSignOff',
+    signOff.id,
+    project.name,
+    {
       qualityScore: signOff.qualityScore,
-    })
-  }
+      cycleId: data.cycleId,
+      signedOffById: data.signedOffById,
+      allChecksPassed: data.sanityPassed && data.regressionPassed && data.noBlockersOpen,
+    },
+    req
+  )
+
+  logger.info('QA release sign-off created', {
+    projectId: params.id,
+    projectName: project.name,
+    signOffId: signOff.id,
+    qualityScore: signOff.qualityScore,
+  })
 
   logger.logApiResponse('POST', `/api/qa/${params.id}/signoff`, 200, Date.now() - startTime)
   return NextResponse.json(signOff)
