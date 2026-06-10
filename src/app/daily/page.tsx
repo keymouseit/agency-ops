@@ -31,7 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function DailyPage({
   searchParams,
 }: {
-  searchParams: { date?: string; view?: string }
+  searchParams: { date?: string; view?: string; saved?: string }
 }) {
   const session = await auth()
   if (!session?.user?.id) {
@@ -68,6 +68,10 @@ export default async function DailyPage({
   const prevDate = format(subDays(targetDate, 1), 'yyyy-MM-dd')
   const nextDate = format(new Date(targetDate.getTime() + 86400000), 'yyyy-MM-dd')
 
+  const myLog = logs.find(l => l.memberId === session.user.id)
+  const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
+  const canNewPlan = isToday && !!myLog?.eodSubmittedAt
+
   // who's missing what
   const membersWithLog = new Set(logs.map(l => l.memberId))
   const noPlan = members.filter(m => !membersWithLog.has(m.id))
@@ -83,8 +87,16 @@ export default async function DailyPage({
   const totalActHours = allTasks.filter(t => t.eodNotes !== null || t.status !== 'planned')
     .reduce((s, t) => s + (t.actualHours ?? 0), 0)
 
+  const planJustSaved = searchParams.saved === '1'
+
   return (
     <div>
+      {planJustSaved && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-800">
+          Plan saved — your tasks for today are below.
+        </div>
+      )}
+
       {/* Header with date nav */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -126,7 +138,15 @@ export default async function DailyPage({
           <Link href={`/daily?date=${prevDate}${viewMode ? `&view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">← Prev</Link>
           {!isToday && <Link href={`/daily${viewMode ? `?view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">Today</Link>}
           <Link href={`/daily?date=${nextDate}${viewMode ? `&view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">Next →</Link>
-          <Link href="/daily/plan" className="btn-primary text-xs">+ Morning plan</Link>
+          {isToday && (
+            canEditPlan ? (
+              <Link href="/daily/plan" className="btn-primary text-xs">Edit plan</Link>
+            ) : canNewPlan ? (
+              <Link href="/daily/plan" className="btn-primary text-xs">+ New plan</Link>
+            ) : (
+              <Link href="/daily/plan" className="btn-primary text-xs">+ Morning plan</Link>
+            )
+          )}
         </div>
       </div>
 
@@ -245,9 +265,20 @@ export default async function DailyPage({
                     <span className={`badge text-xs ${hasEOD ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
                       {hasEOD ? 'EOD done' : 'EOD pending'}
                     </span>
-                    {!hasEOD && (
-                      <Link href={`/daily/eod?logId=${log.id}`} className="text-xs text-blue-600 hover:underline">
-                        Submit EOD →
+                    {!hasEOD ? (
+                      <>
+                        {isToday && log.memberId === session.user.id && (
+                          <Link href="/daily/plan" className="text-xs text-blue-600 hover:underline">
+                            Edit plan →
+                          </Link>
+                        )}
+                        <Link href={`/daily/eod?logId=${log.id}`} className="text-xs text-blue-600 hover:underline">
+                          Submit EOD →
+                        </Link>
+                      </>
+                    ) : isToday && log.memberId === session.user.id && (
+                      <Link href="/daily/plan" className="text-xs text-blue-600 hover:underline">
+                        New plan →
                       </Link>
                     )}
                   </div>

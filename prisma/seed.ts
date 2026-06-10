@@ -180,7 +180,9 @@ async function main() {
       hoursAdded: 40,
       valueAdded: 3000,
       changeOrderSigned: false,
+      approvalStatus: 'approved',
       approvedById: shiven.id,
+      decidedAt: new Date(),
     },
   })
   await prisma.scopeChange.create({

@@ -85,9 +85,9 @@ export async function PATCH(req: Request) {
       }
     })
   } catch (error) {
-    console.error('Profile update error:', error)
+    console.error('Settings update error:', error)
     return NextResponse.json(
-      { error: 'Failed to update profile' },
+      { error: 'Failed to update settings' },
       { status: 500 }
     )
   }

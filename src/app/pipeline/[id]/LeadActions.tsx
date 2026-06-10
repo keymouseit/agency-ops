@@ -27,7 +27,7 @@ export default function LeadActions({ lead, members }: { lead: Lead; members: Me
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap mt-[20px]">
         <button className="btn-secondary text-xs" onClick={() => setView('proposal')}>+ Log proposal</button>
         {lead.status === 'lost' && <button className="btn-secondary text-xs" onClick={() => setView('loss')}>+ Add loss analysis</button>}
         <button className="btn-secondary text-xs" onClick={() => setView('status')}>Update status</button>

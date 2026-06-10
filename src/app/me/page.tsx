@@ -253,17 +253,42 @@ export default async function MePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-900">Today</h2>
             {hasPlan && !hasEOD && (
-              <Link
-                href={`/daily/eod?logId=${todayLog?.id}`}
-                className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
-              >
-                Submit EOD →
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/daily/plan"
+                  className="text-xs px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Edit plan
+                </Link>
+                <Link
+                  href={`/daily/eod?logId=${todayLog?.id}`}
+                  className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Submit EOD →
+                </Link>
+              </div>
             )}
           </div>
 
           {!hasPlan ? (
             <MePlanWidget />
+          ) : hasEOD ? (
+            <div className="p-4 bg-green-50 border border-green-100 rounded-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-green-900">EOD submitted — day closed.</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    {doneTasks} of {todayTasks.length} tasks done. Start a new plan if you&apos;re continuing today.
+                  </p>
+                </div>
+                <Link
+                  href="/daily/plan"
+                  className="flex-shrink-0 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  New plan →
+                </Link>
+              </div>
+            </div>
           ) : (
             <div>
               {/* Summary strip */}
@@ -589,12 +614,12 @@ export default async function MePage() {
               } else {
                 stateLabel = 'In progress'; stateCls = 'bg-blue-100 text-blue-800'; action = 'Continue →'
               }
-
               return (
                 <div key={p.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-100 bg-gray-50">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-900">{p.name}</span>
                     <span className={`badge text-xs ${stateCls}`}>{stateLabel}</span>
+                    <span className={`badge text-xs bg-blue-100 text-blue-800`}>{p?.status}</span>
                     {hasIssue && <span className="badge bg-red-100 text-red-700 text-xs">Client issue open</span>}
                   </div>
                   {action && (

@@ -82,8 +82,13 @@ export default function EODClient({ log }: { log: Log }) {
       <div className="text-5xl mb-4">🌙</div>
       <h1 className="text-2xl font-semibold mb-2">EOD submitted</h1>
       <p className="text-gray-500 mb-1">{log.member.name} — {doneCount} of {log.tasks.length} tasks done.</p>
-      <p className="text-sm text-gray-400 mb-8">See you tomorrow. Morning plan due by 9:30am.</p>
-      <Link href="/daily" className="btn-primary">Back to team view →</Link>
+      <p className="text-sm text-gray-400 mb-8">
+        Need to keep working today? Start a new plan for the rest of the day.
+      </p>
+      <div className="flex gap-3 justify-center">
+        <Link href="/daily/plan" className="btn-primary">Start new plan →</Link>
+        <Link href="/daily" className="btn-secondary">Back to daily view →</Link>
+      </div>
     </div>
   )
 

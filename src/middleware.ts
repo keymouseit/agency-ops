@@ -55,6 +55,14 @@ export default auth((req) => {
 })
 
 function checkApiAccess(path: string, role: string): boolean {
+  // All authenticated users can manage their own account.
+  if (path.startsWith('/api/account')) return true
+
+  // Entity audit trails are visible to authenticated users who can access the
+  // underlying page. The system-wide audit route still enforces Founder-only
+  // access in its route handler.
+  if (path.startsWith('/api/audit')) return true
+
   // BD can access lead/proposal/estimation/project APIs
   if (['BD', 'Both', 'Founder'].includes(role)) {
     if (path.startsWith('/api/leads') || path.startsWith('/api/estimate') || path.startsWith('/api/projects')) return true

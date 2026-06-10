@@ -5,17 +5,26 @@ import { useRouter } from 'next/navigation'
 type Member = { id: string; name: string; role?: string }
 type Project = { id: string; status: string; postMortem: unknown; bdMemberId?: string | null; releaseSignOff?: unknown }
 
+function FormError({ message }: { message: string }) {
+  if (!message) return null
+  return (
+    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+      {message}
+    </div>
+  )
+}
+
 export default function ProjectActions({ project, members, userRole }: { project: Project; members: Member[]; userRole?: string }) {
   const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|'assignbd'|null>(null)
   const [loading, setLoading] = useState(false)
-  const [statusError, setStatusError] = useState('')
+  const [formError, setFormError] = useState('')
   const [selectedStatus, setSelectedStatus] = useState(project.status)
   const router = useRouter()
 
   async function submitForm(e: React.FormEvent<HTMLFormElement>, url: string) {
     e.preventDefault()
     setLoading(true)
-    setStatusError('')
+    setFormError('')
     const fd = new FormData(e.currentTarget)
     let data: any = Object.fromEntries(fd)
 
@@ -23,12 +32,12 @@ export default function ProjectActions({ project, members, userRole }: { project
     if (url.includes('/status') && data.status === 'qa') {
       // Validate required QA handoff fields
       if (!data.qaModulesDelivered || !data.qaModulesDelivered.trim()) {
-        setStatusError('QA Handoff: "Modules/Features delivered" is required')
+        setFormError('QA Handoff: "Modules/Features delivered" is required')
         setLoading(false)
         return
       }
       if (!data.qaSuggestedTestType) {
-        setStatusError('QA Handoff: "Suggested test type" is required')
+        setFormError('QA Handoff: "Suggested test type" is required')
         setLoading(false)
         return
       }
@@ -44,41 +53,48 @@ export default function ProjectActions({ project, members, userRole }: { project
       }
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-      setStatusError(err.error ?? 'Something went wrong.')
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+        setFormError(err.error ?? `Request failed (${res.status}).`)
+        setLoading(false)
+        return
+      }
       setLoading(false)
-      return
+      setFormError('')
+      setView(null)
+      setSelectedStatus(project.status)
+      router.refresh()
+    } catch {
+      setFormError('Network error — could not reach the server. Please try again.')
+      setLoading(false)
     }
-    setLoading(false)
-    setView(null)
-    setSelectedStatus(project.status)
-    router.refresh()
   }
 
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
-  const canAddPostMortem = ['qa', 'delivered'].includes(project.status) && !!project.releaseSignOff
+  const canAddPostMortem = ['qa', 'delivered'].includes(project.status)
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap">
-        {isActive && <button className="btn-secondary text-xs" onClick={() => setView('checkin')}>+ Weekly check-in</button>}
-        {isActive && <button className="btn-secondary text-xs" onClick={() => setView('scope')}>+ Scope change</button>}
-        {isActive && <button className="btn-secondary text-xs" onClick={() => setView('milestone')}>+ Milestone</button>}
-        {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => setView('postmortem')}>+ Post-mortem</button>}
-        <button className="btn-secondary text-xs" onClick={() => setView('status')}>Update status</button>
-        {canAssignBD && <button className="btn-secondary text-xs" onClick={() => setView('assignbd')}>{project.bdMemberId ? 'Change BD' : 'Assign BD'}</button>}
+      <div className="flex gap-2 flex-wrap mt-[20px]">
+        {isActive && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('checkin') }}>+ Weekly check-in</button>}
+        {isActive && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('scope') }}>+ Scope change</button>}
+        {isActive && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('milestone') }}>+ Milestone</button>}
+        {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('postmortem') }}>+ Post-mortem</button>}
+        <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('status') }}>Update status</button>
+        {canAssignBD && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assignbd') }}>{project.bdMemberId ? 'Change BD' : 'Assign BD'}</button>}
       </div>
 
       {view === 'checkin' && (
         <div className="card p-5">
           <h3 className="text-sm font-semibold mb-3">Weekly check-in</h3>
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/checkin`)} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -127,7 +143,7 @@ export default function ProjectActions({ project, members, userRole }: { project
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Submit'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -136,7 +152,8 @@ export default function ProjectActions({ project, members, userRole }: { project
       {view === 'scope' && (
         <div className="card p-5 border-amber-100">
           <h3 className="text-sm font-semibold mb-1">Log scope change</h3>
-          <p className="text-xs text-amber-700 mb-3">Every scope change must be logged here. No exceptions — regardless of client pressure.</p>
+          <p className="text-xs text-amber-700 mb-3">Every scope change is sent to the assigned BD and Founder for approval before the developer proceeds.</p>
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/scope`)} className="space-y-3">
             <div>
               <label className="label">Description *</label>
@@ -165,25 +182,16 @@ export default function ProjectActions({ project, members, userRole }: { project
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Change order signed?</label>
-                <select name="changeOrderSigned" className="input">
-                  <option value="false">No — pending</option>
-                  <option value="true">Yes — signed</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Approved by</label>
-                <select name="approvedById" className="input">
-                  <option value="">— Not yet —</option>
-                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="label">Change order signed?</label>
+              <select name="changeOrderSigned" className="input">
+                <option value="false">No - pending</option>
+                <option value="true">Yes - signed</option>
+              </select>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Log scope change'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -192,6 +200,7 @@ export default function ProjectActions({ project, members, userRole }: { project
       {view === 'milestone' && (
         <div className="card p-5">
           <h3 className="text-sm font-semibold mb-3">Add milestone</h3>
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/milestones`)} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -205,7 +214,7 @@ export default function ProjectActions({ project, members, userRole }: { project
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Add'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -215,6 +224,7 @@ export default function ProjectActions({ project, members, userRole }: { project
         <div className="card p-5 bg-blue-50 border-blue-100">
           <h3 className="text-sm font-semibold mb-1 text-blue-900">Post-mortem</h3>
           <p className="text-xs text-blue-700 mb-3">Required within 1 week of delivery. Be honest.</p>
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/postmortem`)} className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -251,7 +261,7 @@ export default function ProjectActions({ project, members, userRole }: { project
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Save post-mortem'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -260,11 +270,7 @@ export default function ProjectActions({ project, members, userRole }: { project
       {view === 'status' && (
         <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3">Update project status</h3>
-          {statusError && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-              ⛔ {statusError}
-            </div>
-          )}
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/status`)} className="space-y-3">
             <div className="flex gap-2">
               <select
@@ -338,7 +344,7 @@ export default function ProjectActions({ project, members, userRole }: { project
 
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Update'}</button>
-              <button type="button" className="btn-secondary" onClick={() => { setView(null); setStatusError(''); setSelectedStatus(project.status) }}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setView(null); setFormError(''); setSelectedStatus(project.status) }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -347,6 +353,7 @@ export default function ProjectActions({ project, members, userRole }: { project
       {view === 'assignbd' && (
         <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3">{project.bdMemberId ? 'Change BD (Client Manager)' : 'Assign BD (Client Manager)'}</h3>
+          <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/assign-bd`)} className="space-y-3">
             <div>
               <label className="label">BD Member</label>
@@ -359,7 +366,7 @@ export default function ProjectActions({ project, members, userRole }: { project
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Save'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setView(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
             </div>
           </form>
         </div>

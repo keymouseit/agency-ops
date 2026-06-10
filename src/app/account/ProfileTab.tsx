@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 
 type Member = {
   id: string
@@ -8,11 +9,12 @@ type Member = {
   role: string
 }
 
-export default function ProfileTab({ member }: { member: Member }) {
+export default function ProfileTab({ member, onSave }: { member: Member; onSave?: () => void }) {
   const [name, setName] = useState(member.name)
   const [email, setEmail] = useState(member.email)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const { update } = useSession()
 
   async function handleSave() {
     setSaving(true)
@@ -30,10 +32,13 @@ export default function ProfileTab({ member }: { member: Member }) {
         throw new Error(data.error || 'Failed to update profile')
       }
 
+      // Update session with new data to refresh header
+      await update({ name, email })
+
       setMessage({ type: 'success', text: 'Profile updated successfully' })
 
-      // Reload page to update session
-      setTimeout(() => window.location.reload(), 1000)
+      // Trigger audit log refresh
+      onSave?.()
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message })
     } finally {
@@ -71,8 +76,9 @@ export default function ProfileTab({ member }: { member: Member }) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="input w-full"
+            className="input w-full bg-gray-50 text-gray-500 cursor-not-allowed"
             placeholder="Enter your email"
+            disabled
           />
           <p className="text-xs text-gray-500 mt-1">
             Changing your email will require verification

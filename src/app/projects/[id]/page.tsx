@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 import DeveloperMilestones from './DeveloperMilestones'
 import QAReadyPrompt from './QAReadyPrompt'
+import ScopeChangesCard from './ScopeChangesCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,8 +46,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const estAccuracy = project.actualHours && project.estimatedHours
     ? Math.round((project.actualHours / project.estimatedHours) * 100)
     : null
-  const totalScopeHours = project.scopeChanges.reduce((s, c) => s + (c.hoursAdded || 0), 0)
-  const unsignedCOs = project.scopeChanges.filter(s => !s.changeOrderSigned)
+  const activeScopeChanges = project.scopeChanges.filter(s => s.approvalStatus !== 'declined')
+  const totalScopeHours = activeScopeChanges.reduce((s, c) => s + (c.hoursAdded || 0), 0)
+  const unsignedCOs = activeScopeChanges.filter(s => !s.changeOrderSigned)
 
   // Calculate progress based on milestone completion
   const totalMilestones = project.milestones.length
@@ -148,29 +150,24 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           <DeveloperMilestones milestones={project.milestones} projectId={project.id} />
         </div>
 
-        {/* Scope changes */}
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Scope changes ({project.scopeChanges.length})</h2>
-          {project.scopeChanges.length === 0
-            ? <p className="text-sm text-gray-400">No scope changes. Good.</p>
-            : (
-              <div className="space-y-2">
-                {project.scopeChanges.map(sc => (
-                  <div key={sc.id} className={`p-2 rounded text-xs ${!sc.changeOrderSigned ? 'bg-red-50 border border-red-100' : 'bg-gray-50'}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-gray-700 flex-1">{sc.description}</span>
-                      <span className={`badge flex-shrink-0 ${sc.changeOrderSigned ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {sc.changeOrderSigned ? 'CO signed' : 'NO CO'}
-                      </span>
-                    </div>
-                    <div className="text-gray-400 mt-0.5">
-                      {sc.hoursAdded ? `+${sc.hoursAdded}h` : ''} {sc.valueAdded && isBD ? `· +${fmtCurrency(sc.valueAdded)}` : ''} · {fmtDate(sc.createdAt)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
+        <ScopeChangesCard
+          projectId={project.id}
+          bdMemberId={project.bdMemberId}
+          currentUserId={userId}
+          userRole={userRole}
+          canViewValue={!!isBD}
+          scopeChanges={project.scopeChanges.map(sc => ({
+            id: sc.id,
+            description: sc.description,
+            hoursAdded: sc.hoursAdded,
+            valueAdded: sc.valueAdded,
+            changeOrderSigned: sc.changeOrderSigned,
+            approvalStatus: sc.approvalStatus,
+            decisionNote: sc.decisionNote,
+            createdAt: sc.createdAt.toISOString(),
+            approvedBy: sc.approvedBy ? { name: sc.approvedBy.name } : null,
+          }))}
+        />
       </div>
 
       {/* Recent check-ins */}

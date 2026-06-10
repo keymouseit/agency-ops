@@ -47,12 +47,14 @@ export default function DeveloperMilestones({
     try {
       const res = await fetch(`/api/projects/milestones/${milestoneId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ status: newStatus }),
       })
-
+      const data = await res.json()
       if (!res.ok) {
-        throw new Error('Failed to update milestone')
+        throw new Error(data?.error || 'Failed to update milestone')
       }
 
       router.refresh()

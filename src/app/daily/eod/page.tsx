@@ -64,7 +64,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
         You either haven&apos;t submitted a morning plan today, or your EOD is already done.
       </p>
       <div className="flex gap-3 justify-center">
-        <Link href="/daily/plan" className="btn-primary text-sm">Submit today&apos;s plan →</Link>
+        <Link href="/daily/plan" className="btn-primary text-sm">Start today&apos;s plan →</Link>
         <Link href="/me" className="btn-secondary text-sm">My Day →</Link>
       </div>
     </div>

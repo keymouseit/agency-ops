@@ -161,8 +161,11 @@ model ScopeChange {
   hoursAdded        Float?
   valueAdded        Float?
   changeOrderSigned Boolean     @default(false)
+  approvalStatus    String      @default("pending") // "pending" | "approved" | "declined"
   approvedById      String?
   approvedBy        TeamMember? @relation(fields: [approvedById], references: [id])
+  decidedAt         DateTime?
+  decisionNote      String?
   createdAt         DateTime    @default(now())
 }
 
@@ -648,6 +651,9 @@ model Notification {
   // "project_in_qa"        — QA: a project moved to QA stage
   // "test_cycle_fail"      — dev: their project is blocked in QA
   // "test_cycle_pass"      — QA: project ready for sign-off
+  // "scope_change_requested" — BD/founder: scope change needs a decision
+  // "scope_change_approved"  — dev: scope change approved
+  // "scope_change_declined"  — dev: scope change declined
   // "eod_missing"          — reminder: EOD not submitted (set by cron)
 
   message   String     // plain English: "Kavya requested an estimate for HealthCo"

@@ -16,10 +16,11 @@ type Member = {
 
 export default function AccountClient({ member }: { member: Member }) {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications'>('profile')
+  const [auditRefreshKey, setAuditRefreshKey] = useState(0)
 
   const tabs = [
     { id: 'profile' as const, label: 'Profile', icon: '👤' },
-    { id: 'security' as const, label: 'Security', icon: '🔒' },
+    // { id: 'security' as const, label: 'Security', icon: '🔒' },
     { id: 'notifications' as const, label: 'Notifications', icon: '🔔' },
   ]
 
@@ -54,7 +55,7 @@ export default function AccountClient({ member }: { member: Member }) {
 
       {/* Tab Content */}
       <div className="mb-6">
-        {activeTab === 'profile' && <ProfileTab member={member} />}
+        {activeTab === 'profile' && <ProfileTab member={member} onSave={() => setAuditRefreshKey(prev => prev + 1)} />}
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'notifications' && <NotificationsTab memberId={member.id} />}
       </div>
@@ -64,6 +65,7 @@ export default function AccountClient({ member }: { member: Member }) {
         entityType="TeamMember"
         entityId={member.id}
         title="Account Activity History"
+        refreshKey={auditRefreshKey}
       />
     </div>
   )

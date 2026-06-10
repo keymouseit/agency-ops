@@ -182,8 +182,8 @@ test.describe('QA Sign-Off Gates', () => {
     })
   })
 
-  test.describe('Bug Fix 3: Post-Mortem Requires Sign-Off', () => {
-    test('Post-mortem button hidden when project in QA without sign-off', async ({ page }) => {
+  test.describe('Bug Fix 3: Post-Mortem Visible Before Sign-Off', () => {
+    test('Post-mortem button visible when project in QA without sign-off', async ({ page }) => {
       // Setup: Create project in QA
       const users = await prisma.teamMember.findMany()
       const dev = users.find(u => u.role === 'Dev')!
@@ -201,8 +201,8 @@ test.describe('QA Sign-Off Gates', () => {
       await page.goto(`/projects/${project.id}`)
       await page.waitForLoadState('networkidle')
 
-      // Post-mortem button should NOT be visible
-      await expect(page.locator('button:has-text("Post-mortem")')).not.toBeVisible()
+      // Post-mortem button should be visible
+      await expect(page.locator('button:has-text("Post-mortem")')).toBeVisible()
     })
 
     test('Post-mortem button visible after sign-off', async ({ page }) => {
@@ -257,7 +257,7 @@ test.describe('QA Sign-Off Gates', () => {
       await expect(page.locator('button:has-text("Post-mortem")')).toBeVisible()
     })
 
-    test('Post-mortem button hidden when status is delivered without sign-off', async ({ page }) => {
+    test('Post-mortem button visible when status is delivered without sign-off', async ({ page }) => {
       // Setup: Create project marked as delivered but without proper sign-off
       // (This shouldn't happen in practice due to API guards, but test the UI logic)
       const users = await prisma.teamMember.findMany()
@@ -277,8 +277,8 @@ test.describe('QA Sign-Off Gates', () => {
       await page.goto(`/projects/${project.id}`)
       await page.waitForLoadState('networkidle')
 
-      // Post-mortem button should NOT be visible (no sign-off)
-      await expect(page.locator('button:has-text("Post-mortem")')).not.toBeVisible()
+      // Post-mortem button should be visible (no sign-off required)
+      await expect(page.locator('button:has-text("Post-mortem")')).toBeVisible()
     })
   })
 

@@ -18,16 +18,25 @@ const PRIORITY_COLORS: Record<string,string> = {
 const emptyTask = (): Task => ({ title:'', taskType:'feature', priority:'medium', projectId:'', estimatedHours:'' })
 
 export default function MorningPlanForm({
-  member, projects,
+  member,
+  projects,
+  replanAfterEod = false,
+  isEdit = false,
+  initialTasks,
+  initialPlanNotes = '',
 }: {
   member: Member
   projects: Project[]
+  replanAfterEod?: boolean
+  isEdit?: boolean
+  initialTasks?: Task[]
+  initialPlanNotes?: string
 }) {
-  const [tasks, setTasks]         = useState<Task[]>([emptyTask()])
-  const [planNotes, setPlanNotes] = useState('')
+  const [tasks, setTasks]         = useState<Task[]>(
+    initialTasks?.length ? initialTasks : [emptyTask()]
+  )
+  const [planNotes, setPlanNotes] = useState(initialPlanNotes)
   const [loading, setLoading]     = useState(false)
-  const [done, setDone]           = useState(false)
-  const [logId, setLogId]         = useState('')
   const router = useRouter()
 
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
@@ -48,7 +57,12 @@ export default function MorningPlanForm({
         headers: { 'Content-Type': 'application/json' },
         // memberId comes from the session on the server — but the API still needs it
         // We pass it here for the existing API contract; the server validates via auth
-        body: JSON.stringify({ memberId: member.id, planNotes, tasks }),
+        body: JSON.stringify({
+          memberId: member.id,
+          planNotes,
+          tasks,
+          replanAfterEod,
+        }),
       })
 
       if (!res.ok) {
@@ -61,9 +75,9 @@ export default function MorningPlanForm({
         throw new Error('No log ID returned from server')
       }
 
-      setLogId(data.id)
       setLoading(false)
-      setDone(true)
+      router.replace(isEdit ? '/daily' : '/daily?saved=1')
+      router.refresh()
     } catch (error) {
       setLoading(false)
       alert('Failed to submit plan. Please try again.')
@@ -71,31 +85,23 @@ export default function MorningPlanForm({
     }
   }
 
-  if (done) return (
-    <div className="max-w-lg mx-auto text-center py-20">
-      <div className="text-5xl mb-4">☀</div>
-      <h1 className="text-2xl font-semibold mb-2">Plan locked in</h1>
-      <p className="text-gray-500 mb-1">
-        {member.name.split(' ')[0]} — {tasks.length} task{tasks.length !== 1 ? 's' : ''}, {totalHours}h planned.
-      </p>
-      <p className="text-sm text-gray-400 mb-8">EOD report due by 7pm.</p>
-      <div className="flex gap-3 justify-center">
-        <Link href={`/daily/eod?logId=${logId}`} className="btn-secondary">Submit EOD now →</Link>
-        <Link href="/me" className="btn-primary">My Day →</Link>
-      </div>
-    </div>
-  )
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Morning plan</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {isEdit ? 'Edit today\'s plan' : replanAfterEod ? 'New plan for today' : 'Morning plan'}
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {member.name} · Due by 9:30am
+            {member.name}
+            {isEdit
+              ? ' · Update tasks before you submit EOD'
+              : replanAfterEod
+                ? ' · Starting a fresh plan after EOD'
+                : ' · Due by 9:30am'}
           </p>
         </div>
-        <Link href="/me" className="text-xs text-gray-400 hover:text-gray-700">← My Day</Link>
+        <Link href="/daily" className="text-xs text-gray-400 hover:text-gray-700">← Daily view</Link>
       </div>
 
       <form onSubmit={submit} className="space-y-4">
@@ -171,7 +177,11 @@ export default function MorningPlanForm({
         </div>
 
         <button type="submit" disabled={loading || !canSubmit} className="btn-primary w-full py-3 text-base">
-          {loading ? 'Locking in plan...' : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
+          {loading
+            ? (isEdit ? 'Saving changes...' : 'Locking in plan...')
+            : isEdit
+              ? `Save changes — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`
+              : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
         </button>
       </form>
     </div>

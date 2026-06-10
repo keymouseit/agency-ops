@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { startOfDay } from 'date-fns'
@@ -10,12 +11,29 @@ export async function POST(req: Request) {
   const data = await req.json()
   const today = startOfDay(new Date())
 
+  const existing = await prisma.dailyLog.findUnique({
+    where: { memberId_date: { memberId: data.memberId, date: today } },
+    select: { eodSubmittedAt: true },
+  })
+  const replanAfterEod = !!data.replanAfterEod && !!existing?.eodSubmittedAt
+
   const log = await prisma.dailyLog.upsert({
     where: { memberId_date: { memberId: data.memberId, date: today } },
     update: {
       planSubmittedAt: new Date(),
       planNotes: data.planNotes || null,
       planMissed: false,
+      // Only reset EOD when starting a fresh cycle after EOD — not when editing
+      ...(replanAfterEod ? {
+        eodSubmittedAt: null,
+        blockers: null,
+        carryOver: null,
+        dayRating: null,
+        eodNotes: null,
+        completionRate: null,
+        estimationScore: null,
+        eodMissed: false,
+      } : {}),
     },
     create: {
       memberId: data.memberId,
@@ -48,6 +66,10 @@ export async function POST(req: Request) {
       })),
     })
   }
+
+  revalidatePath('/daily')
+  revalidatePath('/me')
+  revalidatePath('/daily/plan')
 
   return NextResponse.json(log)
 }

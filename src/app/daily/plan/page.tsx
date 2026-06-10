@@ -12,7 +12,7 @@ export default async function MorningPlanPage() {
   if (!session?.user?.id) redirect('/login')
 
   const memberId = session.user.id
-  const today     = startOfDay(new Date())
+  const today = startOfDay(new Date())
   const yesterday = startOfDay(subDays(today, 1))
 
   const [member, projects, todayLog, yesterdayLog] = await Promise.all([
@@ -26,22 +26,71 @@ export default async function MorningPlanPage() {
 
     prisma.dailyLog.findUnique({
       where: { memberId_date: { memberId, date: today } },
-      select: { id: true, planSubmittedAt: true },
+      select: {
+        id: true,
+        planSubmittedAt: true,
+        eodSubmittedAt: true,
+        planNotes: true,
+        tasks: {
+          select: {
+            title: true,
+            taskType: true,
+            priority: true,
+            projectId: true,
+            estimatedHours: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     }),
 
     // Skip weekend — don't gate on Sat/Sun
     !isWeekend(yesterday)
       ? prisma.dailyLog.findUnique({
-          where: { memberId_date: { memberId, date: yesterday } },
-          select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
-        })
+        where: { memberId_date: { memberId, date: yesterday } },
+        select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
+      })
       : Promise.resolve(null),
   ])
 
   if (!member) redirect('/login')
 
-  const alreadyPlannedToday = !!todayLog?.planSubmittedAt
+  const isEditMode = !!(todayLog?.planSubmittedAt && !todayLog?.eodSubmittedAt)
   const missingYesterdayEOD = !!(yesterdayLog?.planSubmittedAt && !yesterdayLog?.eodSubmittedAt)
+  const replanAfterEod = !!(todayLog?.planSubmittedAt && todayLog?.eodSubmittedAt)
+
+  const initialTasks = todayLog?.tasks.map(t => ({
+    title: t.title,
+    taskType: t.taskType,
+    priority: t.priority,
+    projectId: t.projectId ?? '',
+    estimatedHours: t.estimatedHours?.toString() ?? '',
+  }))
+  const alreadyPlannedToday = !!todayLog?.planSubmittedAt;
+
+  if (alreadyPlannedToday && !isEditMode) {
+    return (
+      <div className="max-w-lg mx-auto py-16">
+        <div className="card p-8 text-center">
+          <div className="text-2xl mb-4">✅</div>
+
+          <h1 className="text-xl font-semibold mb-2">
+            Plan already submitted
+          </h1>
+
+          <p className="text-sm text-gray-500">
+            You have already submitted your plan for today.
+          </p>
+
+          {todayLog?.eodSubmittedAt && (
+            <p className="text-sm text-gray-500 mt-2">
+              Your EOD is also completed. You can create a new plan tomorrow.
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // ── GATE ─────────────────────────────────────────────────────────────────
   if (missingYesterdayEOD) {
@@ -74,31 +123,14 @@ export default async function MorningPlanPage() {
     )
   }
 
-  // ── Already done today ────────────────────────────────────────────────────
-  if (alreadyPlannedToday) {
-    return (
-      <div className="max-w-lg mx-auto py-16 text-center">
-        <div className="text-4xl mb-4">☀</div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">Plan already submitted</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          {member.name.split(' ')[0]}, your morning plan for today is already in.
-        </p>
-        <div className="flex gap-3 justify-center">
-          {todayLog?.id ? (
-            <Link href={`/daily/eod?logId=${todayLog.id}`} className="btn-secondary text-sm">Submit EOD →</Link>
-          ) : (
-            <Link href="/daily/eod" className="btn-secondary text-sm">Submit EOD →</Link>
-          )}
-          <Link href="/me" className="btn-primary text-sm">Back to My Day →</Link>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <MorningPlanForm
       member={{ id: member.id, name: member.name, role: member.role }}
       projects={projects}
+      replanAfterEod={replanAfterEod}
+      isEdit={isEditMode}
+      initialTasks={isEditMode ? initialTasks : undefined}
+      initialPlanNotes={isEditMode ? (todayLog?.planNotes ?? '') : undefined}
     />
   )
 }

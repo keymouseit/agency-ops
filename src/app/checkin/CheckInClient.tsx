@@ -47,7 +47,8 @@ export default function CheckInClient({ members, projects }: { members: Member[]
         })
 
         if (!res.ok) {
-          throw new Error('Failed to submit project status')
+          const err = await res.json().catch(() => ({ error: 'Failed to submit project status' }))
+          throw new Error(err.error ?? `Failed to submit project status (${res.status})`)
         }
       }
       setLoading(false)
@@ -77,7 +78,8 @@ export default function CheckInClient({ members, projects }: { members: Member[]
       })
 
       if (!res.ok) {
-        throw new Error('Failed to submit check-in')
+        const err = await res.json().catch(() => ({ error: 'Failed to submit check-in' }))
+        throw new Error(err.error ?? `Failed to submit check-in (${res.status})`)
       }
 
       setLoading(false)
@@ -123,7 +125,6 @@ export default function CheckInClient({ members, projects }: { members: Member[]
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-red-900 mb-1">Submission failed</h3>
               <p className="text-sm text-red-700">{error}</p>
-              <p className="text-xs text-red-600 mt-2">Please check your connection and try again.</p>
             </div>
             <button
               onClick={() => setError('')}

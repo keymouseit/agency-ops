@@ -6,11 +6,11 @@ import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate'],
-  BD:      ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
-  Dev:     ['/me', '/projects', '/checkin', '/daily', '/estimate'],
-  QA:      ['/me', '/qa', '/checkin', '/daily'],
-  Both:    ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
+  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
+  Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate'],
+  QA:      ['/me', '/account', '/qa', '/checkin', '/daily'],
+  Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────
@@ -67,10 +67,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id   = user.id ?? ''
         token.role = (user as { role: string }).role
+        token.name = user.name ?? ''
+        token.email = user.email ?? ''
+      }
+      // Handle session updates (e.g., when profile is updated)
+      if (trigger === 'update' && session) {
+        token.name = session.name as string
+        token.email = session.email as string
       }
       return token
     },
@@ -78,6 +85,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id   = token.id as string
         session.user.role = token.role as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
       }
       return session
     },
