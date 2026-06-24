@@ -7,10 +7,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
+    include: { releaseSignOff: true },
   })
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 })
+  }
+
+  if (project.status === 'qa' && !project.releaseSignOff) {
+    return NextResponse.json(
+      { error: 'Post-mortem can only be added after QA sign-off or when delivered.' },
+      { status: 403 }
+    )
   }
 
   if (!['qa', 'delivered'].includes(project.status)) {

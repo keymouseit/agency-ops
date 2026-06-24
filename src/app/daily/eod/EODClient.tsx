@@ -14,6 +14,7 @@ type Task = {
 
 type Log = {
   id: string
+  date: string | Date
   member: { name: string; role: string }
   tasks: Task[]
   eodSubmittedAt: Date | null
@@ -98,7 +99,7 @@ export default function EODClient({ log }: { log: Log }) {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">EOD report</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {log.member.name} · {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {log.member.name} · {new Date(log.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
             {' · '}Due by 7pm
           </p>
         </div>

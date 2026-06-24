@@ -16,7 +16,7 @@ export async function POST(req: Request) {
         source: data.source,
         description: data.description || null,
         budget: data.budget ? parseFloat(data.budget) : null,
-        currency: data.currency || 'USD',
+        currency: (data.currency || 'USD').toUpperCase(),
         ownerId: data.ownerId,
       },
     })

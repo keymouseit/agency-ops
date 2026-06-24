@@ -508,18 +508,20 @@ seedQA().catch(console.error)
 async function seedDailyLogs() {
   const prisma3 = prisma
 
-  const members = await prisma3.teamMember.findMany({ where: { active: true } })
+  const [vishal, rahul, priya, amit, neha] = await Promise.all([
+    prisma3.teamMember.findFirst({ where: { email: 'vishal@keymouse.com' } }),
+    prisma3.teamMember.findFirst({ where: { email: 'rahul@keymouse.com' } }),
+    prisma3.teamMember.findFirst({ where: { email: 'priya@keymouse.com' } }),
+    prisma3.teamMember.findFirst({ where: { email: 'amit@keymouse.com' } }),
+    prisma3.teamMember.findFirst({ where: { email: 'neha@keymouse.com' } }),
+  ])
   const projects = await prisma3.project.findMany({
-    where: { status: { in: ['active','qa','scoping'] } },
+    where: { status: { in: ['active', 'qa', 'scoping'] } },
     take: 3,
   })
 
-  if (!members.length || !projects.length) {
-    // prisma3 is alias for prisma
-    return
-  }
+  if (!projects.length) return
 
-  // Seed last 5 working days
   const workingDays: Date[] = []
   let d = new Date()
   while (workingDays.length < 5) {
@@ -527,72 +529,70 @@ async function seedDailyLogs() {
     if (d.getDay() !== 0 && d.getDay() !== 6) workingDays.push(startOfDay(d))
   }
 
-  const taskTitles = [
-    ['Build appointment booking API endpoint', 'feature'],
-    ['Fix date picker bug on mobile Safari', 'bug'],
-    ['Code review — auth module PR', 'review'],
-    ['Write unit tests for booking service', 'qa'],
-    ['Daily standup + sprint planning', 'meeting'],
-    ['Map search integration with Google Maps API', 'feature'],
-    ['Fix price filter returning empty results', 'bug'],
-    ['Research EHR API rate limits', 'research'],
-    ['Update API documentation', 'admin'],
-    ['Regression testing — appointment flow', 'qa'],
-  ]
+  async function seedMemberDay(
+    memberId: string,
+    day: Date,
+    tasks: { title: string; taskType: string; estimatedHours: number; actualHours: number }[],
+  ) {
+    const log = await prisma3.dailyLog.upsert({
+      where: { memberId_date: { memberId, date: day } },
+      update: {
+        planSubmittedAt: new Date(day.getTime() + 9 * 3600000),
+        eodSubmittedAt: new Date(day.getTime() + 18 * 3600000),
+        dayRating: 4,
+      },
+      create: {
+        memberId,
+        date: day,
+        planSubmittedAt: new Date(day.getTime() + 9 * 3600000),
+        eodSubmittedAt: new Date(day.getTime() + 18 * 3600000),
+        dayRating: 4,
+        completionRate: 0.9,
+      },
+    })
 
-  for (const member of members.slice(0, 4)) {
-    for (let wi = 0; wi < workingDays.length; wi++) {
-      const day = workingDays[wi]
-      const numTasks = 2 + Math.floor(Math.random() * 3)
-      const selectedTasks = taskTitles.sort(() => 0.5 - Math.random()).slice(0, numTasks)
-      const completionRate = 0.5 + Math.random() * 0.5
+    await prisma3.dailyTask.deleteMany({ where: { dailyLogId: log.id } })
 
-      try {
-        const log = await prisma3.dailyLog.upsert({
-          where: { memberId_date: { memberId: member.id, date: day } },
-          update: {},
-          create: {
-            memberId: member.id,
-            date: day,
-            planSubmittedAt: new Date(day.getTime() + 9 * 3600000),
-            eodSubmittedAt: new Date(day.getTime() + 18 * 3600000),
-            dayRating: 2 + Math.floor(Math.random() * 3),
-            blockers: wi === 0 && member === members[1] ? 'Waiting on client to approve the AR feature spec before proceeding' : null,
-            carryOver: completionRate < 0.8 ? 'Carry forward remaining test cases to tomorrow' : null,
-            completionRate,
-          },
-        })
-
-        for (let ti = 0; ti < selectedTasks.length; ti++) {
-          const [title, taskType] = selectedTasks[ti]
-          const estHours = 1 + Math.floor(Math.random() * 3)
-          const isDone = ti / selectedTasks.length < completionRate
-          const actualHours = isDone
-            ? estHours + (Math.random() > 0.5 ? 0.5 : -0.5)
-            : 0
-
-          await prisma3.dailyTask.create({
-            data: {
-              dailyLogId: log.id,
-              projectId: projects[ti % projects.length]?.id ?? null,
-              title,
-              taskType,
-              priority: ti === 0 ? 'high' : ti === 1 ? 'medium' : 'low',
-              estimatedHours: estHours,
-              status: isDone ? 'done' : wi === 0 && ti === 1 ? 'blocked' : 'moved',
-              actualHours: isDone ? actualHours : null,
-              blockedReason: wi === 0 && ti === 1 ? 'API documentation not available yet' : null,
-            },
-          })
-        }
-      } catch (_) {
-        // skip if already exists
-      }
+    for (const [i, task] of tasks.entries()) {
+      await prisma3.dailyTask.create({
+        data: {
+          dailyLogId: log.id,
+          projectId: projects[i % projects.length]?.id ?? null,
+          title: task.title,
+          taskType: task.taskType,
+          priority: i === 0 ? 'high' : 'medium',
+          estimatedHours: task.estimatedHours,
+          actualHours: task.actualHours,
+          status: 'done',
+        },
+      })
     }
   }
 
-  console.log('✅ Daily logs seeded — last 5 working days')
-  // prisma3 is alias for prisma
+  const activeMembers = [vishal, rahul, priya, neha].filter(Boolean) as { id: string }[]
+
+  // Full utilisation — ~7h/day for 5 working days
+  for (const member of activeMembers) {
+    for (const day of workingDays) {
+      await seedMemberDay(member.id, day, [
+        { title: 'Feature development', taskType: 'feature', estimatedHours: 4, actualHours: 4 },
+        { title: 'Code review', taskType: 'review', estimatedHours: 2, actualHours: 2 },
+        { title: 'Standup', taskType: 'meeting', estimatedHours: 1, actualHours: 1 },
+      ])
+    }
+  }
+
+  // Amit — low activity QA scenario: only 2 days, ~6h total (< 20h threshold)
+  if (amit) {
+    for (const day of workingDays.slice(0, 2)) {
+      await seedMemberDay(amit.id, day, [
+        { title: 'Minor bug fix', taskType: 'bug', estimatedHours: 2, actualHours: 2 },
+        { title: 'Documentation update', taskType: 'admin', estimatedHours: 1, actualHours: 1 },
+      ])
+    }
+  }
+
+  console.log('✅ Daily logs seeded — Amit low-activity scenario included')
 }
 
 seedDailyLogs().catch(console.error)

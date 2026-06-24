@@ -1,4 +1,4 @@
-import { notify } from '@/lib/notify'
+import { notifyProjectAssigned } from '@/lib/notify'
 import { NextResponse } from 'next/server'
 import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -35,15 +35,13 @@ export async function POST(req: Request) {
     },
   })
 
-  // Notify the assigned developer if they're not the creator
-  if (data.developerId && creatorId && data.developerId !== creatorId) {
-    const creator = await prisma.teamMember.findUnique({ where: { id: creatorId }, select: { name: true } })
-    if (creator) {
-      await notify('project_assigned', [data.developerId],
-        `${creator.name} assigned you to project: ${data.name}`,
-        `/projects/${project.id}`)
-    }
-  }
+  // Notify assigned developer and BD (if different from creator)
+  await notifyProjectAssigned(
+    [data.developerId, data.bdMemberId],
+    creatorId,
+    data.name,
+    `/projects/${project.id}`
+  )
 
   return NextResponse.json(project)
 }

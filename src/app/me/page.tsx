@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { startOfDay, startOfWeek, subDays, differenceInDays, format, isWeekend } from 'date-fns'
 import Link from 'next/link'
-import { fmtDate, avg } from '@/lib/utils'
+import { QASignOffBadge } from '@/components/QASignOffStatus'
+import { fmtDate, avg, isSameWeek } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 
 export const dynamic = 'force-dynamic'
@@ -73,7 +74,7 @@ export default async function MePage() {
             milestones:     { orderBy: { dueDate: 'asc' } }, // Get all milestones for progress calculation
             checkIns:       { orderBy: { weekOf: 'desc' }, take: 1 },
             testCycles:     { orderBy: { startedAt: 'desc' }, take: 1 },
-            releaseSignOff: true,
+            releaseSignOff: { include: { signedOffBy: true } },
           },
           orderBy: { updatedAt: 'desc' },
         })
@@ -151,10 +152,10 @@ export default async function MePage() {
         })
       : Promise.resolve([]),
 
-    // My active goals — everyone
+    // My goals — active plus recently closed (achieved / missed)
     prisma.goal.findMany({
-      where: { memberId, status: 'active' },
-      orderBy: { progressPct: 'asc' }, // lowest progress first = most urgent
+      where: { memberId, status: { in: ['active', 'achieved', 'missed'] } },
+      orderBy: [{ quarter: 'desc' }, { updatedAt: 'desc' }],
     }),
 
     // This week's self-score — everyone
@@ -218,6 +219,14 @@ export default async function MePage() {
     planned: 'text-gray-800',
   }
 
+  const goalStatusOrder: Record<string, number> = { active: 0, achieved: 1, missed: 2 }
+  const sortedGoals = [...myGoals].sort(
+    (a, b) => (goalStatusOrder[a.status] ?? 9) - (goalStatusOrder[b.status] ?? 9)
+      || a.progressPct - b.progressPct,
+  )
+  const activeGoals = sortedGoals.filter(g => g.status === 'active')
+  const closedGoals = sortedGoals.filter(g => g.status !== 'active')
+
   return (
     <div className="max-w-3xl mx-auto">
 
@@ -261,7 +270,7 @@ export default async function MePage() {
                   Edit plan
                 </Link>
                 <Link
-                  href={`/daily/eod?logId=${todayLog?.id}`}
+                  href="/daily/eod"
                   className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
                 >
                   Submit EOD →
@@ -466,10 +475,13 @@ export default async function MePage() {
               const isUrgent      = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3
               // Only show check-in button on Mondays OR if truly overdue (>7 days)
               const isMonday = today.getDay() === 1
-              const needsCheckin  = (!ci || differenceInDays(today, new Date(ci.weekOf)) > 7) && (isMonday || (ci && differenceInDays(today, new Date(ci.weekOf)) > 7))
+              const projectCheckinThisWeek = ci ? isSameWeek(ci.weekOf, today) : false
+              const projectCheckinOverdue = ci
+                ? differenceInDays(today, new Date(ci.weekOf)) > 7
+                : true
+              const needsCheckin = !hasCheckin && !projectCheckinThisWeek && (isMonday || projectCheckinOverdue)
               const inQA          = p.status === 'qa'
-              const needsSignOff  = inQA && !p.releaseSignOff && p.testCycles[0]?.result === 'pass'
-              const needsCycle    = inQA && !p.releaseSignOff && !p.testCycles[0]
+              const signedOff     = !!p.releaseSignOff
 
               return (
                 <div
@@ -492,6 +504,7 @@ export default async function MePage() {
                           : p.status === 'active' ? 'bg-blue-100 text-blue-800'
                           : 'bg-gray-100 text-gray-500'
                         }`}>{p.status}</span>
+                        {signedOff && <QASignOffBadge signed />}
                         {ci?.onTrack === 'no'      && <span className="badge bg-red-100 text-red-800 text-xs">At risk</span>}
                         {ci?.onTrack === 'at_risk'  && <span className="badge bg-amber-100 text-amber-800 text-xs">Monitor</span>}
                       </div>
@@ -667,35 +680,59 @@ export default async function MePage() {
       )}
 
       {/* ── GOALS ────────────────────────────────────────────────────────── */}
-      {myGoals.length > 0 && (
+      {sortedGoals.length > 0 && (
         <div className="card p-5 mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900">Your goals this quarter</h2>
-            <Link href="/goals" className="text-xs text-gray-400 hover:text-gray-600">All →</Link>
+            <span className="text-xs text-gray-400">
+              {activeGoals.length} active{closedGoals.length > 0 ? ` · ${closedGoals.length} closed` : ''}
+            </span>
           </div>
           <div className="space-y-3">
-            {myGoals.map(g => (
-              <div key={g.id}>
-                <div className="flex justify-between items-baseline text-sm mb-1">
-                  <span className="text-gray-800">{g.title}</span>
-                  <span className={`font-semibold flex-shrink-0 ml-3 ${
-                    g.progressPct >= 80 ? 'text-green-700'
-                    : g.progressPct >= 50 ? 'text-amber-700'
-                    : 'text-red-500'
-                  }`}>{g.progressPct}%</span>
+            {sortedGoals.map(g => (
+              <div
+                key={g.id}
+                className={`rounded-lg p-3 ${
+                  g.status === 'achieved' ? 'bg-green-50 border border-green-100'
+                  : g.status === 'missed' ? 'bg-red-50 border border-red-100'
+                  : 'bg-gray-50 border border-gray-100'
+                }`}
+              >
+                <div className="flex justify-between items-start gap-3 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-800 font-medium">{g.title}</span>
+                      {g.status === 'achieved' && (
+                        <span className="badge bg-green-100 text-green-800 text-xs">✓ Achieved</span>
+                      )}
+                      {g.status === 'missed' && (
+                        <span className="badge bg-red-100 text-red-800 text-xs">✗ Missed</span>
+                      )}
+                      <span className="text-xs text-gray-400">{g.quarter}</span>
+                    </div>
+                  </div>
+                  {g.status === 'active' && (
+                    <span className={`text-sm font-semibold flex-shrink-0 ${
+                      g.progressPct >= 80 ? 'text-green-700'
+                      : g.progressPct >= 50 ? 'text-amber-700'
+                      : 'text-red-500'
+                    }`}>{g.progressPct}%</span>
+                  )}
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      g.progressPct >= 80 ? 'bg-green-500'
-                      : g.progressPct >= 50 ? 'bg-amber-400'
-                      : 'bg-red-400'
-                    }`}
-                    style={{ width: `${g.progressPct}%` }}
-                  />
-                </div>
+                {g.status === 'active' && (
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        g.progressPct >= 80 ? 'bg-green-500'
+                        : g.progressPct >= 50 ? 'bg-amber-400'
+                        : 'bg-red-400'
+                      }`}
+                      style={{ width: `${g.progressPct}%` }}
+                    />
+                  </div>
+                )}
                 {g.successMetric && (
-                  <p className="text-xs text-gray-400 mt-0.5">Done when: {g.successMetric}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">Done when: {g.successMetric}</p>
                 )}
               </div>
             ))}
@@ -718,10 +755,17 @@ export default async function MePage() {
           <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
             <p className="text-sm text-amber-800 font-medium">Weekly check-in not submitted yet.</p>
             <p className="text-xs text-amber-600 mt-0.5">
-              Covers your project status and your self-score for the week.
+              Due every Monday. Covers your project status and your self-score for the week.
             </p>
           </div>
         ) : (
+          <div className="p-3 bg-green-50 border border-green-100 rounded-lg mb-3">
+            <p className="text-sm text-green-800 font-medium">✓ Weekly check-in submitted</p>
+            <p className="text-xs text-green-600 mt-0.5">Next check-in due Monday morning.</p>
+          </div>
+        )}
+
+        {hasCheckin && (
           <div className="space-y-2.5">
             {(['delivery', 'process', 'communication', 'growth', 'culture'] as const).map(dim => {
               const val = thisWeekScore[dim] as number

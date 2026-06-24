@@ -3,6 +3,7 @@ import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import Link from 'next/link'
 import AddProjectForm from './AddProjectForm'
 import { auth } from '@/lib/auth'
+import { QASignOffBadge } from '@/components/QASignOffStatus'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,8 @@ export default async function ProjectsPage() {
         scopeChanges: true,
         milestones: true,
         postMortem: true,
+        releaseSignOff: { include: { signedOffBy: true } },
+        testCycles: { orderBy: { startedAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -79,6 +82,7 @@ export default async function ProjectsPage() {
                   <div className="flex items-center gap-3 mb-1">
                     <Link href={`/projects/${p.id}`} className="text-base font-semibold text-gray-900 hover:underline">{p.name}</Link>
                     <span className={`badge ${STATUS_COLORS[p.status]}`}>{STATUS_LABELS[p.status]}</span>
+                    {p.releaseSignOff && <QASignOffBadge signed />}
                     {unsigned > 0 && <span className="badge bg-red-100 text-red-800">{unsigned} CO missing</span>}
                     {overdue && <span className="badge bg-red-100 text-red-800">Overdue</span>}
                   </div>

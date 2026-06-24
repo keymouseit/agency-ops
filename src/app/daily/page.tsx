@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 const TASK_TYPE_COLORS: Record<string, string> = {
   feature:  'bg-blue-100 text-blue-800',
+  backend:  'bg-indigo-100 text-indigo-800',
   bug:      'bg-red-100 text-red-800',
   review:   'bg-purple-100 text-purple-800',
   meeting:  'bg-gray-100 text-gray-700',
@@ -272,7 +273,7 @@ export default async function DailyPage({
                             Edit plan →
                           </Link>
                         )}
-                        <Link href={`/daily/eod?logId=${log.id}`} className="text-xs text-blue-600 hover:underline">
+                        <Link href="/daily/eod" className="text-xs text-blue-600 hover:underline">
                           Submit EOD →
                         </Link>
                       </>

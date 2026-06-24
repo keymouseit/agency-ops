@@ -48,6 +48,12 @@ export default function CheckInClient({ members, projects }: { members: Member[]
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Failed to submit project status' }))
+          if (res.status === 409) {
+            setLoading(false)
+            router.replace('/checkin')
+            router.refresh()
+            return
+          }
           throw new Error(err.error ?? `Failed to submit project status (${res.status})`)
         }
       }
@@ -55,7 +61,11 @@ export default function CheckInClient({ members, projects }: { members: Member[]
       setStep('self')
     } catch (err) {
       setLoading(false)
-      setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
+      if (err instanceof TypeError) {
+        setError('Could not reach the server. Check your connection and try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
+      }
     }
   }
 
@@ -79,6 +89,12 @@ export default function CheckInClient({ members, projects }: { members: Member[]
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to submit check-in' }))
+        if (res.status === 409) {
+          setLoading(false)
+          router.replace('/checkin')
+          router.refresh()
+          return
+        }
         throw new Error(err.error ?? `Failed to submit check-in (${res.status})`)
       }
 
@@ -86,7 +102,11 @@ export default function CheckInClient({ members, projects }: { members: Member[]
       setStep('done')
     } catch (err) {
       setLoading(false)
-      setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
+      if (err instanceof TypeError) {
+        setError('Could not reach the server. Check your connection and try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to submit. Please try again.')
+      }
     }
   }
 
@@ -97,7 +117,9 @@ export default function CheckInClient({ members, projects }: { members: Member[]
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Check-in submitted</h1>
         <p className="text-gray-500 mb-6">Your scores and project status have been saved. See you next Monday.</p>
         <div className="flex gap-3 justify-center">
-          <a href="/" className="btn-primary">Back to dashboard</a>
+          <button type="button" onClick={() => router.push('/me')} className="btn-primary">
+            Back to My Day →
+          </button>
         </div>
       </div>
     )
@@ -125,6 +147,7 @@ export default function CheckInClient({ members, projects }: { members: Member[]
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-red-900 mb-1">Submission failed</h3>
               <p className="text-sm text-red-700">{error}</p>
+              <p className="text-xs text-red-600 mt-1">Your entries are saved — please try again.</p>
             </div>
             <button
               onClick={() => setError('')}

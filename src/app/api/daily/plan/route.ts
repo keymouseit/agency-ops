@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { checkRole } from '@/lib/auth'
+import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { startOfDay } from 'date-fns'
 
@@ -8,17 +8,23 @@ export async function POST(req: Request) {
   const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
   if (deny) return deny
 
+  const session = await auth()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'You must be logged in to submit a plan.' }, { status: 401 })
+  }
+
   const data = await req.json()
+  const memberId = session.user.id
   const today = startOfDay(new Date())
 
   const existing = await prisma.dailyLog.findUnique({
-    where: { memberId_date: { memberId: data.memberId, date: today } },
+    where: { memberId_date: { memberId, date: today } },
     select: { eodSubmittedAt: true },
   })
   const replanAfterEod = !!data.replanAfterEod && !!existing?.eodSubmittedAt
 
   const log = await prisma.dailyLog.upsert({
-    where: { memberId_date: { memberId: data.memberId, date: today } },
+    where: { memberId_date: { memberId, date: today } },
     update: {
       planSubmittedAt: new Date(),
       planNotes: data.planNotes || null,
@@ -36,7 +42,7 @@ export async function POST(req: Request) {
       } : {}),
     },
     create: {
-      memberId: data.memberId,
+      memberId,
       date: today,
       planSubmittedAt: new Date(),
       planNotes: data.planNotes || null,

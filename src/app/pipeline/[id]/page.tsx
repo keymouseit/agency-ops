@@ -166,7 +166,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
                     <span className="text-gray-400 text-xs">{fmtDate(p.sentAt)}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
-                    {p.budgetQuoted && <span>Quoted: {fmtCurrency(p.budgetQuoted)}</span>}
+                    {p.budgetQuoted && <span>Quoted: {fmtCurrency(p.budgetQuoted, lead.currency)}</span>}
                     {p.techStack && <span>Stack: {p.techStack}</span>}
                     {p.connectsSpent && <span>Connects: {p.connectsSpent}</span>}
                   </div>

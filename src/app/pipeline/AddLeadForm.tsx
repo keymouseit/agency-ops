@@ -54,7 +54,7 @@ export default function AddLeadForm({ members }: { members: Member[] }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Budget (USD)</label>
+                  <label className="label">Budget</label>
                   <input name="budget" type="number" className="input" placeholder="0" />
                 </div>
                 <div>

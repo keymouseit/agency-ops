@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { notifyProjectAssigned } from '@/lib/notify'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['Founder', 'Manager'])
@@ -25,6 +26,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     where: { id: params.id },
     data: { bdMemberId: newBDMemberId },
   })
+
+  const session = await auth()
+  if (newBDMemberId && newBDMemberId !== oldBDMemberId) {
+    await notifyProjectAssigned(
+      [newBDMemberId],
+      session?.user?.id,
+      project.name,
+      `/projects/${project.id}`
+    )
+  }
 
   // Log the change
   await logAudit({

@@ -18,6 +18,33 @@ type NotificationType =
   | 'eod_missing'
 
 /**
+ * Notify developer and/or BD when assigned to a project (skips the creator).
+ */
+export async function notifyProjectAssigned(
+  assigneeIds: (string | null | undefined)[],
+  creatorId: string | undefined,
+  projectName: string,
+  projectLink: string
+): Promise<void> {
+  const uniqueIds = [...new Set(
+    assigneeIds.filter((id): id is string => !!id && id !== creatorId)
+  )]
+  if (!uniqueIds.length) return
+
+  const creator = creatorId
+    ? await prisma.teamMember.findUnique({ where: { id: creatorId }, select: { name: true } })
+    : null
+  const creatorName = creator?.name ?? 'Someone'
+
+  await notify(
+    'project_assigned',
+    uniqueIds,
+    `${creatorName} assigned you to project: ${projectName}`,
+    projectLink
+  )
+}
+
+/**
  * Fire a notification to one or more members.
  *
  * Usage in any API route:

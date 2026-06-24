@@ -7,6 +7,8 @@ import EntityAuditTrail from '@/components/EntityAuditTrail'
 import DeveloperMilestones from './DeveloperMilestones'
 import QAReadyPrompt from './QAReadyPrompt'
 import ScopeChangesCard from './ScopeChangesCard'
+import DeleteProjectButton from './DeleteProjectButton'
+import QASignOffStatus, { QASignOffBadge } from '@/components/QASignOffStatus'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +20,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const session = await auth()
   const userRole = session?.user?.role
   const userId = session?.user?.id
+  const isFounder = userRole === 'Founder'
   const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
   const isDev = userRole === 'Dev'
 
@@ -32,7 +35,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         scopeChanges: { include: { approvedBy: true }, orderBy: { createdAt: 'desc' } },
         checkIns: { include: { submittedBy: true }, orderBy: { weekOf: 'desc' }, take: 8 },
         postMortem: true,
-        releaseSignOff: true,
+        releaseSignOff: { include: { signedOffBy: true } },
+        testCycles: { orderBy: { startedAt: 'desc' }, take: 1 },
       },
     }),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
@@ -75,6 +79,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
             <span className={`badge ${STATUS_COLORS[project.status]}`}>{STATUS_LABELS[project.status]}</span>
+            {project.releaseSignOff && <QASignOffBadge signed />}
           </div>
           <div className="flex gap-4 text-sm text-gray-500">
             <span>Developer: {project.developer.name}</span>
@@ -84,6 +89,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             {project.lead && <span>Source: {project.lead.source}</span>}
           </div>
         </div>
+        {isFounder && (
+          <DeleteProjectButton projectId={project.id} projectName={project.name} />
+        )}
       </div>
 
       {unsignedCOs.length > 0 && (
@@ -96,6 +104,14 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       {showQAPrompt && (
         <QAReadyPrompt projectId={project.id} projectName={project.name} />
       )}
+
+      <QASignOffStatus
+        projectId={project.id}
+        projectStatus={project.status}
+        signOff={project.releaseSignOff}
+        latestCycle={project.testCycles[0] ?? null}
+        showQALink={userRole === 'QA' || userRole === 'Founder'}
+      />
 
       {/* Overall Progress */}
       {totalMilestones > 0 && (

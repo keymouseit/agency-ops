@@ -201,8 +201,8 @@ test.describe('QA Sign-Off Gates', () => {
       await page.goto(`/projects/${project.id}`)
       await page.waitForLoadState('networkidle')
 
-      // Post-mortem button should be visible
-      await expect(page.locator('button:has-text("Post-mortem")')).toBeVisible()
+      // Post-mortem button should NOT be visible
+      await expect(page.locator('button:has-text("Post-mortem")')).not.toBeVisible()
     })
 
     test('Post-mortem button visible after sign-off', async ({ page }) => {

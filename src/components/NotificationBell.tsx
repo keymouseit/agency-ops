@@ -17,6 +17,7 @@ const TYPE_ICONS: Record<string, string> = {
   estimate_revision:  '↩',
   estimate_approved:  '🎉',
   blocker_escalated:  '🚨',
+  project_assigned:   '📁',
   project_in_qa:      '🔍',
   scope_change_requested: '!',
   scope_change_approved:  '✓',

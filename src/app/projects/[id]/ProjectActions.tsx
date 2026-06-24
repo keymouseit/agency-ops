@@ -77,7 +77,7 @@ export default function ProjectActions({ project, members, userRole }: { project
   }
 
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
-  const canAddPostMortem = ['qa', 'delivered'].includes(project.status)
+  const canAddPostMortem = (project.status === 'qa' && !!project.releaseSignOff) || project.status === 'delivered'
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
 
   return (

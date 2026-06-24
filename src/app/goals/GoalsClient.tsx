@@ -62,12 +62,19 @@ export default function GoalsClient({ members, goals }: { members: Member[]; goa
     router.refresh()
   }
 
-  async function updateStatus(goalId: string, status: string) {
-    await fetch(`/api/goals/${goalId}`, {
+  async function updateStatus(goalId: string, status: 'achieved' | 'missed') {
+    const res = await fetch(`/api/goals/${goalId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        ...(status === 'achieved' ? { progressPct: 100 } : {}),
+      }),
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to update goal' }))
+      throw new Error(err.error ?? 'Failed to update goal')
+    }
     router.refresh()
   }
 
@@ -218,10 +225,12 @@ export default function GoalsClient({ members, goals }: { members: Member[]; goa
                   {g.status === 'active' && (
                     <div className="flex flex-col gap-1 flex-shrink-0">
                       <button
+                        type="button"
                         onClick={() => updateStatus(g.id, 'achieved')}
                         className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
                       >Mark achieved</button>
                       <button
+                        type="button"
                         onClick={() => updateStatus(g.id, 'missed')}
                         className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
                       >Mark missed</button>

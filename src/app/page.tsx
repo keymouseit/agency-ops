@@ -244,7 +244,7 @@ export default async function Dashboard() {
                   <div key={l.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div>
                       <div className="text-sm font-medium text-gray-800">{l.clientName}</div>
-                      <div className="text-xs text-gray-400">{fmtCurrency(l.budget)} · {l.owner.name}</div>
+                      <div className="text-xs text-gray-400">{fmtCurrency(l.budget, l.currency)} · {l.owner.name}</div>
                     </div>
                     <Link href={`/pipeline/${l.id}`} className="text-xs text-gray-400 hover:text-gray-700 underline">Analysis →</Link>
                   </div>

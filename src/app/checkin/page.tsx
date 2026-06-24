@@ -1,8 +1,8 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { startOfWeek } from 'date-fns'
 import Link from 'next/link'
+import { getWeekStart } from '@/lib/utils'
 import CheckInClient from './CheckInClient'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export default async function CheckInPage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
 
-  const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
+  const weekOf = getWeekStart()
 
   // Check if user already submitted check-in this week
   const existingCheckIn = await prisma.weeklyScore.findUnique({

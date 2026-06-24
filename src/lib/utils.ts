@@ -1,9 +1,26 @@
+import { startOfWeek } from 'date-fns'
+
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
 export const LEAD_STATUSES = ['new', 'proposal_sent', 'interview', 'won', 'lost'] as const
 export const LOSS_REASONS = [
   'price_too_high', 'slow_response', 'weak_proposal',
   'trust_gap', 'tech_mismatch', 'lost_interview', 'no_response', 'other',
 ] as const
+
+export const LOSS_REASON_LABELS: Record<string, string> = {
+  price_too_high: 'Budget too high',
+  slow_response: 'Delayed response',
+  weak_proposal: 'Weak proposal',
+  trust_gap: 'Trust gap',
+  tech_mismatch: 'Tech mismatch',
+  lost_interview: 'Lost at interview',
+  no_response: 'No response',
+  other: 'Other',
+}
+
+export function formatLossReason(reason: string) {
+  return LOSS_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ')
+}
 export const FAULT_AREAS = ['BD', 'Estimation', 'Communication', 'Proposal_Quality', 'External'] as const
 export const PROJECT_STATUSES = ['scoping', 'active', 'qa', 'delivered', 'cancelled'] as const
 export const ROLES = ['BD', 'Dev', 'Both', 'Founder', 'Manager', 'QA'] as const
@@ -41,9 +58,19 @@ export function avg(nums: number[]) {
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10
 }
 
-export function fmtCurrency(v: number | null, currency = 'USD') {
-  if (!v) return '—'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v)
+export function fmtCurrency(v: number | null | undefined, currency = 'USD') {
+  if (v == null || Number.isNaN(v)) return '—'
+  const code = (currency || 'USD').trim().toUpperCase()
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: code,
+      currencyDisplay: 'code',
+      maximumFractionDigits: 0,
+    }).format(v)
+  } catch {
+    return `${code} ${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  }
 }
 
 export function fmtDate(d: Date | string | null) {
@@ -56,4 +83,13 @@ export function fmtDateTime(d: Date | string | null) {
   const date = new Date(d)
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
     ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+/** Monday 00:00 — canonical week boundary for check-ins and scores */
+export function getWeekStart(date = new Date()) {
+  return startOfWeek(date, { weekStartsOn: 1 })
+}
+
+export function isSameWeek(a: Date | string, b: Date | string) {
+  return getWeekStart(new Date(a)).getTime() === getWeekStart(new Date(b)).getTime()
 }

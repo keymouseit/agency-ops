@@ -10,7 +10,7 @@ type Task    = {
   projectId: string; estimatedHours: string
 }
 
-const TASK_TYPES = ['feature','bug','review','meeting','admin','qa','research']
+const TASK_TYPES = ['feature','bug','backend','review','meeting','admin','qa','research']
 const PRIORITIES = ['high','medium','low']
 const PRIORITY_COLORS: Record<string,string> = {
   high:'border-red-300 bg-red-50', medium:'border-amber-200 bg-amber-50', low:'border-gray-200 bg-gray-50',
@@ -37,6 +37,7 @@ export default function MorningPlanForm({
   )
   const [planNotes, setPlanNotes] = useState(initialPlanNotes)
   const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
   const router = useRouter()
 
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
@@ -49,16 +50,14 @@ export default function MorningPlanForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    setError('')
     setLoading(true)
 
     try {
       const res = await fetch('/api/daily/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // memberId comes from the session on the server — but the API still needs it
-        // We pass it here for the existing API contract; the server validates via auth
         body: JSON.stringify({
-          memberId: member.id,
           planNotes,
           tasks,
           replanAfterEod,
@@ -66,7 +65,8 @@ export default function MorningPlanForm({
       })
 
       if (!res.ok) {
-        throw new Error('Failed to submit plan')
+        const err = await res.json().catch(() => ({ error: 'Failed to submit plan' }))
+        throw new Error(err.error ?? `Failed to submit plan (${res.status})`)
       }
 
       const data = await res.json()
@@ -78,10 +78,13 @@ export default function MorningPlanForm({
       setLoading(false)
       router.replace(isEdit ? '/daily' : '/daily?saved=1')
       router.refresh()
-    } catch (error) {
+    } catch (err) {
       setLoading(false)
-      alert('Failed to submit plan. Please try again.')
-      console.error('Plan submission error:', error)
+      if (err instanceof TypeError) {
+        setError('Could not reach the server. Check your connection and try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to submit plan. Please try again.')
+      }
     }
   }
 
@@ -93,7 +96,7 @@ export default function MorningPlanForm({
             {isEdit ? 'Edit today\'s plan' : replanAfterEod ? 'New plan for today' : 'Morning plan'}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {member.name}
+            Submitting as: <strong>{member.name}</strong>
             {isEdit
               ? ' · Update tasks before you submit EOD'
               : replanAfterEod
@@ -103,6 +106,26 @@ export default function MorningPlanForm({
         </div>
         <Link href="/daily" className="text-xs text-gray-400 hover:text-gray-700">← Daily view</Link>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <span className="text-xl text-red-600">⚠</span>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-900 mb-1">Submission failed</h3>
+              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-xs text-red-600 mt-1">Your entries are saved — fix the issue and submit again.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError('')}
+              className="text-red-400 hover:text-red-600 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-4">
         {/* Task list */}

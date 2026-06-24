@@ -1,62 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { avg, fmtCurrency, fmtDate } from '@/lib/utils'
+import { avg, fmtCurrency, fmtDate, formatLossReason } from '@/lib/utils'
+import { calcHealth, healthColor, healthBg, compareProjectHealth, burnPct, marginSignal } from '@/lib/project-health'
 import { startOfDay, subDays, startOfWeek, differenceInDays, format } from 'date-fns'
 import Link from 'next/link'
 import BlockerActions from './BlockerActions'
 
 export const dynamic = 'force-dynamic'
-
-// ─── health score formula ────────────────────────────────────────────────────
-function calcHealth(p: {
-  estimatedEnd: Date | null
-  startDate: Date | null
-  estimatedHours: number | null
-  actualHours: number | null
-  milestones: { status: string }[]
-  checkIns: { onTrack: string; clientUpdated: boolean; blockers: string | null }[]
-  postDeliveryIssues?: { id: string }[]
-  scopeChanges: { changeOrderSigned: boolean }[]
-}) {
-  let score = 10
-  const now = new Date()
-
-  // Schedule (−3 max)
-  if (p.estimatedEnd) {
-    const daysLeft = differenceInDays(new Date(p.estimatedEnd), now)
-    const ci = (p.checkIns || [])[0]
-    if (ci?.onTrack === 'no') score -= 3
-    else if (ci?.onTrack === 'at_risk') score -= 1.5
-    else if (daysLeft < 0) score -= 2 // overdue with no check-in
-  }
-
-  // Estimation drift (−2 max)
-  if (p.estimatedHours && p.actualHours) {
-    const pct = p.actualHours / p.estimatedHours
-    if (pct > 1.4) score -= 2
-    else if (pct > 1.2) score -= 1
-  }
-
-  // Milestones (−1.5 max)
-  const missed = (p.milestones || []).filter(m => m.status === 'missed').length
-  if (missed > 0) score -= Math.min(1.5, missed * 0.5)
-
-  // Post-delivery issues (−1 max)
-  const clientIssues = (p.postDeliveryIssues ?? []).length
-  score -= Math.min(1, clientIssues * 0.5)
-
-  // Communication (−1 max)
-  const ci = (p.checkIns || [])[0]
-  if (ci && !ci.clientUpdated) score -= 0.5
-  if (ci?.blockers && ci.blockers.trim()) score -= 0.3
-
-  // Scope without CO (−0.5)
-  const unsigned = (p.scopeChanges || []).filter(s => !s.changeOrderSigned).length
-  if (unsigned > 0) score -= 0.5
-
-  const clamped = Math.max(0, Math.round(score * 10) / 10)
-  const label = clamped >= 7.5 ? 'healthy' : clamped >= 5 ? 'at_risk' : 'critical'
-  return { score: clamped, label }
-}
 
 export default async function IntelligencePage() {
   const today = startOfDay(new Date())
@@ -125,8 +74,7 @@ export default async function IntelligencePage() {
       : null
     const daysElapsed = p.startDate ? differenceInDays(new Date(), new Date(p.startDate)) : 0
     const schedulePct = daysTotal && daysTotal > 0 ? Math.round((daysElapsed / daysTotal) * 100) : null
-    const burnPct = p.estimatedHours && p.actualHours
-      ? Math.round((p.actualHours / p.estimatedHours) * 100) : null
+    const burnPctValue = burnPct(p.estimatedHours, p.actualHours)
     const projectedHours = p.estimatedHours && p.actualHours && daysElapsed > 0 && daysTotal
       ? Math.round((p.actualHours / daysElapsed) * daysTotal)
       : null
@@ -142,9 +90,9 @@ export default async function IntelligencePage() {
       return acc
     }, {} as Record<string, number>)
 
-    return { project: p, health: h, daysLeft, schedulePct, burnPct, projectedHours, ci, daysSinceClientUpdate, taskTypeSummary }
+    return { project: p, health: h, daysLeft, schedulePct, burnPct: burnPctValue, projectedHours, ci, daysSinceClientUpdate, taskTypeSummary }
   })
-  .sort((a, b) => a.health.score - b.health.score) // critical first
+  .sort((a, b) => compareProjectHealth(a.health, b.health, a.project.name, b.project.name))
 
   // ── Blocker analysis ──────────────────────────────────────────────────────
   const blockersWithAge = openBlockers.map(b => ({
@@ -175,7 +123,13 @@ export default async function IntelligencePage() {
   }, {} as Record<string, number>)
 
   // ── Productivity / utilisation ────────────────────────────────────────────
-  const memberProductivity = members.map(m => {
+  const DAILY_LOGGING_ROLES = ['Dev', 'Both', 'QA']
+  const LOW_ACTIVITY_HOURS = 20 // less than 20h logged in last 7 days
+
+  const memberProductivity = members
+    .filter(m => DAILY_LOGGING_ROLES.includes(m.role))
+    .filter(m => allDailyLogs.some(l => l.memberId === m.id && l.planSubmittedAt))
+    .map(m => {
     const logs = allDailyLogs.filter(l => l.memberId === m.id)
     const allTasks = logs.flatMap(l => l.tasks)
     const loggedHours = allTasks.filter(t => t.actualHours).reduce((s, t) => s + (t.actualHours || 0), 0)
@@ -208,10 +162,28 @@ export default async function IntelligencePage() {
       member: m,
       loggedHours, plannedHours, billableHours, utilisation, billability,
       completionRate, estAccuracy, recentAvg, scoreTrend,
-      idle: loggedHours < 20, // less than 20h in a 5-day week
+      idle: loggedHours < LOW_ACTIVITY_HOURS,
       goals: m.goals,
     }
-  }).sort((a, b) => a.utilisation - b.utilisation)
+  })
+  .sort((a, b) => {
+    if (a.idle !== b.idle) return a.idle ? -1 : 1
+    if (a.utilisation !== b.utilisation) return a.utilisation - b.utilisation
+    return a.member.name.localeCompare(b.member.name)
+  })
+
+  // Weekly score stats for all members (used by People vs goals — not limited to daily-logging roles)
+  const memberScoreStats = new Map(members.map(m => {
+    const myScores = weeklyScores.filter(s => s.memberId === m.id)
+    const recentAvg = myScores.length
+      ? avg(myScores.slice(-4).map(s => avg([s.delivery, s.process, s.communication, s.growth, s.culture])))
+      : null
+    const prevAvg = myScores.length >= 8
+      ? avg(myScores.slice(-8, -4).map(s => avg([s.delivery, s.process, s.communication, s.growth, s.culture])))
+      : null
+    const scoreTrend = recentAvg != null && prevAvg != null ? recentAvg - prevAvg : null
+    return [m.id, { recentAvg, scoreTrend }] as const
+  }))
 
   // ── Time in lifecycle by phase ────────────────────────────────────────────
   const phaseTime = projects.flatMap(p => p.dailyTasks || []).reduce((acc, t) => {
@@ -229,10 +201,6 @@ export default async function IntelligencePage() {
     ? Math.round((deliveredWithData.filter(p => p.onTime).length / deliveredWithData.length) * 100)
     : null
 
-  const healthColor = (h: string) =>
-    h === 'healthy' ? 'text-green-700' : h === 'at_risk' ? 'text-amber-700' : 'text-red-600'
-  const healthBg = (h: string) =>
-    h === 'healthy' ? 'bg-green-50 border-green-200' : h === 'at_risk' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
   const scoreCol = (v: number) => v >= 8 ? 'text-green-700' : v >= 6 ? 'text-amber-700' : 'text-red-600'
 
   return (
@@ -253,6 +221,12 @@ export default async function IntelligencePage() {
           </h2>
           <Link href="/projects" className="text-xs text-gray-400 hover:text-gray-600">All projects →</Link>
         </div>
+        <p className="text-xs text-gray-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
+          <span>Sorted lowest score first</span>
+          <span className="text-red-600">≤5 critical</span>
+          <span className="text-amber-700">5.1–7.4 at risk</span>
+          <span className="text-green-700">≥7.5 healthy</span>
+        </p>
 
         <div className="space-y-3">
           {projectHealth.map(({ project: p, health, daysLeft, schedulePct, burnPct, projectedHours, ci, daysSinceClientUpdate, taskTypeSummary }) => {
@@ -409,20 +383,20 @@ export default async function IntelligencePage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {members.map(m => {
-                  const prod = memberProductivity.find(p => p.member.id === m.id)!
+                  const { recentAvg, scoreTrend } = memberScoreStats.get(m.id) ?? { recentAvg: null, scoreTrend: null }
                   return (
                     <tr key={m.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-gray-900">{m.name}</div>
                         <div className="text-xs text-gray-400">{m.role}</div>
                       </td>
-                      <td className={`text-center px-3 py-2.5 font-semibold ${prod.recentAvg ? scoreCol(prod.recentAvg) : 'text-gray-300'}`}>
-                        {prod.recentAvg ? prod.recentAvg.toFixed(1) : '—'}
+                      <td className={`text-center px-3 py-2.5 font-semibold ${recentAvg != null ? scoreCol(recentAvg) : 'text-gray-300'}`}>
+                        {recentAvg != null ? recentAvg.toFixed(1) : '—'}
                       </td>
                       <td className="text-center px-3 py-2.5 text-xs">
-                        {prod.scoreTrend != null
-                          ? <span className={prod.scoreTrend > 0 ? 'text-green-600' : prod.scoreTrend < 0 ? 'text-red-500' : 'text-gray-400'}>
-                              {prod.scoreTrend > 0 ? `▲ +${prod.scoreTrend.toFixed(1)}` : prod.scoreTrend < 0 ? `▼ ${prod.scoreTrend.toFixed(1)}` : '→'}
+                        {scoreTrend != null
+                          ? <span className={scoreTrend > 0 ? 'text-green-600' : scoreTrend < 0 ? 'text-red-500' : 'text-gray-400'}>
+                              {scoreTrend > 0 ? `▲ +${scoreTrend.toFixed(1)}` : scoreTrend < 0 ? `▼ ${scoreTrend.toFixed(1)}` : '→'}
                             </span>
                           : '—'}
                       </td>
@@ -464,7 +438,7 @@ export default async function IntelligencePage() {
             </div>
 
             {lossAnalyses.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">Lost at stage</div>
                   {(Object.entries(lossStageBreakdown) as [string,number][]).sort((a,b)=>b[1]-a[1]).map(([stage, count]) => (
@@ -478,10 +452,22 @@ export default async function IntelligencePage() {
                   ))}
                 </div>
                 <div>
+                  <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">Reason</div>
+                  {(Object.entries(lossByReason) as [string,number][]).sort((a,b)=>b[1]-a[1]).map(([reason, count]) => (
+                    <div key={reason} className="flex items-center gap-2 mb-1 text-xs">
+                      <div className="w-24 text-gray-600 truncate" title={formatLossReason(reason)}>{formatLossReason(reason)}</div>
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(count/lossAnalyses.length)*100}%` }} />
+                      </div>
+                      <span className="text-gray-500 w-4">{count}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
                   <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">Root cause</div>
                   {(Object.entries(lossByFault) as [string,number][]).sort((a,b)=>b[1]-a[1]).map(([fault, count]) => (
                     <div key={fault} className="flex items-center gap-2 mb-1 text-xs">
-                      <div className="w-24 text-gray-600">{fault}</div>
+                      <div className="w-24 text-gray-600 capitalize">{fault}</div>
                       <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(count/lossAnalyses.length)*100}%` }} />
                       </div>
@@ -576,6 +562,10 @@ export default async function IntelligencePage() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">8 · Team productivity — last 7 days</h2>
           <Link href="/daily/analytics" className="text-xs text-gray-400 hover:text-gray-600">Full analytics →</Link>
         </div>
+        <p className="text-xs text-gray-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
+          <span>Dev / QA roles · sorted lowest utilisation first</span>
+          <span className="text-red-600">&lt;20h logged = Low activity</span>
+        </p>
         <div className="card overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -596,7 +586,7 @@ export default async function IntelligencePage() {
                     <div className="font-medium text-gray-900">{m.name}</div>
                     <div className="text-xs text-gray-400">{m.role}</div>
                   </td>
-                  <td className={`text-center px-3 py-2.5 font-semibold ${loggedHours < 20 ? 'text-red-600' : loggedHours < 30 ? 'text-amber-700' : 'text-green-700'}`}>
+                  <td className={`text-center px-3 py-2.5 font-semibold ${loggedHours < LOW_ACTIVITY_HOURS ? 'text-red-600' : loggedHours < 30 ? 'text-amber-700' : 'text-green-700'}`}>
                     {loggedHours.toFixed(1)}h
                   </td>
                   <td className="text-center px-3 py-2.5">
@@ -642,6 +632,12 @@ export default async function IntelligencePage() {
       {/* ── BONUS: MARGIN HEALTH PER PROJECT ──────────────────────────────── */}
       <div className="mb-8">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">+ Margin health — are we profitable right now?</h2>
+        <p className="text-xs text-gray-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
+          <span>Actual hours vs estimate</span>
+          <span className="text-red-600">&gt;100% burned = Over budget</span>
+          <span className="text-amber-700">86–100% = Watch</span>
+          <span className="text-green-700">≤85% = On budget</span>
+        </p>
         <div className="card overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -658,17 +654,20 @@ export default async function IntelligencePage() {
             <tbody className="divide-y divide-gray-50">
               {activeProjects.filter(p => p.contractValue && p.estimatedHours).map(p => {
                 const ratePerHr = p.contractValue! / p.estimatedHours!
-                const projectedCost = p.actualHours ? (p.actualHours / (p.estimatedHours! * 0.7)) * p.contractValue! : null // 70% labour assumption
-                const ph = projectHealth.find(h => h.project.id === p.id)
-                const burnPct = ph?.burnPct
+                const projectedCost = p.actualHours ? (p.actualHours / (p.estimatedHours! * 0.7)) * p.contractValue! : null
+                const pct = burnPct(p.estimatedHours, p.actualHours)
+                const signal = marginSignal(p.estimatedHours, p.actualHours, projectedCost, p.contractValue)
 
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2.5 font-medium text-gray-800">{p.name}</td>
                     <td className="text-center px-3 py-2.5">{fmtCurrency(p.contractValue, p.currency)}</td>
                     <td className="text-center px-3 py-2.5 text-gray-500">{p.estimatedHours}h</td>
-                    <td className={`text-center px-3 py-2.5 font-medium ${burnPct && burnPct > 120 ? 'text-red-600' : 'text-gray-700'}`}>
-                      {p.actualHours ? `${p.actualHours}h` : '—'}
+                    <td className={`text-center px-3 py-2.5 font-medium ${pct != null && pct > 100 ? 'text-red-600' : pct != null && pct > 85 ? 'text-amber-700' : 'text-gray-700'}`}>
+                      {p.actualHours != null ? `${p.actualHours}h` : '—'}
+                      {pct != null && pct > 100 && (
+                        <span className="block text-xs text-red-500">{pct}% of estimate</span>
+                      )}
                     </td>
                     <td className="text-center px-3 py-2.5 text-gray-500">
                       {ratePerHr ? `${fmtCurrency(ratePerHr)}/h` : '—'}
@@ -677,9 +676,9 @@ export default async function IntelligencePage() {
                       {projectedCost ? fmtCurrency(projectedCost, p.currency) : '—'}
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      {burnPct == null ? <span className="text-gray-300 text-xs">No data</span>
-                        : (burnPct > 130 || (projectedCost && projectedCost > p.contractValue!)) ? <span className="badge bg-red-100 text-red-800 text-xs">Over budget</span>
-                        : burnPct > 100 ? <span className="badge bg-amber-100 text-amber-800 text-xs">Watch</span>
+                      {signal === 'no_data' ? <span className="text-gray-300 text-xs">No data</span>
+                        : signal === 'over_budget' ? <span className="badge bg-red-100 text-red-800 text-xs">Over budget</span>
+                        : signal === 'watch' ? <span className="badge bg-amber-100 text-amber-800 text-xs">Watch</span>
                         : <span className="badge bg-green-100 text-green-800 text-xs">On budget</span>}
                     </td>
                   </tr>
