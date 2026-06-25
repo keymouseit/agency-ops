@@ -361,7 +361,7 @@ export default function MomForm({
           <input name="followUpDate" type="date" className="input max-w-xs" />
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
+          {/* <div>
             <label className="label">Upload meeting video</label>
             <input
               name="meetingVideo"
@@ -370,9 +370,9 @@ export default function MomForm({
               className="input py-1.5"
             />
             <p className="text-xs text-gray-400 mt-1">MP4, WebM, MOV — max 200 MB</p>
-          </div>
+          </div> */}
           <div>
-            <label className="label">Or paste video link</label>
+            <label className="label">Paste video link</label>
             <input
               name="meetingVideoUrl"
               type="url"
