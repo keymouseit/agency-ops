@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { startOfDay, startOfWeek, subDays, differenceInDays, format, isWeekend } from 'date-fns'
 import Link from 'next/link'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
-import { fmtDate, avg, isSameWeek } from '@/lib/utils'
+import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 
 export const dynamic = 'force-dynamic'
@@ -184,7 +184,7 @@ export default async function MePage() {
       : Promise.resolve([]),
   ])
 
-  if (!member) redirect('/login')
+  if (!member) redirect('/api/auth/signout?callbackUrl=/login')
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const hasPlan        = !!todayLog?.planSubmittedAt
@@ -205,8 +205,7 @@ export default async function MePage() {
   const scoreTrend  = scoreAvg && prevAvg ? scoreAvg - prevAvg : null
 
   const firstName = member.name.split(' ')[0]
-  const hour      = new Date().getHours()
-  const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const greeting  = timeGreeting()
 
   const PRIORITY_DOT: Record<string, string> = {
     high: 'bg-red-500', medium: 'bg-amber-400', low: 'bg-gray-300',

@@ -6,11 +6,12 @@ import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate'],
-  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
+  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom'],
+  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily'],
-  Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
+  Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────
@@ -115,10 +116,28 @@ export async function requireRole(
   if (!session?.user?.id) {
     throw Object.assign(new Error('UNAUTHORIZED'), { status: 401 })
   }
-  if (!allowed.includes(session.user.role)) {
+
+  let member = await prisma.teamMember.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true, active: true },
+  })
+
+  // Session may hold a stale member id after db reset — resolve by email
+  if (!member && session.user.email) {
+    member = await prisma.teamMember.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, active: true },
+    })
+  }
+
+  if (!member?.active) {
+    throw Object.assign(new Error('STALE_SESSION'), { status: 401 })
+  }
+  if (!allowed.includes(member.role)) {
     throw Object.assign(new Error('FORBIDDEN'), { status: 403 })
   }
-  return { memberId: session.user.id, role: session.user.role }
+
+  return { memberId: member.id, role: member.role }
 }
 
 /**
@@ -135,6 +154,12 @@ export async function checkRole(allowed: string[]): Promise<NextResponse | null>
     return null
   } catch (e: unknown) {
     const err = e as { message: string; status?: number }
+    if (err.message === 'STALE_SESSION') {
+      return NextResponse.json(
+        { error: 'Your session is out of date. Please sign out and sign in again.' },
+        { status: 401 }
+      )
+    }
     const isUnauthed = err.message === 'UNAUTHORIZED'
     return NextResponse.json(
       { error: isUnauthed ? 'Sign in required.' : 'You do not have permission for this action.' },

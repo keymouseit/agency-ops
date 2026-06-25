@@ -16,6 +16,7 @@ type NotificationType =
   | 'test_cycle_fail'
   | 'test_cycle_pass'
   | 'eod_missing'
+  | 'mom_attendee'
 
 /**
  * Notify developer and/or BD when assigned to a project (skips the creator).

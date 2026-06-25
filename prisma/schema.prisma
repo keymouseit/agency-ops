@@ -36,6 +36,7 @@ model TeamMember {
   notifications          Notification[]
   notificationPreference NotificationPreference?
   auditLogs              AuditLog[]
+  meetingMinutes         MeetingMinute[]
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -58,6 +59,37 @@ model Lead {
   lossAnalysis       LossAnalysis?
   estimationRequests EstimationRequest[]
   estimationRecords  EstimationRecord[]
+}
+
+// ─── MINUTES OF MEETING ──────────────────────────────────────
+
+model MeetingMinute {
+  id                     String     @id @default(cuid())
+  meetingDate            DateTime
+  meetingTime            String?
+  clientName             String
+  clientLinkedIn         String?
+  companyName            String?
+  companyLinkedIn        String?
+  clientEmail            String?
+  clientPhone            String?
+  meetingType            String
+  meetingOutcome         String?
+  attendees              String?
+  domain                 String?
+  clientPainPoints       String?
+  ourApproach            String?
+  requirementsFromClient String?
+  followUpDate           DateTime?
+  followUpCompletedAt    DateTime?
+  meetingVideoPath       String?
+  meetingVideoUrl        String?
+  leadSource             String?
+  nextActionItem         String?
+  createdById            String
+  createdBy              TeamMember @relation(fields: [createdById], references: [id])
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 }
 
 model Proposal {

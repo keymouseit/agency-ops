@@ -13,6 +13,7 @@ const NAV_STRUCTURE = {
       label: 'Operations',
       items: [
         { href: '/pipeline', label: 'BD Pipeline' },
+        { href: '/mom', label: 'MOM' },
         { href: '/projects', label: 'Projects' },
         { href: '/estimate', label: 'Estimates' },
         { href: '/qa', label: 'QA' },
@@ -36,9 +37,40 @@ const NAV_STRUCTURE = {
     },
     { href: '/settings', label: '⚙ Settings' },
   ],
+  Manager: [
+    { href: '/', label: 'Dashboard' },
+    {
+      label: 'Operations',
+      items: [
+        { href: '/pipeline', label: 'BD Pipeline' },
+        { href: '/mom', label: 'MOM' },
+        { href: '/projects', label: 'Projects' },
+        { href: '/estimate', label: 'Estimates' },
+        { href: '/qa', label: 'QA' },
+      ],
+    },
+    {
+      label: 'Team',
+      items: [
+        { href: '/team', label: 'Team Scores' },
+        { href: '/checkin', label: 'Check-In' },
+        { href: '/daily', label: 'Daily' },
+        { href: '/goals', label: 'Goals' },
+      ],
+    },
+    {
+      label: 'Intelligence',
+      items: [
+        { href: '/intelligence', label: '⚡ Intel' },
+        { href: '/analytics', label: 'Analytics' },
+      ],
+    },
+    { href: '/settings', label: '⚙ Settings' },
+  ],
   BD: [
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
+    { href: '/mom', label: 'MOM' },
     { href: '/projects', label: 'Projects' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
@@ -60,6 +92,7 @@ const NAV_STRUCTURE = {
   Both: [
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
+    { href: '/mom', label: 'MOM' },
     { href: '/projects', label: 'Projects' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },

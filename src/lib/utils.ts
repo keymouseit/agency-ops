@@ -1,6 +1,23 @@
 import { startOfWeek } from 'date-fns'
 
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
+export const MOM_MEETING_TYPES = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal Discussion'] as const
+
+export const MOM_MEETING_TYPE_COLORS: Record<string, string> = {
+  'Discovery Call': 'bg-violet-100 text-violet-800',
+  'Demo': 'bg-blue-100 text-blue-800',
+  'Follow-up': 'bg-amber-100 text-amber-800',
+  'Proposal Discussion': 'bg-green-100 text-green-800',
+}
+
+export const ROLE_COLORS: Record<string, string> = {
+  Founder: 'bg-purple-100 text-purple-800',
+  Manager: 'bg-indigo-100 text-indigo-800',
+  BD:      'bg-blue-100 text-blue-800',
+  Dev:     'bg-green-100 text-green-800',
+  QA:      'bg-teal-100 text-teal-800',
+  Both:    'bg-amber-100 text-amber-800',
+}
 export const LEAD_STATUSES = ['new', 'proposal_sent', 'interview', 'won', 'lost'] as const
 export const LOSS_REASONS = [
   'price_too_high', 'slow_response', 'weak_proposal',
@@ -56,6 +73,13 @@ export function scoreBg(s: number) {
 export function avg(nums: number[]) {
   if (!nums.length) return 0
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10
+}
+
+export function timeGreeting(date = new Date()) {
+  const hour = date.getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 export function fmtCurrency(v: number | null | undefined, currency = 'USD') {

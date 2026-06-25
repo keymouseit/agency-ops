@@ -1,11 +1,15 @@
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency, scoreColor, avg } from '@/lib/utils'
+import { auth } from '@/lib/auth'
+import { fmtCurrency, scoreColor, avg, timeGreeting } from '@/lib/utils'
 import Link from 'next/link'
 import { startOfWeek, subWeeks, startOfDay, format } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Dashboard() {
+  const session = await auth()
+  const firstName = (session?.user?.name ?? '').split(' ')[0]
+
   const [leads, projects, scores, members, dailyLogs, allQAIssues] = await Promise.all([
     prisma.lead.findMany({ include: { owner: true } }),
     prisma.project.findMany({ include: { developer: true, checkIns: { orderBy: { weekOf: 'desc' }, take: 1 }, scopeChanges: true, releaseSignOff: true, postDeliveryIssues: { where: { resolvedAt: null }, take: 1 } } }),
@@ -70,7 +74,9 @@ export default async function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Good morning</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {firstName ? `${timeGreeting()}, ${firstName}.` : timeGreeting()}
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">Here's everything that needs your attention today.</p>
         </div>
         <div className="text-xs text-gray-400">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
