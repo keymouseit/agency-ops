@@ -12,30 +12,54 @@ Ask Vishal or Rahul to do this on a laptop. You just need the URL once it's runn
 ```bash
 npm install
 npx prisma db push
+npm run dev
+```
+
+**Option A — Dummy demo data** (leads, projects, scores pre-filled for QA testing):
+
+```bash
 npx prisma db seed
 npx tsx scripts/setup-accounts.ts
-npm run dev
+```
+
+**Option B — Real team only** (clean slate, no dummy data):
+
+```bash
+npm run db:reset-team
 ```
 
 Open **http://localhost:3000** in your browser.
 
-If the app asks you to log in, use:
-- Email: `neha@keymouse.com`
-- Password: `AgencyOps2025!`
+If the app asks you to log in, use any account from the tables below.
+Default password for all accounts: `AgencyOps2025!`
 
 ---
 
 ## Test accounts to use
 
-You will need to test as different people throughout. Use these:
+You will need to test as different people throughout.
+
+### Real team (after `npm run db:reset-team`)
+
+| Who | Email | Password | Role | Test as them when... |
+|-----|-------|----------|------|---------------------|
+| Shiven | shiven@keymouse.com | AgencyOps2025! | Founder | Dashboard, intelligence, team scores, goals, settings |
+| Vikas | vikas@keymouse.com | AgencyOps2025! | BD | Pipeline, leads, MOM, estimates |
+| Vishal Sharma | vishal@keymouse.com | AgencyOps2025! | Dev | Projects, daily plans, estimation filling |
+| Gurleen | gurleen@keymouse.com | AgencyOps2025! | QA | QA test cycles, release sign-off |
+| Reema | reema@keymouse.com | AgencyOps2025! | HR | Team page, daily overview |
+
+### Dummy demo accounts (after `npx prisma db seed`)
 
 | Who | Email | Password | Role | Test as them when... |
 |-----|-------|----------|------|---------------------|
 | Shiven | shiven@keymouse.com | AgencyOps2025! | Founder | Testing the dashboard, intelligence page, team scores, goals |
 | Kavya | kavya@keymouse.com | AgencyOps2025! | BD | Testing pipeline, adding leads, requesting estimates |
-| Vishal (you) | vishal@keymouse.com | AgencyOps2025! | Dev | Testing projects, daily plans, estimation filling |
+| Vishal | vishal@keymouse.com | AgencyOps2025! | Dev | Testing projects, daily plans, estimation filling |
 | Neha | neha@keymouse.com | AgencyOps2025! | QA | Testing everything QA-related |
 | Priya | priya@keymouse.com | AgencyOps2025! | Both | Testing both BD and Dev flows |
+| Rahul | rahul@keymouse.com | AgencyOps2025! | Dev | Second dev on at-risk project scenarios |
+| Amit | amit@keymouse.com | AgencyOps2025! | Dev | Low-activity daily log scenarios |
 
 **How to switch accounts:** Click "Sign out" in the top right. Then log in as the new person.
 

@@ -10,6 +10,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
+    "db:reset-team": "tsx scripts/reset-real-team.ts",
     "accounts:setup": "tsx scripts/setup-accounts.ts",
     "accounts:list": "tsx scripts/setup-accounts.ts --list",
     "accounts:reset": "tsx scripts/setup-accounts.ts --reset",

@@ -11,6 +11,7 @@ export const ROLE_ACCESS: Record<string, string[]> = {
   BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily'],
+  HR:      ['/me', '/account', '/team', '/daily'],
   Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
 }
 

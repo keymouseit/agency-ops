@@ -89,6 +89,11 @@ const NAV_STRUCTURE = {
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
   ],
+  HR: [
+    { href: '/me', label: 'My Day' },
+    { href: '/team', label: 'Team' },
+    { href: '/daily', label: 'Daily' },
+  ],
   Both: [
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
@@ -105,6 +110,7 @@ const ROLE_COLORS: Record<string, string> = {
   BD:      'bg-blue-100 text-blue-800',
   Dev:     'bg-green-100 text-green-800',
   QA:      'bg-teal-100 text-teal-800',
+  HR:      'bg-rose-100 text-rose-800',
   Both:    'bg-amber-100 text-amber-800',
 }
 
