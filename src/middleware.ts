@@ -93,7 +93,8 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/leads') ||
       path.startsWith('/api/estimate') ||
       path.startsWith('/api/projects') ||
-      path.startsWith('/api/mom')
+      path.startsWith('/api/mom') ||
+      path.startsWith('/api/campaigns')
     ) return true
   }
   // Dev can access project/daily/checkin/estimate APIs

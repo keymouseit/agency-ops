@@ -14,6 +14,7 @@ const NAV_STRUCTURE = {
       items: [
         { href: '/pipeline', label: 'BD Pipeline' },
         { href: '/mom', label: 'MOM' },
+        { href: '/campaigns', label: 'Campaigns' },
         { href: '/projects', label: 'Projects' },
         { href: '/estimate', label: 'Estimates' },
         { href: '/qa', label: 'QA' },
@@ -44,6 +45,7 @@ const NAV_STRUCTURE = {
       items: [
         { href: '/pipeline', label: 'BD Pipeline' },
         { href: '/mom', label: 'MOM' },
+        { href: '/campaigns', label: 'Campaigns' },
         { href: '/projects', label: 'Projects' },
         { href: '/estimate', label: 'Estimates' },
         { href: '/qa', label: 'QA' },
@@ -71,6 +73,7 @@ const NAV_STRUCTURE = {
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
     { href: '/mom', label: 'MOM' },
+    { href: '/campaigns', label: 'Campaigns' },
     { href: '/projects', label: 'Projects' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
@@ -98,6 +101,7 @@ const NAV_STRUCTURE = {
     { href: '/me', label: 'My Day' },
     { href: '/pipeline', label: 'Pipeline' },
     { href: '/mom', label: 'MOM' },
+    { href: '/campaigns', label: 'Campaigns' },
     { href: '/projects', label: 'Projects' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },

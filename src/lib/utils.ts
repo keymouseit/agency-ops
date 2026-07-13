@@ -3,6 +3,34 @@ import { startOfWeek } from 'date-fns'
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
 export const MOM_MEETING_TYPES = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal Discussion'] as const
 
+export const INDUSTRIES = [
+  'Healthcare',
+  'FinTech',
+  'E-commerce',
+  'EdTech',
+  'SaaS',
+  'Real Estate',
+  'Travel & Hospitality',
+  'Logistics & Supply Chain',
+  'Media & Entertainment',
+  'Manufacturing',
+  'Retail',
+  'Automotive',
+  'Insurance',
+  'Banking',
+  'Marketing & Advertising',
+  'Non-profit',
+  'Government',
+  'Energy & Utilities',
+  'Telecommunications',
+  'Food & Beverage',
+  'Fitness & Wellness',
+  'Legal',
+  'Human Resources',
+  'Gaming',
+  'Other',
+] as const
+
 export const MOM_MEETING_TYPE_COLORS: Record<string, string> = {
   'Discovery Call': 'bg-violet-100 text-violet-800',
   'Demo': 'bg-blue-100 text-blue-800',

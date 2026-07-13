@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LEAD_SOURCES, MOM_MEETING_TYPES, ROLE_COLORS } from '@/lib/utils'
+import { INDUSTRIES, LEAD_SOURCES, MOM_MEETING_TYPES, ROLE_COLORS } from '@/lib/utils'
 import { momClientKey } from '@/lib/mom'
 
 type Member = { id: string; name: string; role: string }
@@ -14,6 +14,45 @@ type ExistingClient = {
   companyName: string | null
   meetingCount: number
   threadHref: string
+}
+
+type MomPrefill = {
+  campaignCallId?: string
+  clientName?: string
+  companyName?: string
+  clientLinkedIn?: string
+  clientEmail?: string
+  clientPhone?: string
+  meetingDate?: string
+  meetingTime?: string
+  leadSource?: string
+}
+
+type CampaignCallOption = {
+  id: string
+  campaignId: string
+  campaignName: string
+  clientName: string
+  companyName: string | null
+  clientLinkedIn: string | null
+  clientEmail: string | null
+  clientPhone: string | null
+  scheduledDate: string
+  scheduledTime: string | null
+  label: string
+}
+
+function applyCallToForm(call: CampaignCallOption) {
+  return {
+    clientName: call.clientName,
+    companyName: call.companyName ?? '',
+    clientLinkedIn: call.clientLinkedIn ?? '',
+    clientEmail: call.clientEmail ?? '',
+    clientPhone: call.clientPhone ?? '',
+    meetingDate: call.scheduledDate,
+    meetingTime: call.scheduledTime ?? '',
+    leadSource: 'LinkedIn',
+  }
 }
 
 const CUSTOM_ATTENDEE_ROLES = ['Guest', 'Client', 'External'] as const
@@ -188,17 +227,62 @@ function AttendeePicker({
 export default function MomForm({
   members,
   existingClients = [],
+  prefill,
+  campaignCalls = [],
 }: {
   members: Member[]
   existingClients?: ExistingClient[]
+  prefill?: MomPrefill
+  campaignCalls?: CampaignCallOption[]
 }) {
+  const initialCall = prefill?.campaignCallId
+    ? campaignCalls.find(c => c.id === prefill.campaignCallId)
+    : null
+  const initialFields = initialCall
+    ? applyCallToForm(initialCall)
+    : {
+        clientName: prefill?.clientName ?? '',
+        companyName: prefill?.companyName ?? '',
+        clientLinkedIn: prefill?.clientLinkedIn ?? '',
+        clientEmail: prefill?.clientEmail ?? '',
+        clientPhone: prefill?.clientPhone ?? '',
+        meetingDate: prefill?.meetingDate ?? '',
+        meetingTime: prefill?.meetingTime ?? '',
+        leadSource: prefill?.leadSource ?? '',
+      }
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [attendeeIds, setAttendeeIds] = useState<string[]>([])
   const [customAttendees, setCustomAttendees] = useState<CustomAttendee[]>([])
-  const [clientName, setClientName] = useState('')
-  const [companyName, setCompanyName] = useState('')
+  const [selectedCallId, setSelectedCallId] = useState(prefill?.campaignCallId ?? '')
+  const [clientName, setClientName] = useState(initialFields.clientName)
+  const [companyName, setCompanyName] = useState(initialFields.companyName)
+  const [clientLinkedIn, setClientLinkedIn] = useState(initialFields.clientLinkedIn)
+  const [clientEmail, setClientEmail] = useState(initialFields.clientEmail)
+  const [clientPhone, setClientPhone] = useState(initialFields.clientPhone)
+  const [meetingDate, setMeetingDate] = useState(initialFields.meetingDate)
+  const [meetingTime, setMeetingTime] = useState(initialFields.meetingTime)
+  const [leadSource, setLeadSource] = useState(initialFields.leadSource)
   const router = useRouter()
+
+  const selectedCall = campaignCalls.find(c => c.id === selectedCallId)
+
+  function onCampaignCallChange(callId: string) {
+    setSelectedCallId(callId)
+    if (!callId) return
+    const call = campaignCalls.find(c => c.id === callId)
+    if (!call) return
+    const fields = applyCallToForm(call)
+    setClientName(fields.clientName)
+    setCompanyName(fields.companyName)
+    setClientLinkedIn(fields.clientLinkedIn)
+    setClientEmail(fields.clientEmail)
+    setClientPhone(fields.clientPhone)
+    setMeetingDate(fields.meetingDate)
+    setMeetingTime(fields.meetingTime)
+    setLeadSource(fields.leadSource)
+  }
 
   const matchedClient = useMemo(() => {
     if (!clientName.trim()) return null
@@ -215,6 +299,9 @@ export default function MomForm({
     attendeeIds.forEach(id => fd.append('attendeeIds', id))
     if (customAttendees.length) {
       fd.set('customAttendees', JSON.stringify(customAttendees))
+    }
+    if (selectedCallId) {
+      fd.set('campaignCallId', selectedCallId)
     }
 
     const res = await fetch('/api/mom', { method: 'POST', body: fd })
@@ -233,16 +320,66 @@ export default function MomForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
+      {campaignCalls.length > 0 && (
+        <section className="card p-6 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Campaign call</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Link this MOM to a scheduled call from a LinkedIn campaign. Client details will auto-fill.
+            </p>
+          </div>
+          <div>
+            <label className="label">Select call (optional)</label>
+            <select
+              className="input"
+              value={selectedCallId}
+              onChange={e => onCampaignCallChange(e.target.value)}
+            >
+              <option value="">— Not from a campaign call —</option>
+              {campaignCalls.map(c => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+          {selectedCall && (
+            <div className="px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-900 flex items-center justify-between gap-3">
+              <span>
+                Linked to <strong>{selectedCall.campaignName}</strong> · {selectedCall.clientName}
+              </span>
+              <Link
+                href={`/campaigns/${selectedCall.campaignId}`}
+                className="text-xs text-blue-700 hover:underline shrink-0"
+              >
+                View campaign →
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="card p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Meeting details</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Date *</label>
-            <input name="meetingDate" type="date" required className="input" />
+            <input
+              name="meetingDate"
+              type="date"
+              required
+              className="input"
+              value={meetingDate}
+              onChange={e => setMeetingDate(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Time</label>
-            <input name="meetingTime" type="time" className="input" />
+            <input
+              name="meetingTime"
+              type="time"
+              className="input"
+              value={meetingTime}
+              onChange={e => setMeetingTime(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Meeting type *</label>
@@ -253,7 +390,12 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Lead source</label>
-            <select name="leadSource" className="input">
+            <select
+              name="leadSource"
+              className="input"
+              value={leadSource}
+              onChange={e => setLeadSource(e.target.value)}
+            >
               <option value="">Select source</option>
               {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -261,7 +403,10 @@ export default function MomForm({
         </div>
         <div>
           <label className="label">Domain / industry</label>
-          <input name="domain" className="input" placeholder="e.g. Healthcare, FinTech, E-commerce" />
+          <select name="domain" className="input">
+            <option value="">Select industry</option>
+            {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
         </div>
       </section>
 
@@ -281,7 +426,14 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Client LinkedIn profile</label>
-            <input name="clientLinkedIn" type="url" className="input" placeholder="https://linkedin.com/in/..." />
+            <input
+              name="clientLinkedIn"
+              type="url"
+              className="input"
+              placeholder="https://linkedin.com/in/..."
+              value={clientLinkedIn}
+              onChange={e => setClientLinkedIn(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Company name</label>
@@ -299,11 +451,25 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Client email</label>
-            <input name="clientEmail" type="email" className="input" placeholder="client@company.com" />
+            <input
+              name="clientEmail"
+              type="email"
+              className="input"
+              placeholder="client@company.com"
+              value={clientEmail}
+              onChange={e => setClientEmail(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Client phone number</label>
-            <input name="clientPhone" type="tel" className="input" placeholder="+1 555 000 0000" />
+            <input
+              name="clientPhone"
+              type="tel"
+              className="input"
+              placeholder="+1 555 000 0000"
+              value={clientPhone}
+              onChange={e => setClientPhone(e.target.value)}
+            />
           </div>
         </div>
 

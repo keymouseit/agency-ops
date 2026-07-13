@@ -43,6 +43,16 @@ export function isFollowUpPending(r: MomFollowUpFields) {
   return !!r.followUpDate && !r.followUpCompletedAt
 }
 
+export function isFollowUpDue(r: MomFollowUpFields, today = startOfDay(new Date())) {
+  if (!isFollowUpPending(r)) return false
+  return differenceInDays(startOfDay(r.followUpDate!), today) <= 0
+}
+
+export function isFollowUpUpcoming(r: MomFollowUpFields, today = startOfDay(new Date())) {
+  if (!isFollowUpPending(r)) return false
+  return differenceInDays(startOfDay(r.followUpDate!), today) > 0
+}
+
 export function followUpStatusLabel(r: MomFollowUpFields, today = startOfDay(new Date())) {
   if (!r.followUpDate) return null
   if (r.followUpCompletedAt) {
@@ -50,9 +60,9 @@ export function followUpStatusLabel(r: MomFollowUpFields, today = startOfDay(new
   }
   const days = differenceInDays(startOfDay(r.followUpDate), today)
   if (days < 0) return { text: `${Math.abs(days)}d overdue`, cls: 'bg-red-50 text-red-700 border-red-100' }
-  if (days === 0) return { text: 'Today', cls: 'bg-amber-50 text-amber-800 border-amber-100' }
-  if (days <= 7) return { text: `In ${days}d`, cls: 'bg-blue-50 text-blue-700 border-blue-100' }
-  return { text: fmtDate(r.followUpDate), cls: 'bg-gray-50 text-gray-600 border-gray-100' }
+  if (days === 0) return { text: 'Due today', cls: 'bg-amber-50 text-amber-800 border-amber-100' }
+  if (days <= 7) return { text: `Upcoming · in ${days}d`, cls: 'bg-blue-50 text-blue-700 border-blue-100' }
+  return { text: `Upcoming · ${fmtDate(r.followUpDate)}`, cls: 'bg-slate-50 text-slate-600 border-slate-100' }
 }
 
 export function groupMomsByClient<T extends MomRecordBase>(records: T[]) {

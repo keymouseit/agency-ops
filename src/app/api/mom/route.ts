@@ -181,6 +181,18 @@ export async function POST(req: Request) {
       )
     }
 
+    const campaignCallId = str(form.get('campaignCallId'))
+    if (campaignCallId) {
+      await prisma.campaignCall.updateMany({
+        where: { id: campaignCallId, momId: null },
+        data: {
+          momId: record.id,
+          status: 'completed',
+          completedAt: meetingDate,
+        },
+      })
+    }
+
     return NextResponse.json(record, { status: 201 })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {

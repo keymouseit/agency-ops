@@ -6,13 +6,13 @@ import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom'],
-  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom'],
-  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
+  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns'],
+  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily'],
   HR:      ['/me', '/account', '/team', '/daily'],
-  Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom'],
+  Both:    ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────
