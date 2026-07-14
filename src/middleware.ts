@@ -119,6 +119,10 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/daily')
     ) return true
   }
+  // Social Media: daily + weekly check-in only
+  if (role === 'SocialMedia') {
+    if (path.startsWith('/api/daily') || path.startsWith('/api/scores')) return true
+  }
   // Everyone can access scores, notifications
   if (path.startsWith('/api/scores') || path.startsWith('/api/notifications')) return true
   return false

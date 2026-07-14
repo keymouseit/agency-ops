@@ -202,9 +202,11 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
                     member.role === 'BD' ? 'bg-blue-100 text-blue-800' :
                     member.role === 'Dev' ? 'bg-green-100 text-green-800' :
                     member.role === 'QA' ? 'bg-teal-100 text-teal-800' :
+                    member.role === 'HR' ? 'bg-rose-100 text-rose-800' :
+                    member.role === 'SocialMedia' ? 'bg-pink-100 text-pink-800' :
                     'bg-amber-100 text-amber-800'
                   }`}>
-                    {member.role}
+                    {member.role === 'SocialMedia' ? 'Social Media' : member.role}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-center">
@@ -296,6 +298,8 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
                   <option value="Dev">Dev</option>
                   <option value="QA">QA</option>
                   <option value="Both">Both</option>
+                  <option value="HR">HR</option>
+                  <option value="SocialMedia">Social Media</option>
                   <option value="Manager">Manager</option>
                   <option value="Founder">Founder</option>
                 </select>

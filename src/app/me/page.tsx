@@ -21,7 +21,7 @@ export default async function MePage() {
   if (session.user.role === 'Founder') redirect('/')
 
   const memberId = session.user.id
-  const role     = session.user.role as 'Dev' | 'BD' | 'QA' | 'Both'
+  const role     = session.user.role as string
   const today    = startOfDay(new Date())
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
   const isWeekday = !isWeekend(today)
@@ -29,6 +29,7 @@ export default async function MePage() {
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
   const isQA  = role === 'QA'
+  // SocialMedia / HR see My Day with today + check-in/score widgets only
 
   // ── Queries — only fetch what this role actually needs ───────────────────
   const [

@@ -33,12 +33,17 @@ export default function MorningPlanForm({
   initialPlanNotes?: string
 }) {
   const [tasks, setTasks]         = useState<Task[]>(
-    initialTasks?.length ? initialTasks : [emptyTask()]
+    initialTasks?.length
+      ? initialTasks.map(t =>
+          member.role === 'SocialMedia' ? { ...t, projectId: '' } : t
+        )
+      : [emptyTask()]
   )
   const [planNotes, setPlanNotes] = useState(initialPlanNotes)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const router = useRouter()
+  const hideProject = member.role === 'SocialMedia'
 
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
     setTasks(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
@@ -59,7 +64,9 @@ export default function MorningPlanForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planNotes,
-          tasks,
+          tasks: hideProject
+            ? tasks.map(t => ({ ...t, projectId: '' }))
+            : tasks,
           replanAfterEod,
         }),
       })
@@ -146,7 +153,7 @@ export default function MorningPlanForm({
                     required className="input"
                     placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"' />
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className={`grid gap-2 ${hideProject ? 'grid-cols-3' : 'grid-cols-4'}`}>
                   <div>
                     <label className="label">Type</label>
                     <select value={task.taskType} onChange={e => updateTask(i,'taskType',e.target.value)} className="input">
@@ -159,13 +166,15 @@ export default function MorningPlanForm({
                       {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="label">Project</label>
-                    <select value={task.projectId} onChange={e => updateTask(i,'projectId',e.target.value)} className="input">
-                      <option value="">— None —</option>
-                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
+                  {!hideProject && (
+                    <div>
+                      <label className="label">Project</label>
+                      <select value={task.projectId} onChange={e => updateTask(i,'projectId',e.target.value)} className="input">
+                        <option value="">— None —</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="label">Est. hours</label>
                     <input type="number" step="0.5" min="0.5" max="8" value={task.estimatedHours}

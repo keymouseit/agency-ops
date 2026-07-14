@@ -6,7 +6,7 @@ export async function POST(
   req: Request,
   { params }: { params: { logId: string } }
 ) {
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
   if (deny) return deny
 
   const data = await req.json()

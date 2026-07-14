@@ -39,13 +39,14 @@ export const MOM_MEETING_TYPE_COLORS: Record<string, string> = {
 }
 
 export const ROLE_COLORS: Record<string, string> = {
-  Founder: 'bg-purple-100 text-purple-800',
-  Manager: 'bg-indigo-100 text-indigo-800',
-  BD:      'bg-blue-100 text-blue-800',
-  Dev:     'bg-green-100 text-green-800',
-  QA:      'bg-teal-100 text-teal-800',
-  HR:      'bg-rose-100 text-rose-800',
-  Both:    'bg-amber-100 text-amber-800',
+  Founder:      'bg-purple-100 text-purple-800',
+  Manager:      'bg-indigo-100 text-indigo-800',
+  BD:           'bg-blue-100 text-blue-800',
+  Dev:          'bg-green-100 text-green-800',
+  QA:           'bg-teal-100 text-teal-800',
+  HR:           'bg-rose-100 text-rose-800',
+  SocialMedia:  'bg-pink-100 text-pink-800',
+  Both:         'bg-amber-100 text-amber-800',
 }
 export const LEAD_STATUSES = ['new', 'proposal_sent', 'interview', 'won', 'lost'] as const
 export const LOSS_REASONS = [
@@ -69,7 +70,7 @@ export function formatLossReason(reason: string) {
 }
 export const FAULT_AREAS = ['BD', 'Estimation', 'Communication', 'Proposal_Quality', 'External'] as const
 export const PROJECT_STATUSES = ['scoping', 'active', 'qa', 'delivered', 'cancelled'] as const
-export const ROLES = ['BD', 'Dev', 'Both', 'Founder', 'Manager', 'QA', 'HR'] as const
+export const ROLES = ['BD', 'Dev', 'Both', 'Founder', 'Manager', 'QA', 'HR', 'SocialMedia'] as const
 
 export const STATUS_COLORS: Record<string, string> = {
   new: 'bg-blue-100 text-blue-800',

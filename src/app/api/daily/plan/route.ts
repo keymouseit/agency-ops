@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { startOfDay } from 'date-fns'
 
 export async function POST(req: Request) {
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
   if (deny) return deny
 
   const session = await auth()

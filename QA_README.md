@@ -67,6 +67,16 @@ You will need to test as different people throughout.
 
 ## What you are testing
 
+### New role: Social Media (`SocialMedia`)
+Can only access:
+- **My Day** (`/me`) — their dashboard
+- **Check-In** (`/checkin`)
+- **Daily** (`/daily`)
+
+Cannot access Pipeline, Campaigns, Projects, MOM, Estimates, QA, Team, Settings, Intelligence, etc.
+
+Create a team member with role **Social Media** in Settings to test.
+
 Agency Ops covers 7 main areas. Each has its own section in the test scenarios document (`QA_TEST_SCENARIOS.md`). Here is a plain-English summary of each:
 
 ### 1. BD Pipeline (test as Kavya)

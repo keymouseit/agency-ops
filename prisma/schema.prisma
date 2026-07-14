@@ -11,7 +11,7 @@ model TeamMember {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
-  role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder"
+  role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder" | "Manager" | "HR" | "SocialMedia"
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
