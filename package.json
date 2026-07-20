@@ -35,7 +35,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
-    "ts-interface-checker": "^0.1.13"
+    "ts-interface-checker": "^0.1.13",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

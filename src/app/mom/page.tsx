@@ -4,6 +4,7 @@ import { fmtDate, MOM_MEETING_TYPE_COLORS } from '@/lib/utils'
 import { encodeMomClientKey, groupMomsByClient, isFollowUpPending, momClientKey, followUpStatusLabel } from '@/lib/mom'
 import Link from 'next/link'
 import MomAnalytics from './MomAnalytics'
+import MomExportButton from './MomExportButton'
 import { differenceInDays, isSameMonth, startOfDay } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -43,9 +44,12 @@ export default async function MomPage() {
             Track discovery calls, demos, and client conversations with full context.
           </p>
         </div>
-        <Link href="/mom/new" className="btn-primary">
-          + Add New MOM
-        </Link>
+        <div className="flex items-center gap-2">
+          {isFounder && records.length > 0 && <MomExportButton />}
+          <Link href="/mom/new" className="btn-primary">
+            + Add New MOM
+          </Link>
+        </div>
       </div>
 
       {/* Summary */}
