@@ -149,9 +149,14 @@ export default function MorningPlanForm({
               <div className="space-y-3">
                 <div>
                   <label className="label">What will you do? *</label>
-                  <input value={task.title} onChange={e => updateTask(i,'title',e.target.value)}
-                    required className="input"
-                    placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"' />
+                  <textarea
+                    value={task.title}
+                    onChange={e => updateTask(i, 'title', e.target.value)}
+                    required
+                    rows={3}
+                    className="input min-h-[80px]"
+                    placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"'
+                  />
                 </div>
                 <div className={`grid gap-2 ${hideProject ? 'grid-cols-3' : 'grid-cols-4'}`}>
                   <div>
@@ -203,9 +208,13 @@ export default function MorningPlanForm({
         {/* Plan notes */}
         <div className="card p-5">
           <label className="label">Anything blocking today before you start?</label>
-          <textarea value={planNotes} onChange={e => setPlanNotes(e.target.value)}
-            rows={2} className="input mt-1"
-            placeholder="Waiting on client response, need staging access, etc." />
+          <textarea
+            value={planNotes}
+            onChange={e => setPlanNotes(e.target.value)}
+            rows={4}
+            className="input mt-1 min-h-[100px]"
+            placeholder="Waiting on client response, need staging access, etc."
+          />
         </div>
 
         <button type="submit" disabled={loading || !canSubmit} className="btn-primary w-full py-3 text-base">

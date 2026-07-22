@@ -159,11 +159,12 @@ export default function MorningPlanClient({
                   <div className="space-y-3">
                     <div>
                       <label className="label">What will you do? *</label>
-                      <input
+                      <textarea
                         value={task.title}
                         onChange={e => updateTask(i, 'title', e.target.value)}
                         required
-                        className="input"
+                        rows={3}
+                        className="input min-h-[80px]"
                         placeholder='Be specific — e.g. "Build appointment booking API endpoint" not "work on project"'
                       />
                     </div>
@@ -245,8 +246,8 @@ export default function MorningPlanClient({
               <textarea
                 value={planNotes}
                 onChange={e => setPlanNotes(e.target.value)}
-                rows={2}
-                className="input mt-1"
+                rows={4}
+                className="input mt-1 min-h-[100px]"
                 placeholder="Waiting on client response, need access to staging server, etc."
               />
             </div>
