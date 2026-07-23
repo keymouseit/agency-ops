@@ -97,7 +97,7 @@ export default function CampaignForm() {
   }
 
   return (
-    <form onSubmit={submit} className="card p-6 space-y-4 max-w-2xl" noValidate>
+    <form onSubmit={submit} className="card p-6 space-y-4 w-full" noValidate>
       <div>
         <FormLabel required>Campaign name</FormLabel>
         <input

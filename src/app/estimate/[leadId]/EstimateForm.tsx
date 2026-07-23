@@ -168,7 +168,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full mx-auto">
       <div className="text-xs text-gray-400 mb-2">← <a href={`/pipeline/${lead.id}`} className="hover:text-gray-700">Pipeline / {lead.clientName}</a></div>
 
       <div className="flex items-start justify-between mb-6">

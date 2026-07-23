@@ -26,7 +26,7 @@ export default async function MomClientPage({ params }: { params: { key: string 
   const latest = meetings[meetings.length - 1]
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <div className="text-xs text-gray-400 mb-4">
         ← <Link href="/mom" className="hover:text-gray-700">Minutes of Meeting</Link>
       </div>

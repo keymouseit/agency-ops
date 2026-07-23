@@ -147,3 +147,11 @@ export function getWeekStart(date = new Date()) {
 export function isSameWeek(a: Date | string, b: Date | string) {
   return getWeekStart(new Date(a)).getTime() === getWeekStart(new Date(b)).getTime()
 }
+
+/** Client-safe unique id; works on HTTP where crypto.randomUUID may be unavailable. */
+export function createClientId() {
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`
+}

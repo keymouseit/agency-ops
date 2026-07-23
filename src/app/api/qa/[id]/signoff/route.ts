@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { logQAAction, getClientIP } from '@/lib/audit'
+import { logProjectQAActivity } from '@/lib/qa-audit'
+import { notify } from '@/lib/notify'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
@@ -46,7 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Validation: Project status must be "qa" before sign-off
   const project = await prisma.project.findUnique({
     where: { id: params.id },
-    select: { status: true, name: true },
+    select: { status: true, name: true, developerId: true },
   })
 
   if (!project) {
@@ -96,18 +97,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
 
   // Log audit trail (project already fetched above for validation)
-  await logQAAction(
+  await logProjectQAActivity(
     'signed_off',
-    'ReleaseSignOff',
-    signOff.id,
+    params.id,
     project.name,
     {
+      qaEventType: 'release_signoff',
+      signOffId: signOff.id,
       qualityScore: signOff.qualityScore,
       cycleId: data.cycleId,
       signedOffById: data.signedOffById,
       allChecksPassed: data.sanityPassed && data.regressionPassed && data.noBlockersOpen,
     },
-    req
+    req,
   )
 
   logger.info('QA release sign-off created', {
@@ -116,6 +118,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     signOffId: signOff.id,
     qualityScore: signOff.qualityScore,
   })
+
+  await notify('test_cycle_pass', [project.developerId],
+    `QA signed off ${project.name} — ready to deliver`,
+    `/projects/${params.id}`)
 
   logger.logApiResponse('POST', `/api/qa/${params.id}/signoff`, 200, Date.now() - startTime)
   return NextResponse.json(signOff)

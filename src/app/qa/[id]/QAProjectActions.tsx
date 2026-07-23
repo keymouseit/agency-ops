@@ -2,10 +2,37 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { TEST_CYCLE_CASE_STATUSES, TEST_CYCLE_CASE_STATUS_CONFIG, deriveCycleResult, hasFailingTestCases, CYCLE_RESULT_OPTIONS, CYCLE_NON_EXECUTABLE_RESULT_OPTIONS, isNonExecutableCycleResult, type SelectableCycleResult } from '@/lib/qa'
+import { createClientId } from '@/lib/utils'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; status: string }
 type Milestone = { id: string; title: string; status: string; dueDate: Date }
+type CycleTestCaseRow = { id: string; title: string; status: string; notes: string }
+
+export type EditableTestCycle = {
+  id: string
+  cycleType: string
+  environment: string
+  result: string
+  conductedById: string
+  summary: string | null
+  blockerNote: string | null
+  fixedInCycle: string | null
+  testedAuth: boolean
+  testedCoreFlows: boolean
+  testedEdgeCases: boolean
+  testedMobile: boolean
+  testedCrossBrowser: boolean
+  testedPerformance: boolean
+  testedIntegrations: boolean
+  testedDataIntegrity: boolean
+  cases: Array<{ title: string; status: string; notes: string | null }>
+}
+
+function newCycleTestCaseRow(): CycleTestCaseRow {
+  return { id: createClientId(), title: '', status: 'pass', notes: '' }
+}
 
 const CYCLE_TYPES = [
   { value: 'sanity',       label: 'Sanity check', desc: 'Quick smoke test — does the core still work after changes?' },
@@ -36,6 +63,8 @@ const SIGNOFF_ITEMS = [
 
 export default function QAProjectActions({
   project, members, canSignOff, latestCycleId, issueMode = false, hasSignOff = false, milestones = [],
+  editingCycle = null,
+  onCancelEdit,
 }: {
   project: Project
   members: Member[]
@@ -44,6 +73,8 @@ export default function QAProjectActions({
   issueMode?: boolean
   hasSignOff?: boolean
   milestones?: Milestone[]
+  editingCycle?: EditableTestCycle | null
+  onCancelEdit?: () => void
 }) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -56,8 +87,9 @@ export default function QAProjectActions({
   const [cycleType, setCycleType] = useState('pre_release')
   const [environment, setEnvironment] = useState('staging')
   const [conductedById, setConductedById] = useState('')
-  const [result, setResult] = useState<'pass' | 'fail' | 'conditional'>('pass')
+  const [result, setResult] = useState<SelectableCycleResult>('pass')
   const [checklist, setChecklist] = useState<Record<string, boolean>>({})
+  const [cycleTestCases, setCycleTestCases] = useState<CycleTestCaseRow[]>([newCycleTestCaseRow()])
   const [summary, setSummary] = useState('')
   const [blockerNote, setBlockerNote] = useState('')
   const [fixedInCycle, setFixedInCycle] = useState('')
@@ -101,6 +133,54 @@ export default function QAProjectActions({
     }
   }, [session, members, signedOffById])
 
+  useEffect(() => {
+    if (!editingCycle) return
+    setView('cycle')
+    setCycleType(editingCycle.cycleType)
+    setEnvironment(editingCycle.environment)
+    setConductedById(editingCycle.conductedById)
+    const validResults: SelectableCycleResult[] = [
+      'pass', 'fail', 'conditional', 'not_applicable', 'out_of_scope', 'deferred', 'environment_issue',
+    ]
+    setResult(validResults.includes(editingCycle.result as SelectableCycleResult) ? editingCycle.result as SelectableCycleResult : 'pass')
+    setChecklist({
+      testedAuth: editingCycle.testedAuth,
+      testedCoreFlows: editingCycle.testedCoreFlows,
+      testedEdgeCases: editingCycle.testedEdgeCases,
+      testedMobile: editingCycle.testedMobile,
+      testedCrossBrowser: editingCycle.testedCrossBrowser,
+      testedPerformance: editingCycle.testedPerformance,
+      testedIntegrations: editingCycle.testedIntegrations,
+      testedDataIntegrity: editingCycle.testedDataIntegrity,
+    })
+    setCycleTestCases(
+      editingCycle.cases.length > 0
+        ? editingCycle.cases.map(tc => ({
+            id: createClientId(),
+            title: tc.title,
+            status: tc.status,
+            notes: tc.notes ?? '',
+          }))
+        : [newCycleTestCaseRow()]
+    )
+    setSummary(editingCycle.summary ?? '')
+    setBlockerNote(editingCycle.blockerNote ?? '')
+    setFixedInCycle(editingCycle.fixedInCycle ?? '')
+    setCycleValidationError('')
+    setFieldErrors({})
+  }, [editingCycle])
+
+  function resetCycleForm() {
+    setView(null)
+    setCycleTestCases([newCycleTestCaseRow()])
+    setSummary('')
+    setBlockerNote('')
+    setFixedInCycle('')
+    setCycleValidationError('')
+    setFieldErrors({})
+    onCancelEdit?.()
+  }
+
   async function submitCycle(e: React.FormEvent) {
     e.preventDefault()
 
@@ -112,14 +192,24 @@ export default function QAProjectActions({
       errors.push('Tested by is required')
       newFieldErrors.conductedById = 'Please select who conducted this test'
     }
-    if (!summary.trim()) {
-      errors.push('Test report summary is required')
-      newFieldErrors.summary = 'Please provide a test summary describing what was tested'
+    const namedCases = cycleTestCases.filter(tc => tc.title.trim())
+    if (namedCases.length === 0) {
+      errors.push('At least one test case name is required')
+      newFieldErrors.testCases = 'Add at least one test case with a name'
     }
     if ((result === 'fail' || result === 'conditional') && !blockerNote.trim()) {
       const msg = result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required'
       errors.push(msg)
       newFieldErrors.blockerNote = msg
+    }
+    if (isNonExecutableCycleResult(result) && !summary.trim() && !blockerNote.trim()) {
+      const msg = 'Please add notes explaining why this cycle could not be fully executed'
+      errors.push(msg)
+      newFieldErrors.summary = msg
+    }
+    if (hasFailingTestCases(namedCases) && result === 'pass') {
+      errors.push('Overall result cannot be Pass when test cases have failed or are blocked')
+      newFieldErrors.result = 'Change overall result to Fail, or update failing test cases'
     }
 
     if (errors.length > 0) {
@@ -131,16 +221,28 @@ export default function QAProjectActions({
     setCycleValidationError('')
     setFieldErrors({})
     setLoading(true)
-    await fetch(`/api/qa/${project.id}/cycle`, {
-      method: 'POST',
+    const effectiveResult = deriveCycleResult(result, namedCases)
+    const payload = {
+      cycleType, environment, conductedById, result: effectiveResult,
+      ...checklist, summary, blockerNote, fixedInCycle,
+      testCases: namedCases.map(({ title, status, notes }) => ({ title, status, notes })),
+    }
+    const url = editingCycle
+      ? `/api/qa/${project.id}/cycle/${editingCycle.id}`
+      : `/api/qa/${project.id}/cycle`
+    const res = await fetch(url, {
+      method: editingCycle ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cycleType, environment, conductedById, result,
-        ...checklist, summary, blockerNote, fixedInCycle,
-      }),
+      body: JSON.stringify(payload),
     })
+    if (!res.ok) {
+      const err = await res.json()
+      alert(err.error ?? 'Failed to save test cycle')
+      setLoading(false)
+      return
+    }
     setLoading(false)
-    setView(null)
+    resetCycleForm()
     router.refresh()
   }
 
@@ -197,9 +299,11 @@ export default function QAProjectActions({
       {/* Action buttons */}
       {!issueMode && (
         <div className="flex gap-2 flex-wrap">
-          <button className="btn-primary text-xs" onClick={() => setView('cycle')}>
-            + Log test cycle
-          </button>
+          {!editingCycle && (
+            <button className="btn-primary text-xs" onClick={() => setView('cycle')}>
+              + Log test cycle
+            </button>
+          )}
           {canSignOff && !view && (
             <button className="btn-secondary text-xs border-green-300 text-green-800 hover:bg-green-50" onClick={() => setView('signoff')}>
               ✓ Submit release sign-off
@@ -221,7 +325,9 @@ export default function QAProjectActions({
       {/* ── TEST CYCLE FORM ───────────────────────────────────────────── */}
       {view === 'cycle' && (
         <div className="card p-5 border-blue-100">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Log test cycle</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">
+            {editingCycle ? 'Edit test cycle' : 'Log test cycle'}
+          </h3>
 
           {cycleValidationError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -275,44 +381,130 @@ export default function QAProjectActions({
             {/* Result */}
             <div>
               <label className="label">Overall result *</label>
+              {hasFailingTestCases(cycleTestCases.filter(tc => tc.title.trim())) && result === 'pass' && (
+                <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                  One or more test cases failed or are blocked — overall result must be Fail or Conditional.
+                </div>
+              )}
+              {fieldErrors.result && (
+                <div className="mb-2 text-xs text-red-600">{fieldErrors.result}</div>
+              )}
               <div className="flex gap-2 mt-1">
-                {([
-                  { v: 'pass' as const,        label: '✓ Pass — clear to release',        cls: 'border-green-300 bg-green-50 text-green-800' },
-                  { v: 'conditional' as const, label: '~ Conditional — minor issues',      cls: 'border-amber-300 bg-amber-50 text-amber-800' },
-                  { v: 'fail' as const,        label: '⛔ Fail — release blocked',         cls: 'border-red-300 bg-red-50 text-red-800' },
-                ] as const).map(r => (
-                  <button key={r.v} type="button"
-                    onClick={() => setResult(r.v)}
-                    className={`flex-1 py-2.5 px-3 rounded-lg border-2 text-xs font-medium transition-all ${result === r.v ? r.cls : 'border-gray-200 text-gray-500'}`}>
+                {CYCLE_RESULT_OPTIONS.map(r => (
+                  <button key={r.value} type="button"
+                    onClick={() => setResult(r.value)}
+                    className={`flex-1 py-2.5 px-3 rounded-lg border-2 text-xs font-medium transition-all ${result === r.value ? r.cls : 'border-gray-200 text-gray-500'}`}>
                     {r.label}
                   </button>
+                ))}
+              </div>
+              <div className="mt-3">
+                <div className="text-xs text-gray-500 mb-2">Could not execute — select if testing was not possible</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CYCLE_NON_EXECUTABLE_RESULT_OPTIONS.map(r => (
+                    <button key={r.value} type="button"
+                      onClick={() => setResult(r.value)}
+                      className={`py-2 px-3 rounded-lg border-2 text-xs font-medium transition-all text-left ${result === r.value ? r.cls : 'border-gray-200 text-gray-500'}`}>
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Test cases */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label mb-0">Test cases *</label>
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  onClick={() => setCycleTestCases(prev => [...prev, newCycleTestCaseRow()])}
+                >
+                  + Add test case
+                </button>
+              </div>
+              {fieldErrors.testCases && (
+                <div className="text-xs text-red-600 mb-2 flex items-center gap-1">
+                  <span>⚠</span>
+                  <span>{fieldErrors.testCases}</span>
+                </div>
+              )}
+              <div className="space-y-2">
+                {cycleTestCases.map((tc, index) => (
+                  <div key={tc.id} className="p-3 rounded-xl border border-gray-100 bg-gray-50/50 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <label className="text-xs text-gray-500 mb-1 block">Test case name</label>
+                        <input
+                          className="input text-sm"
+                          value={tc.title}
+                          onChange={e => {
+                            setCycleTestCases(prev => prev.map(row =>
+                              row.id === tc.id ? { ...row, title: e.target.value } : row
+                            ))
+                            if (fieldErrors.testCases) {
+                              setFieldErrors(prev => ({ ...prev, testCases: '' }))
+                            }
+                          }}
+                          placeholder="e.g. User login with valid credentials"
+                        />
+                      </div>
+                      <div className="w-28 shrink-0">
+                        <label className="text-xs text-gray-500 mb-1 block">Result</label>
+                        <select
+                          className="input text-sm"
+                          value={tc.status}
+                          onChange={e => setCycleTestCases(prev => prev.map(row =>
+                            row.id === tc.id ? { ...row, status: e.target.value } : row
+                          ))}
+                        >
+                          {TEST_CYCLE_CASE_STATUSES.map(s => (
+                            <option key={s} value={s}>
+                              {TEST_CYCLE_CASE_STATUS_CONFIG[s]?.label ?? s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {cycleTestCases.length > 1 && (
+                        <button
+                          type="button"
+                          className="mt-5 text-gray-400 hover:text-red-600 text-sm px-1"
+                          onClick={() => setCycleTestCases(prev => prev.filter(row => row.id !== tc.id))}
+                          title="Remove test case"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Notes</label>
+                      <input
+                        className="input text-sm"
+                        value={tc.notes}
+                        onChange={e => setCycleTestCases(prev => prev.map(row =>
+                          row.id === tc.id ? { ...row, notes: e.target.value } : row
+                        ))}
+                        placeholder={index === 0 ? 'Optional — steps tested, browser, edge cases…' : 'Optional notes'}
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
 
             <div>
               <label className="label">
-                Test report summary *
-                <span className="text-gray-400 font-normal ml-1">— what you tested, what passed, what's the state</span>
+                Overall notes
+                <span className="text-gray-400 font-normal ml-1">— optional summary for the whole cycle</span>
               </label>
               <textarea
-                rows={4}
-                className={`input ${fieldErrors.summary ? 'border-red-300 bg-red-50' : ''}`}
+                rows={3}
+                className="input"
                 value={summary}
-                onChange={e => {
-                  setSummary(e.target.value)
-                  if (fieldErrors.summary) {
-                    setFieldErrors(prev => ({ ...prev, summary: '' }))
-                  }
-                }}
-                placeholder="e.g. Tested all core flows on staging. Auth, booking, and dashboard all working correctly. Payment integration passing. One edge case on mobile Safari noted as conditional — client is aware. Regression against v1.2 features: all passing."
+                onChange={e => setSummary(e.target.value)}
+                placeholder="e.g. Full regression on staging. All core flows verified. One minor UI issue on mobile Safari noted as conditional."
               />
-              {fieldErrors.summary && (
-                <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                  <span>⚠</span>
-                  <span>{fieldErrors.summary}</span>
-                </div>
-              )}
             </div>
 
             {(result === 'fail' || result === 'conditional') && (
@@ -351,8 +543,8 @@ export default function QAProjectActions({
 
             <div className="flex gap-2">
               <button type="submit" disabled={loading}
-                className="btn-primary">{loading ? 'Saving...' : 'Save test cycle'}</button>
-              <button type="button" className="btn-secondary" onClick={() => { setView(null); setCycleValidationError(''); setFieldErrors({}) }}>Cancel</button>
+                className="btn-primary">{loading ? 'Saving...' : editingCycle ? 'Save changes' : 'Save test cycle'}</button>
+              <button type="button" className="btn-secondary" onClick={resetCycleForm}>Cancel</button>
             </div>
           </form>
         </div>

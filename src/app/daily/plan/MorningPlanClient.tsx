@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { DAILY_TASK_TYPES, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -13,7 +14,7 @@ type Task = {
   estimatedHours: string
 }
 
-const TASK_TYPES = ['feature', 'bug', 'review', 'meeting', 'admin', 'qa', 'research']
+const TASK_TYPES = DAILY_TASK_TYPES
 const PRIORITIES = ['high', 'medium', 'low']
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -22,8 +23,8 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: 'border-gray-200 bg-gray-50',
 }
 
-const emptyTask = (): Task => ({
-  title: '', taskType: 'feature', priority: 'medium', projectId: '', estimatedHours: '',
+const emptyTask = (role = 'Dev'): Task => ({
+  title: '', taskType: defaultDailyTaskType(role), priority: 'medium', projectId: '', estimatedHours: '',
 })
 
 export default function MorningPlanClient({
@@ -45,7 +46,7 @@ export default function MorningPlanClient({
   const alreadyDone = alreadySubmitted.includes(memberId)
 
   function addTask() {
-    setTasks(prev => [...prev, emptyTask()])
+    setTasks(prev => [...prev, emptyTask(member?.role)])
   }
 
   function removeTask(i: number) {
@@ -57,7 +58,9 @@ export default function MorningPlanClient({
   }
 
   const totalHours = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0)
-  const canSubmit = memberId && tasks.every(t => t.title.trim()) && !alreadyDone
+  const canSubmit = memberId
+    && tasks.every(t => t.title.trim() && parseFloat(t.estimatedHours) > 0)
+    && !alreadyDone
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -90,7 +93,7 @@ export default function MorningPlanClient({
   )
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="w-full mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Morning plan</h1>
@@ -177,7 +180,7 @@ export default function MorningPlanClient({
                           onChange={e => updateTask(i, 'taskType', e.target.value)}
                           className="input"
                         >
-                          {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
+                          {TASK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </select>
                       </div>
                       <div>
@@ -211,9 +214,9 @@ export default function MorningPlanClient({
                           type="number"
                           step="0.5"
                           min="0.5"
-                          max="8"
                           value={task.estimatedHours}
                           onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
+                          required
                           className="input"
                           placeholder="2"
                         />
@@ -233,9 +236,9 @@ export default function MorningPlanClient({
               >
                 + Add another task
               </button>
-              <div className={`text-sm font-medium ${totalHours > 8 ? 'text-red-600' : totalHours >= 6 ? 'text-green-700' : 'text-gray-500'}`}>
+              <div className={`text-sm font-medium ${totalHours > MAX_DAILY_PLAN_HOURS ? 'text-amber-600' : totalHours >= 6 ? 'text-green-700' : 'text-gray-500'}`}>
                 {totalHours}h planned
-                {totalHours > 8 && ' — over capacity'}
+                {totalHours > MAX_DAILY_PLAN_HOURS && ' — over a standard workday'}
                 {totalHours > 0 && totalHours <= 4 && ' — add more tasks'}
               </div>
             </div>
@@ -253,9 +256,9 @@ export default function MorningPlanClient({
             </div>
 
             {/* Validation warning */}
-            {totalHours > 8 && (
+            {totalHours > 0 && totalHours < 3 && (
               <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800">
-                You've planned {totalHours}h — more than a standard workday. Trim or split across days.
+                You&apos;ve planned {totalHours}h — consider adding more tasks for a fuller day.
               </div>
             )}
 

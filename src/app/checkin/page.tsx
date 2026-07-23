@@ -27,24 +27,15 @@ export default async function CheckInPage() {
   // If already checked in, show message
   if (existingCheckIn) {
     return (
-      <div className="max-w-lg mx-auto py-16">
-        <div className="card p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">✓</span>
+      <div className="py-4">
+        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-green-50/30 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-600 text-2xl text-white shadow-sm">
+            ✓
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            Already checked in this week
-          </h1>
-          <p className="text-sm text-gray-500 mb-1">
-            You submitted your weekly check-in for this week.
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            Next check-in due: Monday morning.
-          </p>
-          <Link
-            href="/me"
-            className="inline-block btn-primary px-6 py-2.5 text-sm"
-          >
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Already checked in this week</h1>
+          <p className="text-sm text-gray-500 mb-1">You submitted your weekly check-in for this week.</p>
+          <p className="text-sm text-gray-500 mb-6">Next check-in due Monday morning.</p>
+          <Link href="/me" className="btn-primary inline-flex text-sm">
             Back to My Day →
           </Link>
         </div>

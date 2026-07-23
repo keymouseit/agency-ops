@@ -70,48 +70,45 @@ export default async function MorningPlanPage() {
 
   if (alreadyPlannedToday && !isEditMode) {
     return (
-      <div className="max-w-lg mx-auto py-16">
-        <div className="card p-8 text-center">
-          <div className="text-2xl mb-4">✅</div>
-
-          <h1 className="text-xl font-semibold mb-2">
-            Plan already submitted
-          </h1>
-
-          <p className="text-sm text-gray-500">
+      <div className="py-8">
+        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-white to-green-50/40 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-600 text-2xl text-white shadow-sm">
+            ✓
+          </div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Plan already submitted</h1>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">
             You have already submitted your plan for today.
           </p>
-
           {todayLog?.eodSubmittedAt && (
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
               Your EOD is also completed. You can create a new plan tomorrow.
             </p>
           )}
+          <Link href="/daily" className="btn-secondary inline-flex mt-6 text-sm">
+            ← Back to daily log
+          </Link>
         </div>
       </div>
     )
   }
 
-  // ── GATE ─────────────────────────────────────────────────────────────────
   if (missingYesterdayEOD) {
     return (
-      <div className="max-w-lg mx-auto py-16">
-        <div className="card p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⏰</span>
+      <div className="py-8">
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-white via-white to-red-50/40 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-2xl shadow-sm">
+            ⏰
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            Yesterday&apos;s EOD is missing
-          </h1>
-          <p className="text-sm text-gray-500 mb-1">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Yesterday&apos;s EOD is missing</h1>
+          <p className="text-sm text-gray-500 max-w-md mx-auto mb-1">
             You submitted a plan yesterday but never closed the day.
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
             Submit your EOD first — then you can plan today.
           </p>
           <Link
             href={`/daily/eod?logId=${yesterdayLog?.id}`}
-            className="inline-block btn-primary px-6 py-2.5 text-sm"
+            className="btn-primary inline-flex text-sm"
           >
             Submit yesterday&apos;s EOD →
           </Link>

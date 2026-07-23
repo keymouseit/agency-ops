@@ -103,7 +103,8 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/projects') ||
       path.startsWith('/api/daily') ||
       path.startsWith('/api/scores') ||
-      path.startsWith('/api/estimate')
+      path.startsWith('/api/estimate') ||
+      path.startsWith('/api/qa/cycle-cases')
     ) return true
   }
   // BD can access daily APIs

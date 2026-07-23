@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { formatQAActivitySummary } from '@/lib/qa-audit-format'
 
 type AuditLog = {
   id: string
@@ -101,7 +102,9 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
       </div>
 
       <div className="space-y-3">
-        {displayLogs.map(log => (
+        {displayLogs.map(log => {
+          const qaSummary = formatQAActivitySummary(log.metadata)
+          return (
           <div
             key={log.id}
             className="flex items-start gap-3 pb-3 border-b border-gray-100 last:border-0 last:pb-0"
@@ -119,6 +122,10 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                   by <span className="font-medium text-gray-900">{log.userName || 'System'}</span>
                 </span>
               </div>
+
+              {qaSummary && (
+                <p className="text-sm text-gray-800 mb-1">{qaSummary}</p>
+              )}
 
               {/* Changes Summary */}
               {log.changes && Object.keys(log.changes).length > 0 && (
@@ -170,7 +177,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
               Details
             </button>
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Show More/Less Button */}
@@ -226,6 +233,13 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                   {selectedLog.action}
                 </span>
               </div>
+
+              {formatQAActivitySummary(selectedLog.metadata) && (
+                <div>
+                  <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Summary</div>
+                  <p className="text-gray-900">{formatQAActivitySummary(selectedLog.metadata)}</p>
+                </div>
+              )}
 
               {/* Changes */}
               {selectedLog.changes && Object.keys(selectedLog.changes).length > 0 && (

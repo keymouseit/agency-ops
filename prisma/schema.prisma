@@ -39,6 +39,11 @@ model TeamMember {
   meetingMinutes         MeetingMinute[]
   campaigns              Campaign[]
   campaignCalls          CampaignCall[]
+  milestonesQAStarted    Milestone[]         @relation("MilestoneQAStartedBy")
+  milestoneTestCases     MilestoneTestCase[] @relation("TestCaseTestedBy")
+  milestoneBugsReported  MilestoneBug[]      @relation("BugReportedBy")
+  testCycleCasesFixed    TestCycleCase[]     @relation("TestCycleCaseFixedBy")
+  testCycleCasesRetested TestCycleCase[]     @relation("TestCycleCaseRetestedBy")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -220,14 +225,53 @@ model Project {
 }
 
 model Milestone {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  title         String
+  dueDate       DateTime
+  completedAt   DateTime?
+  status        String     @default("pending") // pending | ready_for_qa | testing | done
+  notes         String?
+  qaStartedAt   DateTime?
+  qaStartedById String?
+  qaStartedBy   TeamMember? @relation("MilestoneQAStartedBy", fields: [qaStartedById], references: [id])
+  testCases     MilestoneTestCase[]
+  bugs          MilestoneBug[]
+}
+
+model MilestoneTestCase {
   id          String     @id @default(cuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id])
+  milestoneId String
+  milestone   Milestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   title       String
-  dueDate     DateTime
-  completedAt DateTime?
-  status      String     @default("pending")
+  status      String     @default("pending") // pending | pass | fail | blocked | skipped
   notes       String?
+  testedById  String?
+  testedBy    TeamMember? @relation("TestCaseTestedBy", fields: [testedById], references: [id])
+  testedAt    DateTime?
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  bug         MilestoneBug?
+}
+
+model MilestoneBug {
+  id              String             @id @default(cuid())
+  milestoneId     String
+  milestone       Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  testCaseId      String?            @unique
+  testCase        MilestoneTestCase? @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  severity        String             @default("medium") // critical | high | medium | low
+  status          String             @default("open") // open | fixed | closed | wont_fix
+  reportedById    String
+  reportedBy      TeamMember         @relation("BugReportedBy", fields: [reportedById], references: [id])
+  resolvedAt      DateTime?
+  resolutionNotes String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model ScopeChange {
@@ -635,7 +679,7 @@ model TestCycle {
   completedAt   DateTime?
 
   // Overall result
-  result        String     @default("pending") // "pending" | "pass" | "fail" | "conditional"
+  result        String     @default("pending") // pending | pass | fail | conditional | not_applicable | out_of_scope | deferred | environment_issue
   // pass        = all clear, ready for sign-off
   // fail        = blocked, cannot release
   // conditional = minor issues, release possible with client acknowledgement
@@ -660,6 +704,26 @@ model TestCycle {
   updatedAt     DateTime  @updatedAt
 
   signOff       ReleaseSignOff?
+  cases         TestCycleCase[]
+}
+
+model TestCycleCase {
+  id            String      @id @default(cuid())
+  testCycleId   String
+  testCycle     TestCycle   @relation(fields: [testCycleId], references: [id], onDelete: Cascade)
+  title         String
+  status        String      @default("pass") // pass | fail | blocked | skipped
+  notes         String?
+  sortOrder     Int         @default(0)
+  devFixedAt    DateTime?
+  devFixNotes   String?
+  devFixedById  String?
+  devFixedBy    TeamMember? @relation("TestCycleCaseFixedBy", fields: [devFixedById], references: [id])
+  qaRetestedAt    DateTime?
+  qaRetestNotes   String?
+  qaRetestedById  String?
+  qaRetestedBy    TeamMember? @relation("TestCycleCaseRetestedBy", fields: [qaRetestedById], references: [id])
+  createdAt     DateTime    @default(now())
 }
 
 // Formal release sign-off. One per release attempt (linked to a TestCycle).

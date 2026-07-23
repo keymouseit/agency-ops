@@ -1,33 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import Link from 'next/link'
 import { format, startOfDay, subDays } from 'date-fns'
 import { redirect } from 'next/navigation'
+import DailyHeader from './DailyHeader'
+import DailyStats from './DailyStats'
+import DailyAlerts from './DailyAlerts'
+import DailyEmptyState from './DailyEmptyState'
+import DailyLogCard from './DailyLogCard'
 
 export const dynamic = 'force-dynamic'
-
-const TASK_TYPE_COLORS: Record<string, string> = {
-  feature:  'bg-blue-100 text-blue-800',
-  backend:  'bg-indigo-100 text-indigo-800',
-  bug:      'bg-red-100 text-red-800',
-  review:   'bg-purple-100 text-purple-800',
-  meeting:  'bg-gray-100 text-gray-700',
-  admin:    'bg-gray-100 text-gray-500',
-  qa:       'bg-teal-100 text-teal-800',
-  research: 'bg-amber-100 text-amber-800',
-}
-
-const PRIORITY_DOT: Record<string, string> = {
-  high: 'bg-red-500', medium: 'bg-amber-400', low: 'bg-gray-300',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  planned: 'bg-gray-100 text-gray-600',
-  done:    'bg-green-100 text-green-800',
-  partial: 'bg-amber-100 text-amber-800',
-  blocked: 'bg-red-100 text-red-800',
-  moved:   'bg-gray-100 text-gray-500',
-}
 
 export default async function DailyPage({
   searchParams,
@@ -44,11 +25,9 @@ export default async function DailyPage({
     : startOfDay(new Date())
 
   const isFounder = session.user.role === 'Founder'
-  // Founders can toggle between 'team' (default) and 'my' view
   const viewMode = searchParams.view || 'team'
   const showTeamView = isFounder && viewMode === 'team'
 
-  // Founders see all data or their own based on view toggle, others see only their own
   const [members, logs] = await Promise.all([
     showTeamView
       ? prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
@@ -56,7 +35,7 @@ export default async function DailyPage({
     prisma.dailyLog.findMany({
       where: {
         date: targetDate,
-        ...(showTeamView ? {} : { memberId: session.user.id })
+        ...(showTeamView ? {} : { memberId: session.user.id }),
       },
       include: {
         member: true,
@@ -68,285 +47,104 @@ export default async function DailyPage({
   const isToday = targetDate.toDateString() === new Date().toDateString()
   const prevDate = format(subDays(targetDate, 1), 'yyyy-MM-dd')
   const nextDate = format(new Date(targetDate.getTime() + 86400000), 'yyyy-MM-dd')
+  const dateLabel = format(targetDate, 'EEEE, d MMMM yyyy')
 
   const myLog = logs.find(l => l.memberId === session.user.id)
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
   const canNewPlan = isToday && !!myLog?.eodSubmittedAt
 
-  // who's missing what
   const membersWithLog = new Set(logs.map(l => l.memberId))
   const noPlan = members.filter(m => !membersWithLog.has(m.id))
   const noEOD = logs.filter(l => l.planSubmittedAt && !l.eodSubmittedAt)
   const hasBlockers = logs.filter(l => l.blockers && l.blockers.trim())
 
-  // team-wide stats
   const allTasks = logs.flatMap(l => l.tasks)
   const plannedTasks = allTasks.length
   const doneTasks = allTasks.filter(t => t.status === 'done').length
   const blockedTasks = allTasks.filter(t => t.status === 'blocked').length
   const totalEstHours = allTasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
-  const totalActHours = allTasks.filter(t => t.eodNotes !== null || t.status !== 'planned')
+  const totalActHours = allTasks
+    .filter(t => t.eodNotes !== null || t.status !== 'planned')
     .reduce((s, t) => s + (t.actualHours ?? 0), 0)
 
   const planJustSaved = searchParams.saved === '1'
 
+  const stats = [
+    ...(showTeamView
+      ? [
+          {
+            label: 'Plans submitted',
+            value: `${logs.length}/${members.length}`,
+            icon: '📋',
+            good: logs.length === members.length,
+            bad: logs.length < members.length && isToday,
+          },
+        ]
+      : []),
+    {
+      label: showTeamView ? 'Tasks planned' : 'Tasks planned today',
+      value: plannedTasks.toString(),
+      icon: '✓',
+    },
+    {
+      label: showTeamView ? 'Tasks done' : 'Tasks completed',
+      value: doneTasks.toString(),
+      icon: '✅',
+      good: doneTasks === plannedTasks && plannedTasks > 0,
+    },
+    {
+      label: 'Tasks blocked',
+      value: blockedTasks.toString(),
+      icon: '🚫',
+      bad: blockedTasks > 0,
+    },
+    {
+      label: 'Hours logged',
+      value: totalActHours > 0 ? `${totalActHours}h / ${totalEstHours}h` : `${totalEstHours}h planned`,
+      icon: '⏱',
+    },
+  ]
+
   return (
     <div>
       {planJustSaved && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-800">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <span aria-hidden>✓</span>
           Plan saved — your tasks for today are below.
         </div>
       )}
 
-      {/* Header with date nav */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              {isFounder ? (showTeamView ? 'Daily ops — Team view' : 'My daily log') : 'My daily log'}
-            </h1>
-            {isFounder && (
-              <div className="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5">
-                <Link
-                  href={`/daily?view=team${searchParams.date ? `&date=${searchParams.date}` : ''}`}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    viewMode === 'team'
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  Team
-                </Link>
-                <Link
-                  href={`/daily?view=my${searchParams.date ? `&date=${searchParams.date}` : ''}`}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    viewMode === 'my'
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  My Day
-                </Link>
-              </div>
-            )}
-          </div>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {format(targetDate, 'EEEE, d MMMM yyyy')}
-            {isToday && <span className="ml-2 badge bg-blue-100 text-blue-800">Today</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href={`/daily?date=${prevDate}${viewMode ? `&view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">← Prev</Link>
-          {!isToday && <Link href={`/daily${viewMode ? `?view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">Today</Link>}
-          <Link href={`/daily?date=${nextDate}${viewMode ? `&view=${viewMode}` : ''}`} className="btn-secondary text-xs px-3">Next →</Link>
-          {isToday && (
-            canEditPlan ? (
-              <Link href="/daily/plan" className="btn-primary text-xs">Edit plan</Link>
-            ) : canNewPlan ? (
-              <Link href="/daily/plan" className="btn-primary text-xs">+ New plan</Link>
-            ) : (
-              <Link href="/daily/plan" className="btn-primary text-xs">+ Morning plan</Link>
-            )
-          )}
-        </div>
-      </div>
+      <DailyHeader
+        isFounder={isFounder}
+        showTeamView={showTeamView}
+        viewMode={viewMode}
+        dateParam={searchParams.date}
+        dateLabel={dateLabel}
+        isToday={isToday}
+        prevDate={prevDate}
+        nextDate={nextDate}
+        canEditPlan={canEditPlan}
+        canNewPlan={canNewPlan}
+      />
 
-      {/* Alerts — missing submissions (Founder team view only) */}
-      {showTeamView && isToday && (noPlan.length > 0 || noEOD.length > 0) && (
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {noPlan.length > 0 && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
-              <div className="text-xs font-semibold text-red-800 mb-1">
-                No morning plan submitted ({noPlan.length})
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {noPlan.map(m => (
-                  <span key={m.id} className="badge bg-red-100 text-red-700 text-xs">{m.name.split(' ')[0]}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {noEOD.length > 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
-              <div className="text-xs font-semibold text-amber-800 mb-1">
-                Plan submitted, EOD pending ({noEOD.length})
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {noEOD.map(l => (
-                  <span key={l.id} className="badge bg-amber-100 text-amber-700 text-xs">{l.member.name.split(' ')[0]}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      {showTeamView && isToday && (
+        <DailyAlerts noPlan={noPlan} noEOD={noEOD} blockers={hasBlockers} />
       )}
 
-      {/* Blockers — elevated (Founder team view only) */}
-      {showTeamView && hasBlockers.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {hasBlockers.map(l => (
-            <div key={l.id} className="flex gap-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
-              <div>
-                <span className="font-medium text-red-800">{l.member.name}</span>
-                <span className="text-red-700 ml-2">{l.blockers}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {(plannedTasks > 0 || logs.length > 0) && <DailyStats stats={stats} />}
 
-      {/* Team summary row or Personal summary */}
-      {(plannedTasks > 0 || logs.length > 0) && (
-        <div className={`grid ${showTeamView ? 'grid-cols-5' : 'grid-cols-4'} gap-4 mb-6`}>
-          {[
-            ...(showTeamView ? [{ label: 'Plans submitted', value: `${logs.length}/${members.length}`, good: logs.length === members.length, bad: logs.length < members.length && isToday }] : []),
-            { label: showTeamView ? 'Tasks planned' : 'Tasks planned today', value: plannedTasks.toString() },
-            { label: showTeamView ? 'Tasks done' : 'Tasks completed', value: doneTasks.toString(), good: doneTasks === plannedTasks && plannedTasks > 0 },
-            { label: showTeamView ? 'Tasks blocked' : 'Tasks blocked', value: blockedTasks.toString(), bad: blockedTasks > 0 },
-            { label: showTeamView ? 'Hours logged' : 'Hours logged', value: totalActHours > 0 ? `${totalActHours}h / ${totalEstHours}h` : `${totalEstHours}h planned` },
-          ].map(k => (
-            <div key={k.label} className="card p-4">
-              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{k.label}</div>
-              <div className={`text-xl font-semibold ${k.bad ? 'text-red-600' : k.good ? 'text-green-700' : 'text-gray-900'}`}>
-                {k.value}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Per-person cards */}
       {logs.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-gray-400 text-sm mb-2">
-            {showTeamView ? 'No plans submitted for this day yet.' : 'You haven\'t submitted a morning plan for this day.'}
-          </div>
-          {isToday && <Link href="/daily/plan" className="btn-primary text-sm">Submit morning plan →</Link>}
-        </div>
+        <DailyEmptyState showTeamView={showTeamView} isToday={isToday} />
       ) : (
         <div className="space-y-4">
-          {logs.map(log => {
-            const done = log.tasks.filter(t => t.status === 'done').length
-            const total = log.tasks.length
-            const pct = total > 0 ? Math.round((done / total) * 100) : 0
-            const hasEOD = !!log.eodSubmittedAt
-
-            return (
-              <div key={log.id} className="card overflow-hidden">
-                {/* Member header */}
-                <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-800">
-                      {log.member.name.split(' ').map(n => n[0]).join('').slice(0,2)}
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900">{log.member.name}</span>
-                      <span className="text-xs text-gray-400 ml-2">{log.member.role}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {/* Completion bar */}
-                    {total > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${pct === 100 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-gray-300'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500">{done}/{total}</span>
-                      </div>
-                    )}
-                    {log.dayRating && (
-                      <div className={`text-xs font-semibold px-2 py-0.5 rounded ${log.dayRating >= 4 ? 'bg-green-100 text-green-800' : log.dayRating >= 3 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
-                        Day: {log.dayRating}/5
-                      </div>
-                    )}
-                    <span className={`badge text-xs ${hasEOD ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-                      {hasEOD ? 'EOD done' : 'EOD pending'}
-                    </span>
-                    {!hasEOD ? (
-                      <>
-                        {isToday && log.memberId === session.user.id && (
-                          <Link href="/daily/plan" className="text-xs text-blue-600 hover:underline">
-                            Edit plan →
-                          </Link>
-                        )}
-                        <Link href="/daily/eod" className="text-xs text-blue-600 hover:underline">
-                          Submit EOD →
-                        </Link>
-                      </>
-                    ) : isToday && log.memberId === session.user.id && (
-                      <Link href="/daily/plan" className="text-xs text-blue-600 hover:underline">
-                        New plan →
-                      </Link>
-                    )}
-                  </div>
-                </div>
-
-                {/* Task list */}
-                <div className="divide-y divide-gray-50">
-                  {log.tasks.map(task => (
-                    <div key={task.id} className={`px-5 py-3 flex items-start gap-3 ${task.status === 'done' ? 'opacity-75' : ''}`}>
-                      {/* Priority dot */}
-                      <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-sm ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-800 font-medium'}`}>
-                            {task.title}
-                          </span>
-                          <span className={`badge text-xs ${TASK_TYPE_COLORS[task.taskType] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {task.taskType}
-                          </span>
-                          {task.project && (
-                            <span className="text-xs text-gray-400">{task.project.name}</span>
-                          )}
-                        </div>
-                        {task.eodNotes && (
-                          <p className="text-xs text-gray-500 mt-0.5">{task.eodNotes}</p>
-                        )}
-                        {task.blockedReason && (
-                          <p className="text-xs text-red-600 mt-0.5">Blocked: {task.blockedReason}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {task.estimatedHours && (
-                          <span className="text-xs text-gray-400">
-                            {task.actualHours != null
-                              ? <span className={task.actualHours > (task.estimatedHours * 1.3) ? 'text-red-500' : 'text-gray-400'}>
-                                  {task.actualHours}h / {task.estimatedHours}h
-                                </span>
-                              : `${task.estimatedHours}h est.`}
-                          </span>
-                        )}
-                        <span className={`badge text-xs ${STATUS_COLORS[task.status] ?? 'bg-gray-100'}`}>
-                          {task.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  {log.tasks.length === 0 && (
-                    <div className="px-5 py-3 text-xs text-gray-400">No tasks in plan.</div>
-                  )}
-                </div>
-
-                {/* EOD summary if submitted */}
-                {hasEOD && (log.carryOver || log.eodNotes) && (
-                  <div className="px-5 py-3 bg-blue-50 border-t border-blue-100 text-xs space-y-1">
-                    {log.carryOver && (
-                      <div><span className="font-medium text-blue-800">Carries to tomorrow:</span>
-                        <span className="text-blue-700 ml-1">{log.carryOver}</span></div>
-                    )}
-                    {log.eodNotes && (
-                      <div><span className="font-medium text-blue-800">Notes:</span>
-                        <span className="text-blue-700 ml-1">{log.eodNotes}</span></div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {logs.map(log => (
+            <DailyLogCard
+              key={log.id}
+              log={log}
+              isToday={isToday}
+              currentUserId={session.user.id}
+            />
+          ))}
         </div>
       )}
     </div>

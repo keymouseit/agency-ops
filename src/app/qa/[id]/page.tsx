@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/prisma'
+import { fetchProjectForQAPage, serializeMilestoneBug, serializeMilestoneTestCase } from '@/lib/project-queries'
+import { testCycleCaseSummary } from '@/lib/qa'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { fmtDate } from '@/lib/utils'
 import QAProjectActions from './QAProjectActions'
 import MilestoneApproval from './MilestoneApproval'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
+import TestCyclesPanel from './TestCyclesPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,32 +25,9 @@ const SEVERITY_CLS: Record<string, string> = {
   low:      'bg-gray-100 text-gray-600',
 }
 
-const CHECKLIST_ITEMS = [
-  { key: 'testedAuth',          label: 'Authentication & permissions' },
-  { key: 'testedCoreFlows',     label: 'Core user flows (happy paths)' },
-  { key: 'testedEdgeCases',     label: 'Edge cases & error states' },
-  { key: 'testedMobile',        label: 'Mobile / responsive' },
-  { key: 'testedCrossBrowser',  label: 'Cross-browser' },
-  { key: 'testedPerformance',   label: 'Performance' },
-  { key: 'testedIntegrations',  label: '3rd party integrations' },
-  { key: 'testedDataIntegrity', label: 'Data integrity & persistence' },
-]
-
 export default async function QAProjectPage({ params }: { params: { id: string } }) {
   const [project, members] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: params.id },
-      include: {
-        developer: true,
-        milestones: { orderBy: { dueDate: 'asc' } },
-        testCycles: {
-          orderBy: { startedAt: 'desc' },
-          include: { conductedBy: true, signOff: { include: { signedOffBy: true } } },
-        },
-        releaseSignOff: { include: { signedOffBy: true } },
-        postDeliveryIssues: { orderBy: { reportedAt: 'desc' } },
-      },
-    }),
+    fetchProjectForQAPage(params.id),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
 
@@ -57,9 +37,14 @@ export default async function QAProjectPage({ params }: { params: { id: string }
   const signOff = project.releaseSignOff
   const canSignOff = latestCycle?.result === 'pass' || latestCycle?.result === 'conditional'
   const hasSignOff = !!signOff
+  const latestCycleFixSummary = latestCycle?.cases?.length
+    ? testCycleCaseSummary(latestCycle.cases)
+    : null
+  const devFixesReadyForRetest = latestCycle?.result === 'fail'
+    && latestCycleFixSummary?.allFailuresFixed
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       {/* Breadcrumb */}
       <div className="text-xs text-gray-400 mb-2">
         ← <Link href="/qa" className="hover:text-gray-700">QA Dashboard</Link>
@@ -144,9 +129,15 @@ export default async function QAProjectPage({ params }: { params: { id: string }
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
           <div className="text-sm font-semibold text-red-800">⛔ Release blocked</div>
           {latestCycle.blockerNote && (
-            <p className="text-sm text-red-700 mt-1">{latestCycle.blockerNote}</p>
+            <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">{latestCycle.blockerNote}</p>
           )}
-          <p className="text-xs text-red-500 mt-2">Fix the blocker, then run another test cycle.</p>
+          {devFixesReadyForRetest ? (
+            <p className="text-xs text-green-700 mt-2 font-medium">
+              Developer submitted fixes — re-test each case on the latest cycle below, then sign off when all pass.
+            </p>
+          ) : (
+            <p className="text-xs text-red-500 mt-2">Waiting for dev to fix. Once fixed, re-test on the same cycle.</p>
+          )}
         </div>
       ) : canSignOff ? (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -168,98 +159,51 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       {/* Milestone approval */}
       <div className="card p-5 mb-4">
         <h2 className="text-sm font-semibold text-gray-900 mb-4">Milestone Approval</h2>
-        <MilestoneApproval milestones={project.milestones} projectId={project.id} />
+        <MilestoneApproval
+          milestones={project.milestones.map(m => ({
+            ...m,
+            testCases: m.testCases.map(serializeMilestoneTestCase),
+            bugs: m.bugs.map(serializeMilestoneBug),
+          }))}
+          projectId={project.id}
+        />
       </div>
 
-      {/* Test cycle history */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-900">Test cycles</h2>
-          {!hasSignOff && (
-            <QAProjectActions
-              project={{ id: project.id, name: project.name, status: project.status }}
-              members={members}
-              canSignOff={canSignOff}
-              latestCycleId={latestCycle?.id}
-              hasSignOff={hasSignOff}
-              milestones={project.milestones}
-            />
-          )}
-        </div>
-
-        {project.testCycles.length === 0 ? (
-          <p className="text-sm text-gray-400">No test cycles logged yet for this project.</p>
-        ) : (
-          <div className="space-y-4">
-            {project.testCycles.map((cycle, i) => {
-              const cfg = RESULT_CONFIG[cycle.result as keyof typeof RESULT_CONFIG] ?? RESULT_CONFIG.pending
-              const checkedItems = CHECKLIST_ITEMS.filter(item =>
-                cycle[item.key as keyof typeof cycle] === true
-              )
-              return (
-                <div key={cycle.id} className={`rounded-xl border p-4 ${cfg.border} ${i === 0 ? '' : 'opacity-70'}`}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`badge text-xs font-medium ${cfg.cls}`}>{cfg.label}</span>
-                        <span className="text-xs text-gray-500 capitalize">{cycle.cycleType.replace('_', ' ')}</span>
-                        <span className="text-xs text-gray-400">· {cycle.environment}</span>
-                        {i === 0 && <span className="text-xs text-blue-600 font-medium">Latest</span>}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        By {cycle.conductedBy.name} · {fmtDate(cycle.startedAt)}
-                      </div>
-                    </div>
-                    {cycle.signOff && (
-                      <div className="text-xs text-green-700 font-medium bg-green-50 px-2 py-1 rounded">
-                        ✓ Signed off
-                      </div>
-                    )}
-                  </div>
-
-                  {/* What was tested */}
-                  {checkedItems.length > 0 && (
-                    <div className="mb-3">
-                      <div className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Tested</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {checkedItems.map(item => (
-                          <span key={item.key} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                            ✓ {item.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Summary */}
-                  {cycle.summary && (
-                    <div className="mb-2">
-                      <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Report summary</div>
-                      <p className="text-sm text-gray-700">{cycle.summary}</p>
-                    </div>
-                  )}
-
-                  {/* Blocker */}
-                  {cycle.blockerNote && (
-                    <div className="mt-2 p-2.5 bg-red-50 rounded-lg">
-                      <div className="text-xs text-red-500 uppercase tracking-wide mb-0.5">Blocker</div>
-                      <p className="text-sm text-red-800">{cycle.blockerNote}</p>
-                    </div>
-                  )}
-
-                  {/* What dev fixed */}
-                  {cycle.fixedInCycle && (
-                    <div className="mt-2 p-2.5 bg-blue-50 rounded-lg">
-                      <div className="text-xs text-blue-500 uppercase tracking-wide mb-0.5">Fixed since last cycle</div>
-                      <p className="text-sm text-blue-800">{cycle.fixedInCycle}</p>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <TestCyclesPanel
+        project={{ id: project.id, name: project.name, status: project.status }}
+        members={members}
+        milestones={project.milestones.map(m => ({
+          id: m.id,
+          title: m.title,
+          status: m.status,
+          dueDate: m.dueDate,
+        }))}
+        testCycles={project.testCycles.map(c => ({
+          id: c.id,
+          cycleType: c.cycleType,
+          environment: c.environment,
+          result: c.result,
+          startedAt: c.startedAt.toISOString(),
+          summary: c.summary,
+          blockerNote: c.blockerNote,
+          fixedInCycle: c.fixedInCycle,
+          conductedById: c.conductedById,
+          testedAuth: c.testedAuth,
+          testedCoreFlows: c.testedCoreFlows,
+          testedEdgeCases: c.testedEdgeCases,
+          testedMobile: c.testedMobile,
+          testedCrossBrowser: c.testedCrossBrowser,
+          testedPerformance: c.testedPerformance,
+          testedIntegrations: c.testedIntegrations,
+          testedDataIntegrity: c.testedDataIntegrity,
+          conductedBy: { name: c.conductedBy.name },
+          signOff: c.signOff ? { signedOffBy: { name: c.signOff.signedOffBy.name } } : null,
+          cases: c.cases,
+        }))}
+        hasSignOff={hasSignOff}
+        canSignOff={canSignOff}
+        latestCycleId={latestCycle?.id}
+      />
 
       {/* Sign-off detail */}
       {hasSignOff && (

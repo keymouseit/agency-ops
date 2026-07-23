@@ -3,7 +3,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Member = { id: string; name: string; role?: string }
-type Project = { id: string; status: string; postMortem: unknown; bdMemberId?: string | null; releaseSignOff?: unknown }
+type Project = {
+  id: string
+  status: string
+  postMortem: unknown
+  bdMemberId?: string | null
+  developerId?: string
+  releaseSignOff?: unknown
+}
 
 function FormError({ message }: { message: string }) {
   if (!message) return null
@@ -15,7 +22,7 @@ function FormError({ message }: { message: string }) {
 }
 
 export default function ProjectActions({ project, members, userRole }: { project: Project; members: Member[]; userRole?: string }) {
-  const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|'assignbd'|null>(null)
+  const [view, setView] = useState<'scope'|'checkin'|'milestone'|'postmortem'|'status'|'assignbd'|'assigndev'|null>(null)
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState('')
   const [selectedStatus, setSelectedStatus] = useState(project.status)
@@ -79,6 +86,8 @@ export default function ProjectActions({ project, members, userRole }: { project
   const isActive = ['scoping', 'active', 'qa'].includes(project.status)
   const canAddPostMortem = (project.status === 'qa' && !!project.releaseSignOff) || project.status === 'delivered'
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
+  const canAssignDeveloper = ['Founder', 'Manager', 'BD', 'Both'].includes(userRole || '')
+  const developers = members.filter(m => ['Dev', 'Both'].includes(m.role || ''))
 
   return (
     <div className="space-y-3">
@@ -89,6 +98,7 @@ export default function ProjectActions({ project, members, userRole }: { project
         {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('postmortem') }}>+ Post-mortem</button>}
         <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('status') }}>Update status</button>
         {canAssignBD && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assignbd') }}>{project.bdMemberId ? 'Change BD' : 'Assign BD'}</button>}
+        {canAssignDeveloper && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assigndev') }}>Change developer</button>}
       </div>
 
       {view === 'checkin' && (
@@ -360,6 +370,31 @@ export default function ProjectActions({ project, members, userRole }: { project
               <select name="bdMemberId" className="input" defaultValue={project.bdMemberId || ''}>
                 <option value="">No BD assigned</option>
                 {members.filter(m => ['BD', 'Both', 'Founder'].includes(m.role || '')).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Save'}</button>
+              <button type="button" className="btn-secondary" onClick={() => { setFormError(''); setView(null) }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {view === 'assigndev' && (
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold mb-3">Change assigned developer</h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Reassign the technical owner. The new developer will get a notification.
+          </p>
+          <FormError message={formError} />
+          <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/assign-developer`)} className="space-y-3">
+            <div>
+              <label className="label">Developer</label>
+              <select name="developerId" className="input" defaultValue={project.developerId || ''} required>
+                <option value="">Select developer...</option>
+                {developers.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>

@@ -70,7 +70,7 @@ export default function QASignOffStatus({
       <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
         <div className="text-sm font-semibold text-red-800">⛔ QA release blocked</div>
         {latestCycle.blockerNote && (
-          <p className="text-sm text-red-700 mt-1">{latestCycle.blockerNote}</p>
+          <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">{latestCycle.blockerNote}</p>
         )}
         <p className="text-xs text-red-500 mt-2">QA is resolving blockers before sign-off.</p>
       </div>

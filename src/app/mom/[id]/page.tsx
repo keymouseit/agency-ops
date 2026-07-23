@@ -128,7 +128,7 @@ export default async function MomDetailPage({ params }: { params: { id: string }
     : null
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <div className="text-xs text-gray-400 mb-4">
         ← <Link href="/mom" className="hover:text-gray-700">Minutes of Meeting</Link>
       </div>
