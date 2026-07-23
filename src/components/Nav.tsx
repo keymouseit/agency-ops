@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import NotificationBell from './NotificationBell'
 
 const NAV_STRUCTURE = {
@@ -149,11 +149,40 @@ function NavDropdown({
   currentPath: string
 }) {
   const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const isActive = items.some(item => isLinkActive(currentPath, item.href))
 
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+    }
+  }, [open])
+
   return (
-    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button type="button" onClick={() => setOpen(!open)} className={`${navLinkClass(isActive)} flex items-center gap-1`}>
+    <div
+      ref={rootRef}
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen(!open)}
+        className={`${navLinkClass(isActive)} flex items-center gap-1`}
+      >
         {label}
         <svg
           className={`w-3 h-3 opacity-60 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -166,7 +195,7 @@ function NavDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 pt-1.5 z-50">
+        <div className="absolute top-full left-0 pt-1.5 z-[60]">
           <div className="w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
             {items.map(item => {
               const active = isLinkActive(currentPath, item.href)
@@ -327,8 +356,8 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2">
       <div className="app-header">
-        <div className="flex h-12 items-center justify-between gap-4 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-          <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+        <div className="flex h-12 items-center justify-between gap-4 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
+          <div className="flex items-center gap-4 sm:gap-6 min-w-0 overflow-visible">
             <Link href={homeHref} className="flex items-center gap-2 shrink-0">
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-[10px] font-bold text-white">
                 AO
@@ -336,7 +365,7 @@ export default function Nav() {
               <span className="font-semibold text-gray-900 text-sm tracking-tight hidden sm:block">Agency Ops</span>
             </Link>
 
-            <nav className="flex items-center gap-0.5 min-w-0 overflow-x-auto scrollbar-hide">
+            <nav className="flex items-center gap-0.5 min-w-0 overflow-visible">
               {navItems.map((item, idx) =>
                 'items' in item ? (
                   <NavDropdown key={idx} label={item.label} items={item.items} currentPath={path} />
