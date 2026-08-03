@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { DAILY_TASK_TYPES, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -14,7 +14,6 @@ type Task = {
   estimatedHours: string
 }
 
-const TASK_TYPES = DAILY_TASK_TYPES
 const PRIORITIES = ['high', 'medium', 'low']
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -180,7 +179,13 @@ export default function MorningPlanClient({
                           onChange={e => updateTask(i, 'taskType', e.target.value)}
                           className="input"
                         >
-                          {TASK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          {dailyTaskTypeGroupsForRole(member?.role ?? 'Dev', task.taskType).map(group => (
+                            <optgroup key={group.label} label={group.label}>
+                              {group.types.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </optgroup>
+                          ))}
                         </select>
                       </div>
                       <div>

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { findPendingPastEodLog } from '@/lib/daily'
 import { format, startOfDay, subDays } from 'date-fns'
 import { redirect } from 'next/navigation'
 import DailyHeader from './DailyHeader'
@@ -28,7 +29,7 @@ export default async function DailyPage({
   const viewMode = searchParams.view || 'team'
   const showTeamView = isFounder && viewMode === 'team'
 
-  const [members, logs] = await Promise.all([
+  const [members, logs, pendingPastEodLog] = await Promise.all([
     showTeamView
       ? prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
       : prisma.teamMember.findMany({ where: { id: session.user.id }, orderBy: { name: 'asc' } }),
@@ -42,6 +43,7 @@ export default async function DailyPage({
         tasks: { include: { project: { select: { name: true } } }, orderBy: { priority: 'asc' } },
       },
     }),
+    showTeamView ? Promise.resolve(null) : findPendingPastEodLog(session.user.id),
   ])
 
   const isToday = targetDate.toDateString() === new Date().toDateString()
@@ -125,6 +127,7 @@ export default async function DailyPage({
         nextDate={nextDate}
         canEditPlan={canEditPlan}
         canNewPlan={canNewPlan}
+        pendingEodLogId={pendingPastEodLog?.id}
       />
 
       {showTeamView && isToday && (

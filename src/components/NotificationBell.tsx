@@ -138,11 +138,7 @@ export default function NotificationBell() {
   }
 
   async function handleOpen() {
-    const willOpen = !open
-    setOpen(willOpen)
-    if (willOpen && unread > 0) {
-      await markAllRead()
-    }
+    setOpen(prev => !prev)
   }
 
   async function handleClick(n: Notification) {

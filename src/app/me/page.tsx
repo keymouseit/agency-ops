@@ -8,7 +8,7 @@ import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 import MeDayHeader from './MeDayHeader'
 import MeSection from './MeSection'
-import { canEditEod } from '@/lib/daily'
+import { canEditEod, findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { testCycleCaseSummary } from '@/lib/qa'
 
@@ -40,7 +40,7 @@ export default async function MePage() {
   const [
     member,
     todayLog,
-    yesterdayLog,
+    pendingPastEodLog,
     myProjects,
     myLeads,
     devEstimates,     // estimates assigned TO me (Dev fills these)
@@ -65,11 +65,7 @@ export default async function MePage() {
       },
     }),
 
-    // Yesterday's log — everyone needs this (missing EOD check)
-    prisma.dailyLog.findUnique({
-      where: { memberId_date: { memberId, date: startOfDay(subDays(today, 1)) } },
-      select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
-    }),
+    findPendingPastEodLog(memberId),
 
     // My projects — Dev and Both only
     // BD and QA do not own projects
@@ -204,7 +200,8 @@ export default async function MePage() {
   const hasPlan        = !!todayLog?.planSubmittedAt
   const hasEOD         = !!todayLog?.eodSubmittedAt
   const canEditTodayEOD = hasEOD && canEditEod(todayLog?.eodSubmittedAt)
-  const missingYestEOD = !!(yesterdayLog?.planSubmittedAt && !yesterdayLog?.eodSubmittedAt)
+  const missingPastEOD = !!pendingPastEodLog
+  const pendingEodDateLabel = pendingPastEodLog ? formatDailyLogDate(pendingPastEodLog.date) : ''
   const todayTasks     = todayLog?.tasks ?? []
   const doneTasks      = todayTasks.filter(t => t.status === 'done').length
   const blockedTasks   = todayTasks.filter(t => t.status === 'blocked').length
@@ -259,19 +256,19 @@ export default async function MePage() {
       />
 
       {/* ── URGENT: Missing yesterday's EOD ─────────────────────────────── */}
-      {missingYestEOD && (
+      {missingPastEOD && pendingPastEodLog && (
         <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 shadow-sm">
           <div>
-            <div className="text-sm font-semibold text-red-800">Yesterday&apos;s EOD report is missing</div>
+            <div className="text-sm font-semibold text-red-800">Pending EOD from {pendingEodDateLabel}</div>
             <div className="text-xs text-red-600 mt-0.5">
-              You submitted a plan but never closed the day. Hours won&apos;t be logged until you do.
+              You submitted a plan but never closed that day. Submit EOD before planning today — hours won&apos;t be logged until you do.
             </div>
           </div>
           <Link
-            href={`/daily/eod?logId=${yesterdayLog?.id}`}
+            href={`/daily/eod?logId=${pendingPastEodLog.id}`}
             className="flex-shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors"
           >
-            Submit now →
+            Submit EOD →
           </Link>
         </div>
       )}
@@ -300,7 +297,31 @@ export default async function MePage() {
           }
         >
           {!hasPlan ? (
-            <MePlanWidget />
+            missingPastEOD && pendingPastEodLog ? (
+              <div className="rounded-xl border border-red-200 bg-gradient-to-br from-red-50 to-orange-50 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white text-lg shadow-sm shrink-0">
+                      ⏰
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-red-950">Submit {pendingEodDateLabel}&apos;s EOD first</p>
+                      <p className="text-xs text-red-700 mt-1 max-w-md">
+                        Close your previous day before planning today. Your morning plan unlocks once EOD is submitted.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/daily/eod?logId=${pendingPastEodLog.id}`}
+                    className="inline-flex items-center justify-center px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm shrink-0"
+                  >
+                    Submit EOD →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <MePlanWidget />
+            )
           ) : hasEOD ? (
             <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
               <div className="flex items-start justify-between gap-4">

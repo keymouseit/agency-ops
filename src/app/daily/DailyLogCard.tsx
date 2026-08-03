@@ -1,7 +1,5 @@
 import Link from 'next/link'
-import { DAILY_TASK_TYPE_COLORS, dailyTaskTypeLabel, canEditEod } from '@/lib/daily'
-
-const TASK_TYPE_COLORS = DAILY_TASK_TYPE_COLORS
+import { dailyTaskTypeColor, dailyTaskTypeLabel, canEditEod } from '@/lib/daily'
 
 const PRIORITY_DOT: Record<string, string> = {
   high: 'bg-red-500',
@@ -167,7 +165,7 @@ export default function DailyLogCard({ log, isToday, currentUserId }: Props) {
                   {task.title}
                 </span>
                 <span
-                  className={`badge text-[11px] ${TASK_TYPE_COLORS[task.taskType] ?? 'bg-gray-100 text-gray-600'}`}
+                  className={`badge text-[11px] ${dailyTaskTypeColor(task.taskType)}`}
                 >
                   {dailyTaskTypeLabel(task.taskType)}
                 </span>

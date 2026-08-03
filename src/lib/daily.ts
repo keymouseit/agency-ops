@@ -1,23 +1,116 @@
 import { prisma } from '@/lib/prisma'
-import { isSameDay } from 'date-fns'
+import { isSameDay, startOfDay, format } from 'date-fns'
+import type { Prisma } from '@prisma/client'
 
 export const MAX_DAILY_PLAN_HOURS = 8
 
-export const DAILY_TASK_TYPES = [
-  { value: 'feature', label: 'Feature (Dev)' },
-  { value: 'bug', label: 'Bug (Dev)' },
-  { value: 'backend', label: 'Backend (Dev)' },
-  { value: 'review', label: 'Code review (Dev)' },
-  { value: 'research', label: 'Research (Dev)' },
-  { value: 'qa', label: 'QA' },
-  { value: 'bd', label: 'BD / Sales' },
-  { value: 'hr', label: 'HR' },
-  { value: 'social_media', label: 'Social media' },
-  { value: 'meeting', label: 'Meeting' },
-  { value: 'admin', label: 'Admin' },
+export const DAILY_TASK_TYPE_GROUPS = [
+  {
+    label: 'Development',
+    types: [
+      { value: 'feature', label: 'Feature' },
+      { value: 'bug', label: 'Bug fix' },
+      { value: 'backend', label: 'Backend' },
+      { value: 'review', label: 'Code review' },
+      { value: 'research', label: 'Research' },
+    ],
+  },
+  {
+    label: 'BD / Sales',
+    types: [
+      { value: 'bd_prospecting', label: 'Prospecting' },
+      { value: 'bd_outreach', label: 'Outreach & campaigns' },
+      { value: 'bd_client_meeting', label: 'Client meeting / MOM' },
+      { value: 'bd_proposal', label: 'Proposal writing' },
+      { value: 'bd_follow_up', label: 'Follow-up' },
+      { value: 'bd_pipeline', label: 'Pipeline admin' },
+      { value: 'bd_estimation', label: 'Estimation' },
+    ],
+  },
+  {
+    label: 'QA',
+    types: [
+      { value: 'qa_testing', label: 'Test execution' },
+      { value: 'qa_regression', label: 'Regression testing' },
+      { value: 'qa_bug_report', label: 'Bug reporting' },
+      { value: 'qa_test_cases', label: 'Test case writing' },
+      { value: 'qa_signoff', label: 'Sign-off review' },
+    ],
+  },
+  {
+    label: 'HR',
+    types: [
+      { value: 'hr_recruiting', label: 'Recruiting' },
+      { value: 'hr_onboarding', label: 'Onboarding' },
+      { value: 'hr_people_ops', label: 'People ops' },
+    ],
+  },
+  {
+    label: 'Social media',
+    types: [
+      { value: 'social_content', label: 'Content creation' },
+      { value: 'social_campaign', label: 'Campaign work' },
+      { value: 'social_engagement', label: 'Engagement' },
+    ],
+  },
+  {
+    label: 'Management',
+    types: [
+      { value: 'mgmt_planning', label: 'Team planning' },
+      { value: 'mgmt_1on1', label: '1:1s' },
+      { value: 'mgmt_reviews', label: 'Reviews & scores' },
+    ],
+  },
+  {
+    label: 'Leadership',
+    types: [
+      { value: 'founder_strategy', label: 'Strategy' },
+      { value: 'founder_ops', label: 'Business operations' },
+    ],
+  },
+  {
+    label: 'General',
+    types: [
+      { value: 'meeting', label: 'Meeting' },
+      { value: 'admin', label: 'Admin' },
+    ],
+  },
 ] as const
 
+const ROLE_TASK_GROUP_LABELS: Record<string, readonly string[]> = {
+  Dev: ['Development', 'General'],
+  BD: ['BD / Sales', 'General'],
+  QA: ['QA', 'General'],
+  HR: ['HR', 'General'],
+  SocialMedia: ['Social media', 'General'],
+  Manager: ['Management', 'General'],
+  Founder: DAILY_TASK_TYPE_GROUPS.map(group => group.label),
+  Both: ['Development', 'BD / Sales', 'General'],
+}
+
+export function dailyTaskTypeGroupsForRole(role: string, includeType?: string) {
+  const allowed = ROLE_TASK_GROUP_LABELS[role] ?? ROLE_TASK_GROUP_LABELS.Dev
+  const groups = DAILY_TASK_TYPE_GROUPS.filter(group => allowed.includes(group.label))
+
+  if (!includeType) return groups
+
+  const extraGroup = DAILY_TASK_TYPE_GROUPS.find(
+    group => group.types.some(type => type.value === includeType) && !allowed.includes(group.label),
+  )
+
+  return extraGroup ? [...groups, extraGroup] : groups
+}
+
+export const DAILY_TASK_TYPES = DAILY_TASK_TYPE_GROUPS.flatMap(group => [...group.types])
+
 export type DailyTaskType = (typeof DAILY_TASK_TYPES)[number]['value']
+
+const LEGACY_TASK_TYPE_LABELS: Record<string, string> = {
+  bd: 'BD / Sales',
+  qa: 'QA',
+  hr: 'HR',
+  social_media: 'Social media',
+}
 
 export const DAILY_TASK_TYPE_COLORS: Record<string, string> = {
   feature: 'bg-green-100 text-green-800',
@@ -25,26 +118,73 @@ export const DAILY_TASK_TYPE_COLORS: Record<string, string> = {
   backend: 'bg-indigo-100 text-indigo-800',
   review: 'bg-purple-100 text-purple-800',
   research: 'bg-amber-100 text-amber-800',
-  qa: 'bg-teal-100 text-teal-800',
-  bd: 'bg-blue-100 text-blue-800',
-  hr: 'bg-rose-100 text-rose-800',
-  social_media: 'bg-pink-100 text-pink-800',
   meeting: 'bg-gray-100 text-gray-700',
   admin: 'bg-gray-100 text-gray-500',
 }
 
 export function dailyTaskTypeLabel(value: string) {
-  return DAILY_TASK_TYPES.find(t => t.value === value)?.label ?? value.replace(/_/g, ' ')
+  return (
+    DAILY_TASK_TYPES.find(t => t.value === value)?.label ??
+    LEGACY_TASK_TYPE_LABELS[value] ??
+    value.replace(/_/g, ' ')
+  )
+}
+
+export function dailyTaskTypeColor(value: string) {
+  if (DAILY_TASK_TYPE_COLORS[value]) return DAILY_TASK_TYPE_COLORS[value]
+  if (value.startsWith('bd_') || value === 'bd') return 'bg-blue-100 text-blue-800'
+  if (value.startsWith('qa_') || value === 'qa') return 'bg-teal-100 text-teal-800'
+  if (value.startsWith('hr_') || value === 'hr') return 'bg-rose-100 text-rose-800'
+  if (value.startsWith('social_') || value === 'social_media') return 'bg-pink-100 text-pink-800'
+  if (value.startsWith('mgmt_')) return 'bg-indigo-100 text-indigo-800'
+  if (value.startsWith('founder_')) return 'bg-purple-100 text-purple-800'
+  return 'bg-gray-100 text-gray-600'
 }
 
 export function defaultDailyTaskType(role: string): DailyTaskType {
   switch (role) {
-    case 'QA': return 'qa'
-    case 'BD': return 'bd'
-    case 'Both': return 'bd'
-    case 'HR': return 'hr'
-    case 'SocialMedia': return 'social_media'
-    default: return 'feature'
+    case 'QA':
+      return 'qa_testing'
+    case 'BD':
+      return 'bd_pipeline'
+    case 'Both':
+      return 'bd_prospecting'
+    case 'HR':
+      return 'hr_people_ops'
+    case 'SocialMedia':
+      return 'social_content'
+    case 'Manager':
+      return 'mgmt_planning'
+    case 'Founder':
+      return 'founder_ops'
+    default:
+      return 'feature'
+  }
+}
+
+const ACTIVE_PROJECT_STATUSES = ['active', 'qa', 'scoping'] as const
+
+/** Projects the member can pick when logging a daily plan task. */
+export function dailyPlanProjectWhere(memberId: string, role: string): Prisma.ProjectWhereInput {
+  const status = { in: [...ACTIVE_PROJECT_STATUSES] }
+
+  switch (role) {
+    case 'Dev':
+      return { status, developerId: memberId }
+    case 'BD':
+      return { status, bdMemberId: memberId }
+    case 'Both':
+      return {
+        status,
+        OR: [{ developerId: memberId }, { bdMemberId: memberId }],
+      }
+    case 'QA':
+      return { status: { in: ['active', 'qa'] } }
+    case 'Founder':
+    case 'Manager':
+      return { status }
+    default:
+      return { status, developerId: memberId }
   }
 }
 
@@ -57,16 +197,43 @@ const openLogInclude = {
 }
 
 /** Most recent DailyLog with a morning plan submitted but EOD still open */
-export function findOpenDailyLog(memberId: string) {
+export async function findOpenDailyLog(memberId: string) {
+  const pendingPast = await findPendingPastEodLog(memberId)
+  if (pendingPast) return pendingPast
+
+  const today = startOfDay(new Date())
   return prisma.dailyLog.findFirst({
     where: {
       memberId,
       planSubmittedAt: { not: null },
       eodSubmittedAt: null,
+      date: today,
     },
     include: openLogInclude,
-    orderBy: { date: 'desc' },
   })
+}
+
+export function isPastDailyLogDate(logDate: Date | string, today = startOfDay(new Date())) {
+  return startOfDay(new Date(logDate)) < today
+}
+
+/** Oldest open EOD from before today (e.g. Friday still open on Monday). */
+export async function findPendingPastEodLog(memberId: string) {
+  const today = startOfDay(new Date())
+  return prisma.dailyLog.findFirst({
+    where: {
+      memberId,
+      planSubmittedAt: { not: null },
+      eodSubmittedAt: null,
+      date: { lt: today },
+    },
+    include: openLogInclude,
+    orderBy: { date: 'asc' },
+  })
+}
+
+export function formatDailyLogDate(date: Date | string) {
+  return format(new Date(date), 'EEEE, d MMMM')
 }
 
 export const dailyLogWithTasksInclude = openLogInclude

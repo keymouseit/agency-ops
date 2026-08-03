@@ -1,7 +1,8 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { dailyPlanProjectWhere, findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
 import { redirect } from 'next/navigation'
-import { startOfDay, subDays, isWeekend } from 'date-fns'
+import { startOfDay, format } from 'date-fns'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
 
@@ -13,16 +14,9 @@ export default async function MorningPlanPage() {
 
   const memberId = session.user.id
   const today = startOfDay(new Date())
-  const yesterday = startOfDay(subDays(today, 1))
 
-  const [member, projects, todayLog, yesterdayLog] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
-
-    prisma.project.findMany({
-      where: { status: { in: ['active', 'qa', 'scoping'] } },
-      select: { id: true, name: true, clientName: true },
-      orderBy: { name: 'asc' },
-    }),
 
     prisma.dailyLog.findUnique({
       where: { memberId_date: { memberId, date: today } },
@@ -44,19 +38,25 @@ export default async function MorningPlanPage() {
       },
     }),
 
-    // Skip weekend — don't gate on Sat/Sun
-    !isWeekend(yesterday)
-      ? prisma.dailyLog.findUnique({
-        where: { memberId_date: { memberId, date: yesterday } },
-        select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
-      })
-      : Promise.resolve(null),
+    findPendingPastEodLog(memberId),
   ])
 
   if (!member) redirect('/login')
 
+  const existingProjectIds =
+    todayLog?.tasks.map(t => t.projectId).filter((id): id is string => !!id) ?? []
+
+  const projectFilter = dailyPlanProjectWhere(memberId, member.role)
+  const projects = await prisma.project.findMany({
+    where: existingProjectIds.length
+      ? { OR: [projectFilter, { id: { in: existingProjectIds } }] }
+      : projectFilter,
+    select: { id: true, name: true, clientName: true },
+    orderBy: { name: 'asc' },
+  })
+
   const isEditMode = !!(todayLog?.planSubmittedAt && !todayLog?.eodSubmittedAt)
-  const missingYesterdayEOD = !!(yesterdayLog?.planSubmittedAt && !yesterdayLog?.eodSubmittedAt)
+  const missingPastEOD = !!pendingPastEodLog
   const replanAfterEod = !!(todayLog?.planSubmittedAt && todayLog?.eodSubmittedAt)
 
   const initialTasks = todayLog?.tasks.map(t => ({
@@ -92,28 +92,29 @@ export default async function MorningPlanPage() {
     )
   }
 
-  if (missingYesterdayEOD) {
+  if (missingPastEOD) {
+    const pendingDateLabel = formatDailyLogDate(pendingPastEodLog.date)
     return (
       <div className="py-8">
         <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-white via-white to-red-50/40 p-10 sm:p-14 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-2xl shadow-sm">
             ⏰
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Yesterday&apos;s EOD is missing</h1>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Previous EOD is missing</h1>
           <p className="text-sm text-gray-500 max-w-md mx-auto mb-1">
-            You submitted a plan yesterday but never closed the day.
+            You submitted a plan on {pendingDateLabel} but never closed the day.
           </p>
           <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
-            Submit your EOD first — then you can plan today.
+            Submit that EOD first — then you can plan today.
           </p>
           <Link
-            href={`/daily/eod?logId=${yesterdayLog?.id}`}
+            href={`/daily/eod?logId=${pendingPastEodLog.id}`}
             className="btn-primary inline-flex text-sm"
           >
-            Submit yesterday&apos;s EOD →
+            Submit {format(pendingPastEodLog.date, 'EEEE')}&apos;s EOD →
           </Link>
           <p className="text-xs text-gray-400 mt-6">
-            Today&apos;s plan will be available once your EOD is submitted.
+            Today&apos;s plan will be available once your pending EOD is submitted.
           </p>
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { DAILY_TASK_TYPES, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
 import MorningPlanHeader from './MorningPlanHeader'
 
 type Member = { id: string; name: string; role: string }
@@ -266,10 +266,14 @@ export default function MorningPlanForm({
                         onChange={e => updateTask(i, 'taskType', e.target.value)}
                         className="input bg-gray-50/50 focus:bg-white"
                       >
-                        {DAILY_TASK_TYPES.map(t => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
+                        {dailyTaskTypeGroupsForRole(member.role, task.taskType).map(group => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.types.map(t => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                     </div>

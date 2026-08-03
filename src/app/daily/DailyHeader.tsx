@@ -11,6 +11,7 @@ type Props = {
   nextDate: string
   canEditPlan: boolean
   canNewPlan: boolean
+  pendingEodLogId?: string
 }
 
 function dailyHref(date?: string, view?: string) {
@@ -32,8 +33,11 @@ export default function DailyHeader({
   nextDate,
   canEditPlan,
   canNewPlan,
+  pendingEodLogId,
 }: Props) {
   const planLabel = canEditPlan ? 'Edit plan' : canNewPlan ? '+ New plan' : '+ Morning plan'
+  const planHref = pendingEodLogId ? `/daily/eod?logId=${pendingEodLogId}` : '/daily/plan'
+  const planButtonLabel = pendingEodLogId ? 'Submit pending EOD' : planLabel
 
   return (
     <div className="mb-6 rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-white to-gray-50 p-5 sm:p-6 shadow-sm">
@@ -90,8 +94,8 @@ export default function DailyHeader({
             Next →
           </Link>
           {isToday && (
-            <Link href="/daily/plan" className="btn-primary text-xs">
-              {planLabel}
+            <Link href={planHref} className={pendingEodLogId ? 'btn-secondary text-xs border-red-200 text-red-700 hover:bg-red-50' : 'btn-primary text-xs'}>
+              {planButtonLabel}
             </Link>
           )}
         </div>
