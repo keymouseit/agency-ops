@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { dailyPlanProjectWhere, findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
+import { findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
 import { redirect } from 'next/navigation'
 import { startOfDay, format } from 'date-fns'
 import Link from 'next/link'
@@ -15,7 +15,7 @@ export default async function MorningPlanPage() {
   const memberId = session.user.id
   const today = startOfDay(new Date())
 
-  const [member, todayLog, pendingPastEodLog] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, projects] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
 
     prisma.dailyLog.findUnique({
@@ -39,21 +39,15 @@ export default async function MorningPlanPage() {
     }),
 
     findPendingPastEodLog(memberId),
+
+    prisma.project.findMany({
+      where: { status: { in: ['active', 'qa', 'scoping'] } },
+      select: { id: true, name: true, clientName: true },
+      orderBy: { name: 'asc' },
+    }),
   ])
 
   if (!member) redirect('/login')
-
-  const existingProjectIds =
-    todayLog?.tasks.map(t => t.projectId).filter((id): id is string => !!id) ?? []
-
-  const projectFilter = dailyPlanProjectWhere(memberId, member.role)
-  const projects = await prisma.project.findMany({
-    where: existingProjectIds.length
-      ? { OR: [projectFilter, { id: { in: existingProjectIds } }] }
-      : projectFilter,
-    select: { id: true, name: true, clientName: true },
-    orderBy: { name: 'asc' },
-  })
 
   const isEditMode = !!(todayLog?.planSubmittedAt && !todayLog?.eodSubmittedAt)
   const missingPastEOD = !!pendingPastEodLog

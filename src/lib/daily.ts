@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { isSameDay, startOfDay, format } from 'date-fns'
-import type { Prisma } from '@prisma/client'
 
 export const MAX_DAILY_PLAN_HOURS = 8
 
@@ -159,32 +158,6 @@ export function defaultDailyTaskType(role: string): DailyTaskType {
       return 'founder_ops'
     default:
       return 'feature'
-  }
-}
-
-const ACTIVE_PROJECT_STATUSES = ['active', 'qa', 'scoping'] as const
-
-/** Projects the member can pick when logging a daily plan task. */
-export function dailyPlanProjectWhere(memberId: string, role: string): Prisma.ProjectWhereInput {
-  const status = { in: [...ACTIVE_PROJECT_STATUSES] }
-
-  switch (role) {
-    case 'Dev':
-      return { status, developerId: memberId }
-    case 'BD':
-      return { status, bdMemberId: memberId }
-    case 'Both':
-      return {
-        status,
-        OR: [{ developerId: memberId }, { bdMemberId: memberId }],
-      }
-    case 'QA':
-      return { status: { in: ['active', 'qa'] } }
-    case 'Founder':
-    case 'Manager':
-      return { status }
-    default:
-      return { status, developerId: memberId }
   }
 }
 
