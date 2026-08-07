@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ROLE_COLORS } from '@/lib/utils'
+import { checkInProjectsForMember, type CheckInProject } from '@/lib/checkin'
 
 type Member = { id: string; name: string; role: string }
-type Project = { id: string; name: string; developerId: string }
 
 const DIMS = ['delivery', 'process', 'communication', 'growth', 'culture'] as const
 const DIM_LABELS: Record<string, string> = {
@@ -108,7 +108,7 @@ function CheckInHeader({
   )
 }
 
-export default function CheckInClient({ members, projects }: { members: Member[]; projects: Project[] }) {
+export default function CheckInClient({ members, projects }: { members: Member[]; projects: CheckInProject[] }) {
   const { data: session } = useSession()
   const [step, setStep] = useState<'project' | 'self' | 'done'>('project')
   const [memberId, setMemberId] = useState('')
@@ -124,7 +124,9 @@ export default function CheckInClient({ members, projects }: { members: Member[]
   }, [session])
 
   const member = members.find(m => m.id === memberId)
-  const myProjects = projects.filter(p => p.developerId === memberId)
+  const myProjects = member
+    ? checkInProjectsForMember(projects, memberId, member.role)
+    : []
   const ratedCount = DIMS.filter(d => scores[d]).length
 
   async function submitProject(e: React.FormEvent<HTMLFormElement>) {
@@ -269,7 +271,10 @@ export default function CheckInClient({ members, projects }: { members: Member[]
               <div>
                 <h2 className="text-sm font-semibold text-gray-900">Project status</h2>
                 <p className="text-xs text-gray-500">
-                  Hi {member.name.split(' ')[0]} — update your active project(s)
+                  Hi {member.name.split(' ')[0]} —{' '}
+                  {member.role === 'QA'
+                    ? 'update status on your QA projects'
+                    : 'update your active project(s)'}
                 </p>
               </div>
             </div>

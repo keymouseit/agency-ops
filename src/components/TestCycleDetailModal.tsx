@@ -4,6 +4,7 @@ import { fmtDate } from '@/lib/utils'
 import {
   QA_CHECKLIST_ITEMS,
   QA_CYCLE_RESULT_CONFIG,
+  cycleSupportsBlockerNote,
   type SerializedTestCycleCase,
 } from '@/lib/qa'
 import TestCycleCasesList from '@/components/TestCycleCasesList'
@@ -131,7 +132,7 @@ export default function TestCycleDetailModal({
             </div>
           )}
 
-          {cycle.blockerNote && (
+          {cycleSupportsBlockerNote(cycle.result) && cycle.blockerNote && (
             <div className="p-3 bg-red-50 rounded-lg">
               <div className="text-xs text-red-500 uppercase tracking-wide mb-0.5">Blocker</div>
               <p className="text-sm text-red-800 whitespace-pre-wrap">{cycle.blockerNote}</p>

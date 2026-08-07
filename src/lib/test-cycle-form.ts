@@ -1,4 +1,4 @@
-import { deriveCycleResult, hasFailingTestCases, isNonExecutableCycleResult } from '@/lib/qa'
+import { deriveCycleResult, hasFailingTestCases, isNonExecutableCycleResult, cycleSupportsBlockerNote } from '@/lib/qa'
 
 export type ParsedTestCycleCase = {
   title: string
@@ -22,13 +22,30 @@ export function parseTestCycleCases(rawCases: unknown): ParsedTestCycleCase[] {
     }))
 }
 
+export function resolveCycleBlockerNote(
+  result: string,
+  manualBlocker: string,
+  testCases: ParsedTestCycleCase[],
+): string | null {
+  if (!cycleSupportsBlockerNote(result)) return null
+
+  const trimmed = manualBlocker.trim()
+  if (trimmed) return trimmed
+
+  if (result === 'fail' && hasFailingTestCases(testCases)) {
+    return `Failed test cases: ${testCases
+      .filter(tc => tc.status === 'fail' || tc.status === 'blocked')
+      .map(tc => tc.title)
+      .join(', ')}`
+  }
+
+  return null
+}
+
 export function buildTestCycleFields(data: Record<string, unknown>, testCases: ParsedTestCycleCase[]) {
   const result = deriveCycleResult(String(data.result ?? 'pass'), testCases)
-  const manualBlocker = typeof data.blockerNote === 'string' ? data.blockerNote.trim() : ''
-  const blockerNote = manualBlocker
-    || (result === 'fail' && hasFailingTestCases(testCases)
-      ? `Failed test cases: ${testCases.filter(tc => tc.status === 'fail' || tc.status === 'blocked').map(tc => tc.title).join(', ')}`
-      : null)
+  const manualBlocker = typeof data.blockerNote === 'string' ? data.blockerNote : ''
+  const blockerNote = resolveCycleBlockerNote(result, manualBlocker, testCases)
 
   return {
     result,

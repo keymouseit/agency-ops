@@ -5,8 +5,10 @@ import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import QAReadyPrompt from './QAReadyPrompt'
 import DeleteProjectButton from './DeleteProjectButton'
+import EditProjectForm from './EditProjectForm'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import ProjectDetailTabs from './ProjectDetailTabs'
+import { canDeleteProject, canEditProject, projectEditFields } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,18 +20,29 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const session = await auth()
   const userRole = session?.user?.role
   const userId = session?.user?.id
-  const isFounder = userRole === 'Founder'
   const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
   const isDev = userRole === 'Dev'
 
-  const [project, members] = await Promise.all([
+  const [project, members, wonLeads] = await Promise.all([
     fetchProjectForDetailPage(params.id),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
+    prisma.lead.findMany({
+      where: {
+        status: 'won',
+        OR: [{ project: null }, { project: { id: params.id } }],
+      },
+      select: { id: true, clientName: true },
+      orderBy: { clientName: 'asc' },
+    }),
   ])
 
   if (!project) notFound()
 
   if (isDev && project.developerId !== userId) notFound()
+
+  const showEdit = canEditProject(project, userId, userRole)
+  const showDelete = canDeleteProject(userRole)
+  const editableFields = Array.from(projectEditFields(project, userId, userRole))
 
   const estAccuracy = project.actualHours && project.estimatedHours
     ? Math.round((project.actualHours / project.estimatedHours) * 100)
@@ -71,8 +84,36 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             {project.lead && <span>Source: {project.lead.source}</span>}
           </div>
         </div>
-        {isFounder && (
-          <DeleteProjectButton projectId={project.id} projectName={project.name} />
+        {(showEdit || showDelete) && (
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {showEdit && (
+                <EditProjectForm
+                  project={{
+                    id: project.id,
+                    name: project.name,
+                    leadId: project.leadId,
+                    developerId: project.developerId,
+                    bdMemberId: project.bdMemberId,
+                    clientName: project.clientName,
+                    contractValue: project.contractValue,
+                    currency: project.currency,
+                    estimatedHours: project.estimatedHours,
+                    actualHours: project.actualHours,
+                    techStack: project.techStack,
+                    startDate: project.startDate?.toISOString() ?? null,
+                    estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
+                  }}
+                  members={members}
+                  wonLeads={wonLeads}
+                  editableFields={editableFields}
+                />
+              )}
+              {showDelete && (
+                <DeleteProjectButton projectId={project.id} projectName={project.name} />
+              )}
+            </div>
+          </div>
         )}
       </div>
 

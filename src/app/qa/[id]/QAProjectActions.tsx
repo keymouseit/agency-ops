@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { TEST_CYCLE_CASE_STATUSES, TEST_CYCLE_CASE_STATUS_CONFIG, deriveCycleResult, hasFailingTestCases, CYCLE_RESULT_OPTIONS, CYCLE_NON_EXECUTABLE_RESULT_OPTIONS, isNonExecutableCycleResult, type SelectableCycleResult } from '@/lib/qa'
+import { TEST_CYCLE_CASE_STATUSES, TEST_CYCLE_CASE_STATUS_CONFIG, deriveCycleResult, hasFailingTestCases, CYCLE_RESULT_OPTIONS, CYCLE_NON_EXECUTABLE_RESULT_OPTIONS, isNonExecutableCycleResult, cycleSupportsBlockerNote, type SelectableCycleResult } from '@/lib/qa'
 import { createClientId } from '@/lib/utils'
 
 type Member = { id: string; name: string; role: string }
@@ -134,6 +134,12 @@ export default function QAProjectActions({
   }, [session, members, signedOffById])
 
   useEffect(() => {
+    if (!cycleSupportsBlockerNote(result)) {
+      setBlockerNote('')
+    }
+  }, [result])
+
+  useEffect(() => {
     if (!editingCycle) return
     setView('cycle')
     setCycleType(editingCycle.cycleType)
@@ -169,6 +175,20 @@ export default function QAProjectActions({
     setCycleValidationError('')
     setFieldErrors({})
   }, [editingCycle])
+
+  function openNewCycleForm() {
+    setCycleType('pre_release')
+    setEnvironment('staging')
+    setResult('pass')
+    setChecklist({})
+    setCycleTestCases([newCycleTestCaseRow()])
+    setSummary('')
+    setBlockerNote('')
+    setFixedInCycle('')
+    setCycleValidationError('')
+    setFieldErrors({})
+    setView('cycle')
+  }
 
   function resetCycleForm() {
     setView(null)
@@ -224,7 +244,8 @@ export default function QAProjectActions({
     const effectiveResult = deriveCycleResult(result, namedCases)
     const payload = {
       cycleType, environment, conductedById, result: effectiveResult,
-      ...checklist, summary, blockerNote, fixedInCycle,
+      ...checklist, summary, fixedInCycle,
+      blockerNote: cycleSupportsBlockerNote(effectiveResult) ? blockerNote : '',
       testCases: namedCases.map(({ title, status, notes }) => ({ title, status, notes })),
     }
     const url = editingCycle
@@ -300,7 +321,7 @@ export default function QAProjectActions({
       {!issueMode && (
         <div className="flex gap-2 flex-wrap">
           {!editingCycle && (
-            <button className="btn-primary text-xs" onClick={() => setView('cycle')}>
+            <button className="btn-primary text-xs" onClick={openNewCycleForm}>
               + Log test cycle
             </button>
           )}

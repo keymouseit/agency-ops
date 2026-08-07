@@ -1,14 +1,179 @@
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { logAudit, getClientIP } from '@/lib/audit'
+import { logAudit, captureChanges, getClientIP } from '@/lib/audit'
+import { canEditProject, canDeleteProject, projectEditFields, type ProjectEditField } from '@/lib/projects'
+
+function parseOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const num = typeof value === 'number' ? value : parseFloat(String(value))
+  return Number.isNaN(num) ? null : num
+}
+
+function parseOptionalDate(value: unknown): Date | null {
+  if (!value || value === '') return null
+  const date = new Date(String(value))
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
+  const session = await auth()
+  const userId = session?.user?.id
+  const userRole = session?.user?.role
+
+  if (!userId) {
+    return NextResponse.json({ error: 'Sign in required.' }, { status: 401 })
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+  })
+
+  if (!project) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
+
+  if (!canEditProject(project, userId, userRole)) {
+    return NextResponse.json({ error: 'You do not have permission to edit this project.' }, { status: 403 })
+  }
+
+  const data = await req.json()
+  const allowed = projectEditFields(project, userId, userRole)
+  const updateData: Record<string, unknown> = {}
+
+  const setIfAllowed = (field: ProjectEditField, value: unknown) => {
+    if (!allowed.has(field)) return
+    updateData[field] = value
+  }
+
+  if (data.name !== undefined) {
+    const name = String(data.name).trim()
+    if (!name) {
+      return NextResponse.json({ error: 'Project name is required.' }, { status: 400 })
+    }
+    setIfAllowed('name', name)
+  }
+
+  if (data.leadId !== undefined) {
+    const leadId = data.leadId || null
+    if (leadId) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, status: true, project: { select: { id: true } } },
+      })
+      if (!lead || lead.status !== 'won') {
+        return NextResponse.json({ error: 'Select a valid won lead.' }, { status: 400 })
+      }
+      if (lead.project && lead.project.id !== project.id) {
+        return NextResponse.json({ error: 'That lead is already linked to another project.' }, { status: 400 })
+      }
+    }
+    setIfAllowed('leadId', leadId)
+  }
+
+  if (data.developerId !== undefined) {
+    const developer = await prisma.teamMember.findUnique({
+      where: { id: data.developerId },
+      select: { id: true, role: true, active: true },
+    })
+    if (!developer?.active || !['Dev', 'Both'].includes(developer.role)) {
+      return NextResponse.json({ error: 'Select an active developer.' }, { status: 400 })
+    }
+    setIfAllowed('developerId', developer.id)
+  }
+
+  if (data.bdMemberId !== undefined) {
+    const bdMemberId = data.bdMemberId || null
+    if (bdMemberId) {
+      const bd = await prisma.teamMember.findUnique({
+        where: { id: bdMemberId },
+        select: { id: true, role: true, active: true },
+      })
+      if (!bd?.active || !['BD', 'Both', 'Founder'].includes(bd.role)) {
+        return NextResponse.json({ error: 'Select an active BD member.' }, { status: 400 })
+      }
+      setIfAllowed('bdMemberId', bd.id)
+    } else {
+      setIfAllowed('bdMemberId', null)
+    }
+  }
+
+  if (data.clientName !== undefined) {
+    setIfAllowed('clientName', data.clientName ? String(data.clientName).trim() : null)
+  }
+
+  if (data.contractValue !== undefined) {
+    setIfAllowed('contractValue', parseOptionalNumber(data.contractValue))
+  }
+
+  if (data.currency !== undefined) {
+    setIfAllowed('currency', String(data.currency))
+  }
+
+  if (data.estimatedHours !== undefined) {
+    const hours = parseOptionalNumber(data.estimatedHours)
+    if (hours !== null && hours <= 0) {
+      return NextResponse.json({ error: 'Estimated hours must be greater than 0 when provided.' }, { status: 400 })
+    }
+    setIfAllowed('estimatedHours', hours)
+  }
+
+  if (data.actualHours !== undefined) {
+    const hours = parseOptionalNumber(data.actualHours)
+    if (hours !== null && hours < 0) {
+      return NextResponse.json({ error: 'Actual hours cannot be negative.' }, { status: 400 })
+    }
+    setIfAllowed('actualHours', hours)
+  }
+
+  if (data.techStack !== undefined) {
+    setIfAllowed('techStack', data.techStack ? String(data.techStack).trim() : null)
+  }
+
+  if (data.startDate !== undefined) {
+    setIfAllowed('startDate', parseOptionalDate(data.startDate))
+  }
+
+  if (data.estimatedEnd !== undefined) {
+    setIfAllowed('estimatedEnd', parseOptionalDate(data.estimatedEnd))
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'No editable fields were provided.' }, { status: 400 })
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: params.id },
+    data: updateData,
+  })
+
+  const changes = captureChanges(project, updateData)
+  if (Object.keys(changes).length > 0) {
+    await logAudit({
+      action: 'updated',
+      entityType: 'Project',
+      entityId: project.id,
+      entityName: updated.name,
+      changes,
+      ipAddress: getClientIP(req),
+      userAgent: req.headers.get('user-agent') || undefined,
+    }).catch(() => {})
+  }
+
+  return NextResponse.json(updated)
+}
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
-  const deny = await checkRole(['Founder'])
-  if (deny) return deny
+  const session = await auth()
+  if (!canDeleteProject(session?.user?.role)) {
+    return NextResponse.json({ error: 'You do not have permission for this action.' }, { status: 403 })
+  }
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
@@ -52,7 +217,7 @@ export async function DELETE(
   } catch {
     return NextResponse.json(
       { error: 'Failed to delete project. Please try again.' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

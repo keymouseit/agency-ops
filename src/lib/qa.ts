@@ -39,6 +39,10 @@ export function isNonExecutableCycleResult(result: string) {
   return NON_EXECUTABLE_CYCLE_RESULTS.has(result as typeof CYCLE_NON_EXECUTABLE_RESULT_OPTIONS[number]['value'])
 }
 
+export function cycleSupportsBlockerNote(result: string) {
+  return result === 'fail' || result === 'conditional' || isNonExecutableCycleResult(result)
+}
+
 export const QA_SEVERITY_CLS: Record<string, string> = {
   critical: 'bg-red-100 text-red-800',
   high:     'bg-orange-100 text-orange-800',

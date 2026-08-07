@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
+import { projectListCardProgress } from '@/lib/qa-dashboard'
 
 const STATUS_LABELS: Record<string, string> = {
   scoping: 'Scoping',
@@ -21,10 +22,10 @@ type Project = {
   estimatedHours: number | null
   developer: { name: string }
   bdMember: { name: string } | null
-  checkIns: Array<{ onTrack?: string | null; blockers?: string | null }>
+  checkIns: Array<{ onTrack?: string | null; blockers?: string | null; progressPct?: number | null }>
   scopeChanges: Array<{ changeOrderSigned: boolean }>
   milestones: Array<{ status: string }>
-  releaseSignOff: unknown | null
+  releaseSignOff: object | null
 }
 
 function progressColor(pct: number) {
@@ -42,9 +43,7 @@ export default function ProjectListCard({
   showValue: boolean
 }) {
   const ci = project.checkIns[0]
-  const totalMilestones = project.milestones.length
-  const completedMilestones = project.milestones.filter(m => m.status === 'done').length
-  const pct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0
+  const { pct, milestone, detailLabel } = projectListCardProgress(project.milestones, ci)
   const unsigned = project.scopeChanges.filter(s => !s.changeOrderSigned).length
   const overdue =
     project.estimatedEnd && new Date(project.estimatedEnd) < new Date() && project.status !== 'delivered'
@@ -86,7 +85,7 @@ export default function ProjectListCard({
               {project.contractValue && showValue && (
                 <span>
                   <span className="text-gray-400">Value</span>{' '}
-                  {fmtCurrency(project.contractValue, project.currency)}
+                  {fmtCurrency(project.contractValue, project.currency ?? undefined)}
                 </span>
               )}
               {project.estimatedEnd && (
@@ -112,9 +111,9 @@ export default function ProjectListCard({
 
       <div className="px-5 py-4">
         <div className="flex items-center justify-between gap-3 mb-2">
-          <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Milestone progress</span>
+          <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Progress</span>
           <span className="text-xs font-medium text-gray-600 tabular-nums">
-            {pct}% · {completedMilestones}/{totalMilestones}
+            {pct}%{detailLabel ? ` · ${detailLabel}` : ''}
           </span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -123,6 +122,17 @@ export default function ProjectListCard({
             style={{ width: `${pct}%` }}
           />
         </div>
+
+        {(milestone.testing > 0 || milestone.ready > 0) && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+            {milestone.testing > 0 && (
+              <span className="text-teal-600">{milestone.testing} in testing</span>
+            )}
+            {milestone.ready > 0 && (
+              <span className="text-blue-600">{milestone.ready} ready for QA</span>
+            )}
+          </div>
+        )}
 
         {ci?.blockers && (
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

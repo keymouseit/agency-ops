@@ -4,7 +4,11 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logProjectQAActivity } from '@/lib/qa-audit'
-import { deriveCycleResult, hasFailingTestCases } from '@/lib/qa'
+import {
+  buildTestCycleFields,
+  parseTestCycleCases,
+  validateTestCyclePayload,
+} from '@/lib/test-cycle-form'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
@@ -24,46 +28,38 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const rawCases = Array.isArray(data.testCases) ? data.testCases : []
-  const testCases = rawCases
-    .filter((tc: { title?: string }) => typeof tc.title === 'string' && tc.title.trim())
-    .map((tc: { title: string; status?: string; notes?: string }, i: number) => ({
-      title: tc.title.trim(),
-      status: ['pass', 'fail', 'blocked', 'skipped'].includes(tc.status ?? '') ? tc.status : 'pass',
-      notes: tc.notes?.trim() || null,
-      sortOrder: i,
-    }))
+  const testCases = parseTestCycleCases(rawCases)
 
   if (testCases.length === 0) {
     return NextResponse.json({ error: 'At least one test case with a name is required' }, { status: 400 })
   }
 
-  const result = deriveCycleResult(data.result, testCases)
-
-  const blockerNote = data.blockerNote?.trim()
-    || (result === 'fail' && hasFailingTestCases(testCases)
-      ? `Failed test cases: ${testCases.filter((tc: { status?: string; title: string }) => tc.status === 'fail' || tc.status === 'blocked').map((tc: { title: string }) => tc.title).join(', ')}`
-      : null)
+  const fields = buildTestCycleFields(data, testCases)
+  const errors = validateTestCyclePayload(fields, testCases)
+  if (errors.length) {
+    return NextResponse.json({ error: errors.join('. ') }, { status: 400 })
+  }
 
   const cycle = await prisma.$transaction(async tx => {
     const created = await tx.testCycle.create({
       data: {
         projectId: params.id,
-        conductedById: data.conductedById,
-        cycleType: data.cycleType,
-        environment: data.environment || 'staging',
-        result,
+        conductedById: fields.conductedById,
+        cycleType: fields.cycleType,
+        environment: fields.environment || 'staging',
+        result: fields.result,
         completedAt: new Date(),
-        testedAuth:          data.testedAuth          === true,
-        testedCoreFlows:     data.testedCoreFlows     === true,
-        testedEdgeCases:     data.testedEdgeCases     === true,
-        testedMobile:        data.testedMobile        === true,
-        testedCrossBrowser:  data.testedCrossBrowser  === true,
-        testedPerformance:   data.testedPerformance   === true,
-        testedIntegrations:  data.testedIntegrations  === true,
-        testedDataIntegrity: data.testedDataIntegrity === true,
-        summary:      data.summary      || null,
-        blockerNote,
-        fixedInCycle: data.fixedInCycle || null,
+        testedAuth: fields.testedAuth,
+        testedCoreFlows: fields.testedCoreFlows,
+        testedEdgeCases: fields.testedEdgeCases,
+        testedMobile: fields.testedMobile,
+        testedCrossBrowser: fields.testedCrossBrowser,
+        testedPerformance: fields.testedPerformance,
+        testedIntegrations: fields.testedIntegrations,
+        testedDataIntegrity: fields.testedDataIntegrity,
+        summary: fields.summary,
+        blockerNote: fields.blockerNote,
+        fixedInCycle: fields.fixedInCycle,
       },
     })
 
@@ -74,7 +70,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return created
   })
 
-  logger.info('QA test cycle created successfully', { cycleId: cycle.id, projectId: params.id, result })
+  logger.info('QA test cycle created successfully', { cycleId: cycle.id, projectId: params.id, result: fields.result })
 
   // Get project details for audit log and notifications
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { name: true, developerId: true } })
@@ -89,12 +85,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       {
         qaEventType: 'test_cycle_logged',
         cycleId: cycle.id,
-        result,
-        cycleType: data.cycleType,
-        environment: data.environment || 'staging',
+        result: fields.result,
+        cycleType: fields.cycleType,
+        environment: fields.environment || 'staging',
         passedCount,
         totalCases: testCases.length,
-        hasBlockers: result === 'fail' && !!blockerNote,
+        hasBlockers: fields.result === 'fail' && !!fields.blockerNote,
       },
       req,
     )
@@ -102,17 +98,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Notify based on result
   if (project) {
-    logger.debug('Sending QA test cycle notifications', { projectId: params.id, projectName: project.name, result, developerId: project.developerId })
+    logger.debug('Sending QA test cycle notifications', { projectId: params.id, projectName: project.name, result: fields.result, developerId: project.developerId })
 
-    if (result === 'fail') {
+    if (fields.result === 'fail') {
       // Notify the dev project owner: their project is blocked in QA
       logger.info('Sending test_cycle_fail notification to project owner', { projectId: params.id, developerId: project.developerId })
       await notify('test_cycle_fail', [project.developerId],
-        `QA: ${project.name} is blocked — ${(blockerNote ?? 'see test report').slice(0, 80)}`,
+        `QA: ${project.name} is blocked — ${(fields.blockerNote ?? 'see test report').slice(0, 80)}`,
         `/projects/${params.id}#qa`)
       logger.info('test_cycle_fail notification sent', { projectId: params.id, developerId: project.developerId })
-    } else if (result === 'pass' || result === 'conditional') {
-      const label = result === 'conditional' ? 'conditional pass' : 'pass'
+    } else if (fields.result === 'pass' || fields.result === 'conditional') {
+      const label = fields.result === 'conditional' ? 'conditional pass' : 'pass'
 
       // Notify the dev project owner: their project passed QA
       logger.info('Sending test_cycle_pass notification to project owner', { projectId: params.id, developerId: project.developerId, label })

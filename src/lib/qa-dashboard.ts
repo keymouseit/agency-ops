@@ -39,6 +39,28 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
   }
 }
 
+/** Progress shown on project list cards — matches CEO dashboard when a check-in exists. */
+export function projectListCardProgress(
+  milestones: MilestoneRow[],
+  checkIn?: { progressPct?: number | null } | null,
+) {
+  const milestone = projectMilestoneProgress(milestones)
+  const usesCheckIn = checkIn != null
+  const pct = usesCheckIn ? (checkIn.progressPct ?? 0) : milestone.pct
+
+  return {
+    pct,
+    milestone,
+    usesCheckIn,
+    detailLabel:
+      milestone.total > 0
+        ? `${milestone.approved}/${milestone.total} milestones`
+        : usesCheckIn
+          ? 'from weekly check-in'
+          : null,
+  }
+}
+
 export function latestCycleProgress(cycle: CycleRow | undefined) {
   if (!cycle?.cases?.length) return null
   const summary = testCycleCaseSummary(cycle.cases)
