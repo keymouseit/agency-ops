@@ -93,6 +93,11 @@ export default function DailyHeader({
           <Link href={dailyHref(nextDate, viewMode)} className="btn-secondary text-xs px-3">
             Next →
           </Link>
+          {isFounder && (
+            <Link href={dateParam ? `/daily/analytics?date=${dateParam}` : '/daily/analytics'} className="btn-secondary text-xs">
+              Daily report
+            </Link>
+          )}
           {isToday && (
             <Link href={planHref} className={pendingEodLogId ? 'btn-secondary text-xs border-red-200 text-red-700 hover:bg-red-50' : 'btn-primary text-xs'}>
               {planButtonLabel}
