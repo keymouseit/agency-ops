@@ -34,7 +34,7 @@ export default async function NewMomPage({
     searchParams.callId
       ? prisma.campaignCall.findUnique({
           where: { id: searchParams.callId },
-          include: { campaign: { select: { name: true } } },
+          include: { campaign: { select: { id: true, name: true } } },
         })
       : Promise.resolve(null),
     prisma.campaignCall.findMany({

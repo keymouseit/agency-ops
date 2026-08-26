@@ -87,11 +87,9 @@ export default function ProfileTab({ member, onSave }: { member: Member; onSave?
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="input bg-gray-100 text-gray-500 cursor-not-allowed"
+              className="input bg-gray-50/50 focus:bg-white"
               placeholder="Enter your email"
-              disabled
             />
-            <FieldHint>Changing your email will require verification</FieldHint>
           </div>
         </div>
 

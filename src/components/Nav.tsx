@@ -26,6 +26,7 @@ const NAV_STRUCTURE = {
         { href: '/team', label: 'Team Scores' },
         { href: '/checkin', label: 'Check-In' },
         { href: '/daily', label: 'Daily' },
+        { href: '/leaves', label: 'Leaves' },
         { href: '/goals', label: 'Goals' },
       ],
     },
@@ -57,6 +58,7 @@ const NAV_STRUCTURE = {
         { href: '/team', label: 'Team Scores' },
         { href: '/checkin', label: 'Check-In' },
         { href: '/daily', label: 'Daily' },
+        { href: '/leaves', label: 'Leaves' },
         { href: '/goals', label: 'Goals' },
       ],
     },
@@ -78,6 +80,7 @@ const NAV_STRUCTURE = {
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
   Dev: [
     { href: '/me', label: 'My Day' },
@@ -85,6 +88,7 @@ const NAV_STRUCTURE = {
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
   QA: [
     { href: '/me', label: 'My Day' },
@@ -92,16 +96,19 @@ const NAV_STRUCTURE = {
     { href: '/qa/activity', label: 'Activity' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
   HR: [
     { href: '/me', label: 'My Day' },
     { href: '/team', label: 'Team' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
   SocialMedia: [
     { href: '/me', label: 'My Day' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
   Both: [
     { href: '/me', label: 'My Day' },

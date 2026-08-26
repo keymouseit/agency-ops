@@ -83,7 +83,7 @@ export async function POST(req: Request) {
 
   const campaign = await prisma.campaign.create({
     data: {
-      name,
+      name: name!,
       channel,
       status,
       objective,

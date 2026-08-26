@@ -29,7 +29,7 @@ type TestCycle = {
   cycleType: string
   blockerNote: string | null
   conductedBy: { name: string }
-  cases?: Array<{ status: string; devFixedAt: Date | null }>
+  cases?: Array<{ status: string; devFixedAt: Date | string | null }>
 }
 
 type Project = {
@@ -56,7 +56,7 @@ export default function QAProjectListCard({ project }: { project: Project }) {
   const latestCycle = project.testCycles[0]
   const hasSignOff = !!project.releaseSignOff
   const milestoneProgress = projectMilestoneProgress(project.milestones)
-  const cycleProgress = latestCycle ? latestCycleProgress(latestCycle) : null
+  const cycleProgress = latestCycle ? latestCycleProgress(latestCycle as any) : null
 
   const totalMilestones = project.milestones.length
   const completedMilestones = project.milestones.filter(m => m.status === 'done').length

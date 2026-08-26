@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { startOfWeek } from 'date-fns'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['BD', 'Dev', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['BD', 'Dev', 'QA', 'Both', 'Founder', 'Manager', 'SocialMedia'])
   if (deny) return deny
 
   const data = await req.json()

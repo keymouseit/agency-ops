@@ -6,14 +6,14 @@ import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns'],
-  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns'],
-  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns'],
-  Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate'],
-  QA:      ['/me', '/account', '/qa', '/checkin', '/daily'],
-  HR:           ['/me', '/account', '/team', '/daily'],
-  SocialMedia:  ['/me', '/account', '/checkin', '/daily'],
-  Both:         ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns'],
+  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
+  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
+  Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
+  QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
+  HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
+  SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
+  Both:         ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────

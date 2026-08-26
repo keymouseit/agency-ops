@@ -128,8 +128,13 @@ function checkApiAccess(path: string, role: string): boolean {
   if (role === 'SocialMedia') {
     if (path.startsWith('/api/daily') || path.startsWith('/api/scores')) return true
   }
-  // Everyone can access scores, notifications
-  if (path.startsWith('/api/scores') || path.startsWith('/api/notifications')) return true
+  // Everyone can access scores, notifications, apply for leaves, and project check-ins
+  if (
+    path.startsWith('/api/scores') || 
+    path.startsWith('/api/notifications') || 
+    path.startsWith('/api/leaves') ||
+    path.match(/^\/api\/projects\/[^/]+\/checkin/)
+  ) return true
   return false
 }
 

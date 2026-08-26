@@ -102,7 +102,7 @@ export default function MomAnalytics({ records }: { records: MomRecord[] }) {
 
   const unknownSource = records.filter(r => r.leadSource && !LEAD_SOURCES.includes(r.leadSource as typeof LEAD_SOURCES[number])).length
   if (unknownSource > 0) {
-    bySource.push({ label: 'Other', count: unknownSource })
+    bySource.push({ label: 'Other' as any, count: unknownSource })
   }
 
   const byLogger = Object.entries(

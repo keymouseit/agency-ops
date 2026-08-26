@@ -1,10 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-pg"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("RENDER_DATABASE_URL")
 }
 
 model TeamMember {
@@ -44,10 +45,6 @@ model TeamMember {
   milestoneBugsReported  MilestoneBug[]      @relation("BugReportedBy")
   testCycleCasesFixed    TestCycleCase[]     @relation("TestCycleCaseFixedBy")
   testCycleCasesRetested TestCycleCase[]     @relation("TestCycleCaseRetestedBy")
-  
-  leaves                 LeaveRequest[]      @relation("EmployeeLeaves")
-  leavesApproved         LeaveRequest[]      @relation("ApprovedLeaves")
-  leaveBalances          LeaveBalance[]      @relation("EmployeeLeaveBalance")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -869,38 +866,4 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([timestamp])
   @@index([action])
-}
-
-// ─── LEAVE MANAGEMENT ────────────────────────────────────────
-
-model LeaveBalance {
-  id          String     @id @default(cuid())
-  memberId    String
-  member      TeamMember @relation("EmployeeLeaveBalance", fields: [memberId], references: [id])
-  year        Int        // e.g., 2026
-  accrued     Float      @default(0) // Max 12 (1 added per month)
-  used        Float      @default(0) // Deducted based on approved leaves
-  
-  @@unique([memberId, year])
-}
-
-model LeaveRequest {
-  id              String     @id @default(cuid())
-  memberId        String
-  member          TeamMember @relation("EmployeeLeaves", fields: [memberId], references: [id])
-  
-  leaveType       String     // "short_leave" (0.25 days) | "half_day" (0.5 days) | "full_day" (1 day)
-  startDate       DateTime
-  endDate         DateTime
-  reason          String?
-  timeSlot        String?    // e.g., "morning", "afternoon", "evening", "before_lunch", "after_lunch"
-  
-  status          String     @default("pending") // "pending" | "approved" | "rejected" | "cancelled"
-  
-  appliedAt       DateTime   @default(now())
-  
-  approvedById    String?
-  approvedBy      TeamMember? @relation("ApprovedLeaves", fields: [approvedById], references: [id])
-  approvalNotes   String?
-  approvedAt      DateTime?
 }
