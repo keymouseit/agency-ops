@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import NotificationBell from './NotificationBell'
+import { useNavigationPending } from './NavigationProvider'
+import type { Branding } from '@/lib/branding'
 
 const NAV_STRUCTURE = {
   Founder: [
@@ -18,6 +20,7 @@ const NAV_STRUCTURE = {
         { href: '/projects', label: 'Projects' },
         { href: '/estimate', label: 'Estimates' },
         { href: '/qa', label: 'QA' },
+        { href: '/qa/activity', label: 'QA activity' },
       ],
     },
     {
@@ -50,6 +53,7 @@ const NAV_STRUCTURE = {
         { href: '/projects', label: 'Projects' },
         { href: '/estimate', label: 'Estimates' },
         { href: '/qa', label: 'QA' },
+        { href: '/qa/activity', label: 'QA activity' },
       ],
     },
     {
@@ -77,6 +81,8 @@ const NAV_STRUCTURE = {
     { href: '/mom', label: 'MOM' },
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/projects', label: 'Projects' },
+    { href: '/qa', label: 'QA' },
+    { href: '/qa/activity', label: 'QA activity' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
@@ -116,6 +122,8 @@ const NAV_STRUCTURE = {
     { href: '/mom', label: 'MOM' },
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/projects', label: 'Projects' },
+    { href: '/qa', label: 'QA' },
+    { href: '/qa/activity', label: 'QA activity' },
     { href: '/estimate', label: 'Estimates' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
@@ -146,14 +154,59 @@ function navLinkClass(active: boolean) {
   }`
 }
 
+type NavEntry = (typeof NAV_STRUCTURE)[keyof typeof NAV_STRUCTURE][number]
+
+function collectNavHrefs(items: NavEntry[]): string[] {
+  const hrefs: string[] = []
+  for (const item of items) {
+    if ('items' in item) {
+      hrefs.push(...item.items.map(sub => sub.href))
+    } else {
+      hrefs.push(item.href)
+    }
+  }
+  return hrefs
+}
+
+function NavLink({
+  href,
+  children,
+  active,
+  onNavigate,
+  onPrefetch,
+}: {
+  href: string
+  children: ReactNode
+  active: boolean
+  onNavigate: () => void
+  onPrefetch: (href: string) => void
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch
+      onMouseEnter={() => onPrefetch(href)}
+      onFocus={() => onPrefetch(href)}
+      onClick={onNavigate}
+      className={navLinkClass(active)}
+    >
+      {children}
+    </Link>
+  )
+}
+
 function NavDropdown({
   label,
   items,
   currentPath,
+  onNavigate,
+  onPrefetch,
 }: {
   label: string
   items: { href: string; label: string }[]
   currentPath: string
+  onNavigate: () => void
+  onPrefetch: (href: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -210,7 +263,13 @@ function NavDropdown({
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setOpen(false)}
+                  prefetch
+                  onMouseEnter={() => onPrefetch(item.href)}
+                  onFocus={() => onPrefetch(item.href)}
+                  onClick={() => {
+                    onNavigate()
+                    setOpen(false)
+                  }}
                   className={`block px-3 py-2 text-sm ${
                     active ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'
                   }`}
@@ -340,9 +399,11 @@ function UserMenuDropdown({
   )
 }
 
-export default function Nav() {
+export default function Nav({ branding }: { branding: Branding }) {
   const path = usePathname()
+  const router = useRouter()
   const { data: session } = useSession()
+  const { startNavigation } = useNavigationPending()
   const [signingOut, setSigningOut] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
 
@@ -352,6 +413,21 @@ export default function Nav() {
   const navItems = NAV_STRUCTURE[role as keyof typeof NAV_STRUCTURE] || []
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
   const roleLabel = role === 'SocialMedia' ? 'Social' : role
+  const navHrefs = useMemo(() => collectNavHrefs(navItems), [navItems])
+
+  useEffect(() => {
+    for (const href of navHrefs) {
+      router.prefetch(href)
+    }
+  }, [router, navHrefs])
+
+  function prefetchHref(href: string) {
+    router.prefetch(href)
+  }
+
+  function handleNavigate() {
+    startNavigation()
+  }
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -365,21 +441,40 @@ export default function Nav() {
       <div className="app-header">
         <div className="flex h-12 items-center justify-between gap-4 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
           <div className="flex items-center gap-4 sm:gap-6 min-w-0 overflow-visible">
-            <Link href={homeHref} className="flex items-center gap-2 shrink-0">
+            <Link
+              href={homeHref}
+              prefetch
+              onMouseEnter={() => prefetchHref(homeHref)}
+              onClick={handleNavigate}
+              className="flex items-center gap-2 shrink-0"
+            >
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-[10px] font-bold text-white">
-                AO
+                {branding.initials}
               </span>
-              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden sm:block">Agency Ops</span>
+              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden sm:block">{branding.name}</span>
             </Link>
 
             <nav className="flex items-center gap-0.5 min-w-0 overflow-visible">
               {navItems.map((item, idx) =>
                 'items' in item ? (
-                  <NavDropdown key={idx} label={item.label} items={item.items} currentPath={path} />
+                  <NavDropdown
+                    key={idx}
+                    label={item.label}
+                    items={item.items}
+                    currentPath={path}
+                    onNavigate={handleNavigate}
+                    onPrefetch={prefetchHref}
+                  />
                 ) : (
-                  <Link key={item.href} href={item.href} className={navLinkClass(isLinkActive(path, item.href))}>
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    active={isLinkActive(path, item.href)}
+                    onNavigate={handleNavigate}
+                    onPrefetch={prefetchHref}
+                  >
                     {item.label}
-                  </Link>
+                  </NavLink>
                 )
               )}
             </nav>

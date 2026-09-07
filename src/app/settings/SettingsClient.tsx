@@ -1,5 +1,7 @@
 'use client'
 import { useState } from 'react'
+import type { Branding } from '@/lib/branding'
+import CompanyProfileTab from './CompanyProfileTab'
 import TeamMembersTab from './TeamMembersTab'
 
 type Member = {
@@ -11,7 +13,15 @@ type Member = {
   createdAt: Date
 }
 
-export default function SettingsClient({ members }: { members: Member[] }) {
+export default function SettingsClient({
+  members,
+  branding,
+  canEditBranding,
+}: {
+  members: Member[]
+  branding: Branding
+  canEditBranding: boolean
+}) {
   const [activeTab, setActiveTab] = useState<'team' | 'company' | 'notifications' | 'workflow'>('team')
 
   const tabs = [
@@ -55,10 +65,7 @@ export default function SettingsClient({ members }: { members: Member[] }) {
         {activeTab === 'team' && <TeamMembersTab members={members} />}
 
         {activeTab === 'company' && (
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4">Company Profile</h2>
-            <p className="text-gray-500 text-sm">Company profile settings coming soon...</p>
-          </div>
+          <CompanyProfileTab initialBranding={branding} canEdit={canEditBranding} />
         )}
 
         {activeTab === 'notifications' && (

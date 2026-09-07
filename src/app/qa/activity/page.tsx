@@ -1,10 +1,15 @@
-import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import QATestingActivityList from '@/components/QATestingActivityList'
+import { auth } from '@/lib/auth'
+import { canViewQATestCycles } from '@/lib/qa-access'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 export default async function QATestingActivityPage() {
+  const session = await auth()
+  if (!canViewQATestCycles(session?.user?.role)) redirect('/')
   const recentQAActivity = await prisma.auditLog.findMany({
     where: {
       entityType: 'Project',

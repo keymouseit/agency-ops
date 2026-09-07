@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { fmtDate } from '@/lib/utils'
+import { isBlockingCycleResult } from '@/lib/qa'
 
 type SignOff = {
   signedOffAt: Date | string
@@ -65,14 +66,23 @@ export default function QASignOffStatus({
     )
   }
 
-  if (latestCycle?.result === 'fail') {
+  if (isBlockingCycleResult(latestCycle?.result ?? '')) {
+    const blocked = latestCycle?.result === 'blocked'
     return (
-      <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-        <div className="text-sm font-semibold text-red-800">⛔ QA release blocked</div>
-        {latestCycle.blockerNote && (
-          <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">{latestCycle.blockerNote}</p>
+      <div className={`mb-4 p-4 rounded-xl border ${
+        blocked ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'
+      }`}>
+        <div className={`text-sm font-semibold ${blocked ? 'text-orange-800' : 'text-red-800'}`}>
+          {blocked ? '⊘ QA testing or release blocked' : '✕ QA test cycle failed'}
+        </div>
+        {latestCycle?.blockerNote && (
+          <p className={`text-sm mt-1 whitespace-pre-wrap ${blocked ? 'text-orange-700' : 'text-red-700'}`}>
+            {latestCycle.blockerNote}
+          </p>
         )}
-        <p className="text-xs text-red-500 mt-2">QA is resolving blockers before sign-off.</p>
+        <p className={`text-xs mt-2 ${blocked ? 'text-orange-500' : 'text-red-500'}`}>
+          {blocked ? 'QA is waiting on the blocker before sign-off.' : 'QA is waiting on fixes before sign-off.'}
+        </p>
       </div>
     )
   }

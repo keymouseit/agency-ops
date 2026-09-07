@@ -64,10 +64,11 @@ export type SerializedBug = {
 export function testCaseSummary(testCases: { status: string }[]) {
   const total = testCases.length
   const completed = testCases.filter(t => t.status === 'pass' || t.status === 'skipped').length
-  const failed = testCases.filter(t => t.status === 'fail' || t.status === 'blocked').length
+  const failed = testCases.filter(t => t.status === 'fail').length
+  const blocked = testCases.filter(t => t.status === 'blocked').length
   const pending = testCases.filter(t => t.status === 'pending').length
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0
-  return { total, completed, failed, pending, passed: completed, pct }
+  return { total, completed, failed, blocked, pending, passed: completed, pct }
 }
 
 export function milestoneHasTestingVisibility(

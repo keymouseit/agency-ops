@@ -20,11 +20,13 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
   let totalCases = 0
   let passedCases = 0
   let failedCases = 0
+  let blockedCases = 0
   for (const m of milestones) {
     const summary = testCaseSummary(m.testCases ?? [])
     totalCases += summary.total
     passedCases += summary.completed
     failedCases += summary.failed
+    blockedCases += summary.blocked
   }
 
   return {
@@ -35,6 +37,7 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
     totalCases,
     passedCases,
     failedCases,
+    blockedCases,
     pct: total > 0 ? Math.round((approved / total) * 100) : 0,
   }
 }
@@ -70,6 +73,8 @@ export function latestCycleProgress(cycle: CycleRow | undefined) {
     passed,
     total: cycle.cases.length,
     failing: summary.failing,
+    failed: summary.failed,
+    blocked: summary.blocked,
     awaitingRetest: summary.awaitingQARetest,
   }
 }

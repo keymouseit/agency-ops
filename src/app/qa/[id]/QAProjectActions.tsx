@@ -146,7 +146,7 @@ export default function QAProjectActions({
     setEnvironment(editingCycle.environment)
     setConductedById(editingCycle.conductedById)
     const validResults: SelectableCycleResult[] = [
-      'pass', 'fail', 'conditional', 'not_applicable', 'out_of_scope', 'deferred', 'environment_issue',
+      'pass', 'fail', 'blocked', 'conditional', 'not_applicable', 'out_of_scope', 'deferred', 'environment_issue',
     ]
     setResult(validResults.includes(editingCycle.result as SelectableCycleResult) ? editingCycle.result as SelectableCycleResult : 'pass')
     setChecklist({
@@ -217,8 +217,13 @@ export default function QAProjectActions({
       errors.push('At least one test case name is required')
       newFieldErrors.testCases = 'Add at least one test case with a name'
     }
-    if ((result === 'fail' || result === 'conditional') && !blockerNote.trim()) {
-      const msg = result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required'
+    if ((result === 'fail' || result === 'blocked' || result === 'conditional') && !blockerNote.trim()) {
+      const msg =
+        result === 'fail'
+          ? 'Failure description is required'
+          : result === 'blocked'
+          ? 'Blocker description is required'
+          : 'Conditional issue description is required'
       errors.push(msg)
       newFieldErrors.blockerNote = msg
     }
@@ -229,7 +234,7 @@ export default function QAProjectActions({
     }
     if (hasFailingTestCases(namedCases) && result === 'pass') {
       errors.push('Overall result cannot be Pass when test cases have failed or are blocked')
-      newFieldErrors.result = 'Change overall result to Fail, or update failing test cases'
+      newFieldErrors.result = 'Change overall result to Fail, Blocked, or Conditional'
     }
 
     if (errors.length > 0) {
@@ -404,13 +409,13 @@ export default function QAProjectActions({
               <label className="label">Overall result *</label>
               {hasFailingTestCases(cycleTestCases.filter(tc => tc.title.trim())) && result === 'pass' && (
                 <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  One or more test cases failed or are blocked — overall result must be Fail or Conditional.
+                  One or more test cases failed or are blocked — overall result must be Fail, Blocked, or Conditional.
                 </div>
               )}
               {fieldErrors.result && (
                 <div className="mb-2 text-xs text-red-600">{fieldErrors.result}</div>
               )}
-              <div className="flex gap-2 mt-1">
+              <div className="grid grid-cols-2 gap-2 mt-1">
                 {CYCLE_RESULT_OPTIONS.map(r => (
                   <button key={r.value} type="button"
                     onClick={() => setResult(r.value)}
@@ -528,10 +533,16 @@ export default function QAProjectActions({
               />
             </div>
 
-            {(result === 'fail' || result === 'conditional') && (
+            {(result === 'fail' || result === 'blocked' || result === 'conditional') && (
               <div>
-                <label className={`label ${result === 'fail' ? 'text-red-600' : 'text-amber-700'}`}>
-                  {result === 'fail' ? 'What is blocking release? *' : 'What is the conditional issue? *'}
+                <label className={`label ${
+                  result === 'fail' ? 'text-red-600' : result === 'blocked' ? 'text-orange-700' : 'text-amber-700'
+                }`}>
+                  {result === 'fail'
+                    ? 'What failed? *'
+                    : result === 'blocked'
+                    ? 'What is blocking testing or release? *'
+                    : 'What is the conditional issue? *'}
                 </label>
                 <textarea
                   rows={2}
@@ -543,7 +554,13 @@ export default function QAProjectActions({
                       setFieldErrors(prev => ({ ...prev, blockerNote: '' }))
                     }
                   }}
-                  placeholder={result === 'fail' ? 'Be specific — what exactly is broken and why it cannot go to client yet' : 'Describe the issue and why client can accept it as-is'}
+                  placeholder={
+                    result === 'fail'
+                      ? 'Describe the defect found and why it cannot go to the client yet'
+                      : result === 'blocked'
+                      ? 'Describe what is preventing testing or release (dependency, environment, access, etc.)'
+                      : 'Describe the issue and why client can accept it as-is'
+                  }
                 />
                 {fieldErrors.blockerNote && (
                   <div className="text-xs text-red-600 mt-1 flex items-center gap-1">

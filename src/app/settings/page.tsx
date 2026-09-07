@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { getBranding } from '@/lib/branding'
 import { redirect } from 'next/navigation'
 import SettingsClient from './SettingsClient'
 
@@ -22,5 +23,13 @@ export default async function SettingsPage() {
     ],
   })
 
-  return <SettingsClient members={members} />
+  const branding = await getBranding()
+
+  return (
+    <SettingsClient
+      members={members}
+      branding={branding}
+      canEditBranding={userRole === 'Founder'}
+    />
+  )
 }

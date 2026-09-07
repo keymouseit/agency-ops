@@ -139,11 +139,12 @@ export default function MilestoneTestCaseEditor({
         <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
           <span>
             {summary.completed}/{summary.total} completed
-            {summary.failed > 0 && <span className="text-red-600 ml-1">· {summary.failed} issues</span>}
+            {summary.failed > 0 && <span className="text-red-600 ml-1">· {summary.failed} failed</span>}
+            {summary.blocked > 0 && <span className="text-orange-600 ml-1">· {summary.blocked} blocked</span>}
           </span>
           <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full ${summary.failed > 0 ? 'bg-amber-400' : 'bg-green-500'}`}
+              className={`h-full rounded-full ${summary.failed > 0 ? 'bg-red-400' : summary.blocked > 0 ? 'bg-amber-400' : 'bg-green-500'}`}
               style={{ width: `${summary.pct}%` }}
             />
           </div>

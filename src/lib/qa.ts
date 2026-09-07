@@ -1,6 +1,7 @@
 export const QA_CYCLE_RESULT_CONFIG = {
   pass:              { label: 'Pass ✓',              cls: 'bg-green-100 text-green-800',  border: 'border-green-200' },
-  fail:              { label: 'Fail — blocked',      cls: 'bg-red-100 text-red-800',      border: 'border-red-200' },
+  fail:              { label: 'Fail',                  cls: 'bg-red-100 text-red-800',      border: 'border-red-200' },
+  blocked:           { label: 'Blocked',               cls: 'bg-orange-100 text-orange-800', border: 'border-orange-200' },
   conditional:       { label: 'Conditional',         cls: 'bg-amber-100 text-amber-800',   border: 'border-amber-200' },
   pending:           { label: 'In progress',         cls: 'bg-blue-100 text-blue-800',     border: 'border-blue-100' },
   not_applicable:    { label: 'Not applicable',      cls: 'bg-slate-100 text-slate-700',   border: 'border-slate-200' },
@@ -14,6 +15,7 @@ export type CycleResult = keyof typeof QA_CYCLE_RESULT_CONFIG
 export type SelectableCycleResult =
   | 'pass'
   | 'fail'
+  | 'blocked'
   | 'conditional'
   | 'not_applicable'
   | 'out_of_scope'
@@ -21,9 +23,10 @@ export type SelectableCycleResult =
   | 'environment_issue'
 
 export const CYCLE_RESULT_OPTIONS = [
-  { value: 'pass' as const,              label: '✓ Pass — clear to release',        cls: 'border-green-300 bg-green-50 text-green-800' },
-  { value: 'conditional' as const,       label: '~ Conditional — minor issues',      cls: 'border-amber-300 bg-amber-50 text-amber-800' },
-  { value: 'fail' as const,              label: '⛔ Fail — release blocked',         cls: 'border-red-300 bg-red-50 text-red-800' },
+  { value: 'pass' as const,        label: '✓ Pass — clear to release',        cls: 'border-green-300 bg-green-50 text-green-800' },
+  { value: 'conditional' as const, label: '~ Conditional — minor issues',      cls: 'border-amber-300 bg-amber-50 text-amber-800' },
+  { value: 'fail' as const,        label: '✕ Fail — defects found',            cls: 'border-red-300 bg-red-50 text-red-800' },
+  { value: 'blocked' as const,     label: '⊘ Blocked — cannot test/release',   cls: 'border-orange-300 bg-orange-50 text-orange-800' },
 ]
 
 export const CYCLE_NON_EXECUTABLE_RESULT_OPTIONS = [
@@ -40,7 +43,11 @@ export function isNonExecutableCycleResult(result: string) {
 }
 
 export function cycleSupportsBlockerNote(result: string) {
-  return result === 'fail' || result === 'conditional' || isNonExecutableCycleResult(result)
+  return result === 'fail' || result === 'blocked' || result === 'conditional' || isNonExecutableCycleResult(result)
+}
+
+export function isBlockingCycleResult(result: string) {
+  return result === 'fail' || result === 'blocked'
 }
 
 export const QA_SEVERITY_CLS: Record<string, string> = {
@@ -92,8 +99,16 @@ export type SerializedTestCycleCase = {
   qaRetestedBy?: { name: string } | null
 }
 
+export function hasFailedTestCases(testCases: { status: string }[]) {
+  return testCases.some(tc => tc.status === 'fail')
+}
+
+export function hasBlockedTestCases(testCases: { status: string }[]) {
+  return testCases.some(tc => tc.status === 'blocked')
+}
+
 export function hasFailingTestCases(testCases: { status: string }[]) {
-  return testCases.some(tc => tc.status === 'fail' || tc.status === 'blocked')
+  return hasFailedTestCases(testCases) || hasBlockedTestCases(testCases)
 }
 
 /** Overall cycle result must reflect individual test case outcomes. */
@@ -101,20 +116,26 @@ export function deriveCycleResult(
   requestedResult: string,
   testCases: { status: string }[],
 ): CycleResult {
-  if (hasFailingTestCases(testCases)) return 'fail'
+  if (hasFailedTestCases(testCases)) return 'fail'
+  if (hasBlockedTestCases(testCases)) return 'blocked'
   if (isNonExecutableCycleResult(requestedResult)) return requestedResult as CycleResult
   if (requestedResult === 'conditional') return 'conditional'
+  if (requestedResult === 'blocked') return 'blocked'
   if (requestedResult === 'fail') return 'fail'
   return 'pass'
 }
 
 export function testCycleCaseSummary(cases: { status: string; devFixedAt?: string | Date | null }[]) {
-  const failing = cases.filter(c => c.status === 'fail' || c.status === 'blocked')
+  const failedCases = cases.filter(c => c.status === 'fail')
+  const blockedCases = cases.filter(c => c.status === 'blocked')
+  const failing = [...failedCases, ...blockedCases]
   const unfixed = failing.filter(c => !c.devFixedAt)
   const awaitingQARetest = failing.filter(c => c.devFixedAt)
   return {
     total: cases.length,
     failing: failing.length,
+    failed: failedCases.length,
+    blocked: blockedCases.length,
     unfixed: unfixed.length,
     awaitingQARetest: awaitingQARetest.length,
     allFailuresFixed: failing.length > 0 && unfixed.length === 0,
@@ -127,7 +148,8 @@ export function deriveCycleResultFromCases(
   cases: { status: string }[],
   previousResult: string,
 ): CycleResult {
-  if (hasFailingTestCases(cases)) return 'fail'
+  if (hasFailedTestCases(cases)) return 'fail'
+  if (hasBlockedTestCases(cases)) return 'blocked'
   if (isNonExecutableCycleResult(previousResult)) return previousResult as CycleResult
   if (previousResult === 'conditional') return 'conditional'
   return 'pass'

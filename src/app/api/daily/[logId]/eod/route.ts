@@ -1,19 +1,31 @@
 import { NextResponse } from 'next/server'
-import { auth, checkRole } from '@/lib/auth'
+import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canEditEod } from '@/lib/daily'
+
+type TaskUpdatePayload = {
+  status: string
+  actualHours: string
+  eodNotes: string
+  blockedReason: string
+}
+
+function projectHourDelta(
+  deltas: Map<string, number>,
+  projectId: string | null | undefined,
+  delta: number,
+) {
+  if (!projectId || delta === 0) return
+  deltas.set(projectId, (deltas.get(projectId) ?? 0) + delta)
+}
 
 export async function POST(
   req: Request,
   { params }: { params: { logId: string } }
 ) {
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
-  if (deny) return deny
-
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
+  if (authResult instanceof NextResponse) return authResult
+  const { memberId } = authResult
 
   const existingLog = await prisma.dailyLog.findUnique({
     where: { id: params.logId },
@@ -24,7 +36,7 @@ export async function POST(
     return NextResponse.json({ error: 'Daily log not found' }, { status: 404 })
   }
 
-  if (existingLog.memberId !== session.user.id) {
+  if (existingLog.memberId !== memberId) {
     return NextResponse.json({ error: 'You can only submit your own EOD' }, { status: 403 })
   }
 
@@ -36,86 +48,85 @@ export async function POST(
   }
 
   const data = await req.json()
+  const taskUpdates = data.taskUpdates as Record<string, TaskUpdatePayload>
 
-  const taskUpdates = data.taskUpdates as Record<string, {
-    status: string
-    actualHours: string
-    eodNotes: string
-    blockedReason: string
-  }>
-
-  await Promise.all(
-    Object.entries(taskUpdates).map(([taskId, update]) =>
-      prisma.dailyTask.update({
-        where: { id: taskId },
-        data: {
-          status: update.status,
-          actualHours: update.actualHours ? parseFloat(update.actualHours) : null,
-          eodNotes: update.eodNotes || null,
-          blockedReason: update.blockedReason || null,
-        },
-      })
-    )
-  )
-
-  const tasks = await prisma.dailyTask.findMany({
+  const existingTasks = await prisma.dailyTask.findMany({
     where: { dailyLogId: params.logId },
+    select: { id: true, projectId: true, actualHours: true, estimatedHours: true, status: true },
   })
 
-  const completionRate = tasks.length > 0
-    ? tasks.filter(t => t.status === 'done').length / tasks.length
-    : null
+  const existingById = new Map(existingTasks.map(task => [task.id, task]))
+  const projectDeltas = new Map<string, number>()
 
-  const tasksWithBothHours = tasks.filter(
-    t => t.estimatedHours && t.actualHours && t.estimatedHours > 0
-  )
-  const estimationScore = tasksWithBothHours.length > 0
-    ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) / tasksWithBothHours.length
-    : null
+  for (const [taskId, update] of Object.entries(taskUpdates)) {
+    const prev = existingById.get(taskId)
+    if (!prev) continue
 
-  const log = await prisma.dailyLog.update({
-    where: { id: params.logId },
-    data: {
-      eodSubmittedAt: existingLog.eodSubmittedAt ?? new Date(),
-      blockers:        data.blockers  || null,
-      carryOver:       data.carryOver || null,
-      dayRating:       data.dayRating ? parseInt(data.dayRating) : null,
-      eodNotes:        data.eodNotes  || null,
-      completionRate,
-      estimationScore,
-    },
-  })
+    const newHours = update.actualHours ? parseFloat(update.actualHours) : null
+    projectHourDelta(projectDeltas, prev.projectId, -(prev.actualHours ?? 0))
+    projectHourDelta(projectDeltas, prev.projectId, newHours ?? 0)
+  }
 
-  const projectIds = [...new Set(
-    tasks
-      .filter(t => t.projectId && t.actualHours !== null && t.actualHours !== undefined)
-      .map(t => t.projectId as string)
-  )]
-
-  if (projectIds.length > 0) {
-    try {
-      await Promise.all(
-        projectIds.map(async (projectId) => {
-          const agg = await prisma.dailyTask.aggregate({
-            where: {
-              projectId,
-              actualHours: { not: null }
-            },
-            _sum: { actualHours: true },
-          })
-
-          const totalHours = agg._sum.actualHours ?? 0
-
-          await prisma.project.update({
-            where: { id: projectId },
-            data: { actualHours: totalHours },
-          })
+  const log = await prisma.$transaction(async tx => {
+    await Promise.all(
+      Object.entries(taskUpdates).map(([taskId, update]) =>
+        tx.dailyTask.update({
+          where: { id: taskId },
+          data: {
+            status: update.status,
+            actualHours: update.actualHours ? parseFloat(update.actualHours) : null,
+            eodNotes: update.eodNotes || null,
+            blockedReason: update.blockedReason || null,
+          },
         })
       )
-    } catch (error) {
-      console.error('Error syncing project actual hours:', error)
-    }
-  }
+    )
+
+    const tasks = existingTasks.map(task => {
+      const update = taskUpdates[task.id]
+      if (!update) return task
+      return {
+        ...task,
+        status: update.status,
+        actualHours: update.actualHours ? parseFloat(update.actualHours) : null,
+      }
+    })
+
+    const completionRate = tasks.length > 0
+      ? tasks.filter(t => t.status === 'done').length / tasks.length
+      : null
+
+    const tasksWithBothHours = tasks.filter(
+      t => t.estimatedHours && t.actualHours && t.estimatedHours > 0
+    )
+    const estimationScore = tasksWithBothHours.length > 0
+      ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) / tasksWithBothHours.length
+      : null
+
+    const updatedLog = await tx.dailyLog.update({
+      where: { id: params.logId },
+      data: {
+        eodSubmittedAt: existingLog.eodSubmittedAt ?? new Date(),
+        blockers: data.blockers || null,
+        carryOver: data.carryOver || null,
+        dayRating: data.dayRating ? parseInt(data.dayRating) : null,
+        eodNotes: data.eodNotes || null,
+        completionRate,
+        estimationScore,
+      },
+    })
+
+    await Promise.all(
+      [...projectDeltas.entries()].map(([projectId, delta]) =>
+        tx.project.update({
+          where: { id: projectId },
+          data: { actualHours: { increment: delta } },
+        })
+      )
+    )
+
+    return updatedLog
+  })
 
   return NextResponse.json(log)
 }

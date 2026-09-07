@@ -1,4 +1,5 @@
 import { fmtDate } from '@/lib/utils'
+import Link from 'next/link'
 import {
   QA_SEVERITY_CLS,
   QA_SIGNOFF_CHECKLIST,
@@ -77,6 +78,7 @@ type Props = {
   milestones?: Milestone[]
   projectStatus?: string
   allowDevFix?: boolean
+  qaDetailHref?: string
 }
 
 export default function QAActivityFeed({
@@ -91,6 +93,7 @@ export default function QAActivityFeed({
   milestones = [],
   projectStatus = 'active',
   allowDevFix = false,
+  qaDetailHref,
 }: Props) {
   const qaMilestones = milestones.filter(m =>
     m.status === 'ready_for_qa' || m.status === 'testing' || m.status === 'done'
@@ -234,7 +237,14 @@ export default function QAActivityFeed({
 
       {testCycles.length > 0 && (
         <div className="mb-5">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Test cycles</h3>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Test cycles</h3>
+            {qaDetailHref && (
+              <Link href={qaDetailHref} className="text-xs font-medium text-teal-700 hover:text-teal-900">
+                Full QA details →
+              </Link>
+            )}
+          </div>
           <TestCyclesList
             testCycles={testCycles}
             allowDevFix={allowDevFix}

@@ -12,12 +12,27 @@ export function momClientLabel(clientName: string, companyName?: string | null) 
   return companyName?.trim() ? `${clientName} · ${companyName}` : clientName
 }
 
+function bytesToBase64Url(bytes: Uint8Array) {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function base64UrlToBytes(encoded: string) {
+  const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 export function encodeMomClientKey(key: string) {
-  return Buffer.from(key, 'utf8').toString('base64url')
+  return bytesToBase64Url(new TextEncoder().encode(key))
 }
 
 export function decodeMomClientKey(encoded: string) {
-  return Buffer.from(encoded, 'base64url').toString('utf8')
+  return new TextDecoder().decode(base64UrlToBytes(encoded))
 }
 
 export type MomRecordBase = {
@@ -86,4 +101,33 @@ export function groupMomsByClient<T extends MomRecordBase>(records: T[]) {
       }),
     }))
     .sort((a, b) => b.meetings[0].meetingDate.getTime() - a.meetings[0].meetingDate.getTime())
+}
+
+export type MomSearchable = MomRecordBase & {
+  clientEmail?: string | null
+  domain?: string | null
+  nextActionItem?: string | null
+}
+
+function momSearchHaystack(record: MomSearchable) {
+  return [
+    record.clientName,
+    record.companyName,
+    record.clientEmail,
+    record.meetingOutcome,
+    record.leadSource,
+    record.domain,
+    record.nextActionItem,
+    record.meetingType,
+    record.createdBy.name,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+export function filterMomsByQuery<T extends MomSearchable>(records: T[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return records
+  return records.filter(record => momSearchHaystack(record).includes(q))
 }

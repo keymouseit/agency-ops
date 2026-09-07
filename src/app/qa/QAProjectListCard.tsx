@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
+import { isBlockingCycleResult, QA_CYCLE_RESULT_CONFIG } from '@/lib/qa'
 
 const PROJECT_STATUS_LABELS: Record<string, string> = {
   scoping: 'Scoping',
@@ -11,12 +12,7 @@ const PROJECT_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
-const CYCLE_RESULT_CONFIG = {
-  pass: { label: 'Pass', cls: 'bg-green-100 text-green-800' },
-  fail: { label: 'Fail — blocked', cls: 'bg-red-100 text-red-800' },
-  conditional: { label: 'Conditional', cls: 'bg-amber-100 text-amber-800' },
-  pending: { label: 'In progress', cls: 'bg-blue-100 text-blue-800' },
-}
+const CYCLE_RESULT_CONFIG = QA_CYCLE_RESULT_CONFIG
 
 type Milestone = {
   status: string
@@ -86,6 +82,8 @@ export default function QAProjectListCard({ project }: { project: Project }) {
       className={`rounded-2xl border bg-white shadow-sm overflow-hidden hover:border-gray-300 transition-colors ${
         latestCycle?.result === 'fail'
           ? 'border-red-200'
+          : latestCycle?.result === 'blocked'
+          ? 'border-orange-200'
           : hasSignOff
             ? 'border-green-200'
             : 'border-gray-200'
@@ -182,8 +180,11 @@ export default function QAProjectListCard({ project }: { project: Project }) {
                 {cycleProgress && cycleProgress.total > 0 && (
                   <span>
                     Latest cycle: {cycleProgress.passed}/{cycleProgress.total} passed
-                    {cycleProgress.failing > 0 && (
-                      <span className="text-red-600"> · {cycleProgress.failing} failing</span>
+                    {cycleProgress.failed > 0 && (
+                      <span className="text-red-600"> · {cycleProgress.failed} failed</span>
+                    )}
+                    {cycleProgress.blocked > 0 && (
+                      <span className="text-orange-600"> · {cycleProgress.blocked} blocked</span>
                     )}
                   </span>
                 )}
@@ -194,11 +195,18 @@ export default function QAProjectListCard({ project }: { project: Project }) {
           <p className="text-xs text-gray-500">No milestones yet — open project to start QA.</p>
         )}
 
-        {latestCycle?.result === 'fail' && latestCycle.blockerNote && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900">
-            <span aria-hidden>🚧</span>
+        {isBlockingCycleResult(latestCycle?.result ?? '') && latestCycle?.blockerNote && (
+          <div className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+            latestCycle.result === 'blocked'
+              ? 'border-orange-200 bg-orange-50 text-orange-900'
+              : 'border-red-200 bg-red-50 text-red-900'
+          }`}>
+            <span aria-hidden>{latestCycle.result === 'blocked' ? '⊘' : '✕'}</span>
             <span>
-              <span className="font-medium">Blocked:</span> {latestCycle.blockerNote}
+              <span className="font-medium">
+                {latestCycle.result === 'blocked' ? 'Blocker:' : 'Failure:'}
+              </span>{' '}
+              {latestCycle.blockerNote}
             </span>
           </div>
         )}

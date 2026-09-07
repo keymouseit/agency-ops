@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
+import { findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
 import { redirect } from 'next/navigation'
 import { startOfDay, format } from 'date-fns'
 import Link from 'next/link'
@@ -38,7 +38,7 @@ export default async function MorningPlanPage() {
       },
     }),
 
-    findPendingPastEodLog(memberId),
+    findPendingPastEodLogSummary(memberId),
 
     prisma.project.findMany({
       where: { status: { in: ['active', 'qa', 'scoping'] } },

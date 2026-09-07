@@ -402,6 +402,9 @@ model DailyLog {
   tasks         DailyTask[]
 
   @@unique([memberId, date])
+  @@index([memberId, date])
+  @@index([memberId, eodSubmittedAt, date])
+  @@index([date])
 }
 
 // Individual task within a daily log. Created at morning plan, updated at EOD.
@@ -426,6 +429,9 @@ model DailyTask {
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([dailyLogId])
+  @@index([projectId])
 }
 
 // ─── GOALS / KRAs ────────────────────────────────────────────
@@ -683,9 +689,10 @@ model TestCycle {
   completedAt   DateTime?
 
   // Overall result
-  result        String     @default("pending") // pending | pass | fail | conditional | not_applicable | out_of_scope | deferred | environment_issue
+  result        String     @default("pending") // pending | pass | fail | blocked | conditional | not_applicable | out_of_scope | deferred | environment_issue
   // pass        = all clear, ready for sign-off
-  // fail        = blocked, cannot release
+  // fail        = defects found, cannot release
+  // blocked     = external blocker, cannot test or release
   // conditional = minor issues, release possible with client acknowledgement
 
   // What was tested (checklist — tick what applies to this cycle)
@@ -701,7 +708,7 @@ model TestCycle {
   // Summary (not a bug list — a paragraph)
   summary       String?   // "Tested all core flows. Auth working. Payment flow has one
                            // conditional issue — see blocker. Regression passed."
-  blockerNote   String?   // If result = fail/conditional, describe what is blocking
+  blockerNote   String?   // If result = fail/blocked/conditional, describe the issue
   fixedInCycle  String?   // What dev fixed between this cycle and the previous one
 
   createdAt     DateTime  @default(now())
@@ -903,4 +910,14 @@ model LeaveRequest {
   approvedBy      TeamMember? @relation("ApprovedLeaves", fields: [approvedById], references: [id])
   approvalNotes   String?
   approvedAt      DateTime?
+}
+
+// ─── COMPANY BRANDING ────────────────────────────────────────
+
+model CompanyBranding {
+  id        String   @id @default("default")
+  name      String   @default("KeyMouse IT")
+  initials  String   @default("KI")
+  tagline   String   @default("Internal operations platform")
+  updatedAt DateTime @updatedAt
 }

@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
+import type { Branding } from '@/lib/branding'
 
-export default function LoginForm() {
+export default function LoginForm({ branding }: { branding: Branding }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -42,10 +43,10 @@ export default function LoginForm() {
       <div className="relative w-full max-w-[26rem]">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-md mb-4">
-            AO
+            {branding.initials}
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Agency Ops</h1>
-          <p className="text-sm text-gray-500 mt-1">KeyMouse IT · Internal platform</p>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{branding.name}</h1>
+          <p className="text-sm text-gray-500 mt-1">{branding.tagline}</p>
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white shadow-xl shadow-gray-200/60 overflow-hidden">
@@ -111,7 +112,7 @@ export default function LoginForm() {
         </div>
 
         <p className="text-center text-[11px] text-gray-400 mt-6">
-          KeyMouse IT · Agency Ops · Internal use only
+          {branding.name} · Internal use only
         </p>
       </div>
 

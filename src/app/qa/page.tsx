@@ -1,10 +1,15 @@
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { canViewQATestCycles } from '@/lib/qa-access'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import QAProjectListCard from './QAProjectListCard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function QAPage() {
+  const session = await auth()
+  if (!canViewQATestCycles(session?.user?.role)) redirect('/')
   const [projects, recentIssues] = await Promise.all([
     prisma.project.findMany({
       where: { status: { in: ['active', 'qa', 'scoping'] } },
@@ -44,7 +49,8 @@ export default async function QAPage() {
   })
 
   const qaProjects = projects.filter(p => p.status === 'qa')
-  const blocked = projects.filter(p => p.testCycles[0]?.result === 'fail')
+  const failedProjects = projects.filter(p => p.testCycles[0]?.result === 'fail')
+  const blockedProjects = projects.filter(p => p.testCycles[0]?.result === 'blocked')
   const readyToSign = projects.filter(p => p.testCycles[0]?.result === 'pass' && !p.releaseSignOff)
   const issuesMissed = allIssues.filter(i => i.wasInScope === true).length
 
@@ -59,14 +65,20 @@ export default async function QAPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
           { label: 'In QA stage', value: qaProjects.length, sub: 'Awaiting sign-off', danger: false },
           {
-            label: 'Blocked — test fail',
-            value: blocked.length,
-            sub: 'Cannot release until fixed',
-            danger: blocked.length > 0,
+            label: 'Failed',
+            value: failedProjects.length,
+            sub: 'Defects found in test cycle',
+            danger: failedProjects.length > 0,
+          },
+          {
+            label: 'Blocked',
+            value: blockedProjects.length,
+            sub: 'Cannot test or release yet',
+            danger: blockedProjects.length > 0,
           },
           { label: 'Ready for sign-off', value: readyToSign.length, sub: 'Test passed, needs sign-off', danger: false },
           {

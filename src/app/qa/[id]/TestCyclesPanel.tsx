@@ -16,6 +16,7 @@ type Props = {
   testCycles: TestCycleDetail[]
   hasSignOff: boolean
   canSignOff: boolean
+  canManage?: boolean
   latestCycleId?: string
 }
 
@@ -26,6 +27,7 @@ export default function TestCyclesPanel({
   testCycles,
   hasSignOff,
   canSignOff,
+  canManage = true,
   latestCycleId,
 }: Props) {
   const [editingCycleId, setEditingCycleId] = useState<string | null>(null)
@@ -66,7 +68,7 @@ export default function TestCyclesPanel({
     <div className="card p-5 mb-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-900">Test cycles</h2>
-        {!hasSignOff && (
+        {!hasSignOff && canManage && (
           <QAProjectActions
             project={project}
             members={members}
@@ -89,7 +91,7 @@ export default function TestCyclesPanel({
       <TestCyclesList
         testCycles={testCycles}
         hasSignOff={hasSignOff}
-        manageButtons={(cycle, _isLatest, closeModal) =>
+        manageButtons={canManage ? (cycle, _isLatest, closeModal) =>
           !hasSignOff && editingCycleId !== cycle.id ? (
             <TestCycleManageButtons
               projectId={project.id}
@@ -101,7 +103,7 @@ export default function TestCyclesPanel({
               }}
             />
           ) : null
-        }
+        : undefined}
       />
     </div>
   )
