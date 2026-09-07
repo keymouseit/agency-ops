@@ -26,6 +26,8 @@ export default async function ProjectsPage() {
         estimatedEnd: true,
         actualHours: true,
         estimatedHours: true,
+        onTime: true,
+        clientScore: true,
         developer: { select: { name: true } },
         bdMember: { select: { name: true } },
         checkIns: {

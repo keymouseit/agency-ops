@@ -159,9 +159,9 @@ type NavEntry = (typeof NAV_STRUCTURE)[keyof typeof NAV_STRUCTURE][number]
 function collectNavHrefs(items: NavEntry[]): string[] {
   const hrefs: string[] = []
   for (const item of items) {
-    if ('items' in item) {
+    if ('items' in item && item.items) {
       hrefs.push(...item.items.map(sub => sub.href))
-    } else {
+    } else if ('href' in item) {
       hrefs.push(item.href)
     }
   }
@@ -456,7 +456,7 @@ export default function Nav({ branding }: { branding: Branding }) {
 
             <nav className="flex items-center gap-0.5 min-w-0 overflow-visible">
               {navItems.map((item, idx) =>
-                'items' in item ? (
+                'items' in item && item.items ? (
                   <NavDropdown
                     key={idx}
                     label={item.label}
@@ -465,7 +465,7 @@ export default function Nav({ branding }: { branding: Branding }) {
                     onNavigate={handleNavigate}
                     onPrefetch={prefetchHref}
                   />
-                ) : (
+                ) : 'href' in item ? (
                   <NavLink
                     key={item.href}
                     href={item.href}
@@ -475,7 +475,7 @@ export default function Nav({ branding }: { branding: Branding }) {
                   >
                     {item.label}
                   </NavLink>
-                )
+                ) : null
               )}
             </nav>
           </div>
