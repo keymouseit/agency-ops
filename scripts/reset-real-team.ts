@@ -10,10 +10,10 @@
  *   Reema       — HR
  *
  * Usage:
- *   npx tsx scripts/reset-real-team.ts
- *   npm run db:reset-team
+ *   SEED_DEFAULT_PASSWORD='your-temp-password' npx tsx scripts/reset-real-team.ts
+ *   SEED_DEFAULT_PASSWORD='your-temp-password' npm run db:reset-team
  *
- * Default password for everyone: AgencyOps2025!
+ * Set SEED_DEFAULT_PASSWORD in the environment (never commit real passwords).
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -21,8 +21,11 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-const DEFAULT_PASSWORD = 'AgencyOps2025!'
-
+const DEFAULT_PASSWORD = process.env.SEED_DEFAULT_PASSWORD
+if (!DEFAULT_PASSWORD) {
+  console.error('Set SEED_DEFAULT_PASSWORD in the environment before running this script.')
+  process.exit(1)
+}
 const REAL_TEAM = [
   { name: 'Shiven', email: 'shiven@keymouse.com', role: 'Founder' },
   { name: 'Vikas', email: 'vikas@keymouse.com', role: 'BD' },

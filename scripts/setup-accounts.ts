@@ -1,15 +1,14 @@
 /**
  * Agency Ops — User Account Management
- * 
+ *
  * Creates login accounts for all active team members.
  * Run this ONCE after seeding, or to reset a password.
- * 
+ *
  * Usage:
- *   npx tsx scripts/setup-accounts.ts
+ *   SEED_DEFAULT_PASSWORD='your-temp-password' npx tsx scripts/setup-accounts.ts
  *   npx tsx scripts/setup-accounts.ts --reset vishal@keymouse.com newpassword123
- * 
- * Default password for all seeded accounts: AgencyOps2025!
- * (Change immediately after first login)
+ *
+ * Set SEED_DEFAULT_PASSWORD in the environment (never commit real passwords).
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -17,11 +16,15 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-const DEFAULT_PASSWORD = 'AgencyOps2025!'
+const DEFAULT_PASSWORD = process.env.SEED_DEFAULT_PASSWORD
+if (!DEFAULT_PASSWORD) {
+  console.error('Set SEED_DEFAULT_PASSWORD in the environment before running this script.')
+  process.exit(1)
+}
 
 // Custom passwords per person (optional — all get DEFAULT if not listed)
 const CUSTOM_PASSWORDS: Record<string, string> = {
-  // 'shiven@keymouse.com': 'FounderPass123!',
+  // Set via env only — do not hardcode passwords here
 }
 
 async function main() {

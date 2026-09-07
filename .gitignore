@@ -33,6 +33,11 @@ logs/
 
 # QA Documents
 *.xlsx
+QA_README.md
+QA_TEST_SCENARIOS.md
+QA_HANDOFF_AUDIT_MODULE.md
+QA_TEST_CASES_AUDIT_LOGGING.md
+SETTINGS_TEST_SCENARIOS.md
 
 # Uploads
 public/uploads/mom/*
