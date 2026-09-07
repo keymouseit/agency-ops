@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS } from '@/lib/utils'
 
 type Member = { id: string; name: string; role?: string }
 type Project = {
@@ -288,14 +289,14 @@ export default function ProjectActions({ project, members, userRole }: { project
                 onChange={(e) => setSelectedStatus(e.target.value)}
                 className="input flex-1"
               >
-                {['scoping','active','qa','delivered','cancelled']
+                {PROJECT_STATUSES
                   .filter(s => {
                     // Devs cannot set project to cancelled or delivered manually
                     if (userRole === 'Dev' && (s === 'cancelled' || s === 'delivered')) return false
                     return true
                   })
                   .map(s => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>{PROJECT_STATUS_LABELS[s] ?? s}</option>
                   ))}
               </select>
             </div>

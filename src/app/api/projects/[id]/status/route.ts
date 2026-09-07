@@ -4,6 +4,7 @@ import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logProjectChange, getClientIP } from '@/lib/audit'
+import { PROJECT_STATUSES } from '@/lib/utils'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
@@ -18,6 +19,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     logger.logApiRequest('POST', `/api/projects/${params.id}/status`, session?.user?.id)
     logger.info('Project status change requested', { projectId: params.id, newStatus: status, userRole })
 
+    if (typeof status !== 'string' || !(PROJECT_STATUSES as readonly string[]).includes(status)) {
+      return NextResponse.json({ error: 'Invalid project status.' }, { status: 400 })
+    }
     // Get current project data for audit trail
     const oldProject = await prisma.project.findUnique({
       where: { id: params.id },
