@@ -39,6 +39,11 @@ QA_HANDOFF_AUDIT_MODULE.md
 QA_TEST_CASES_AUDIT_LOGGING.md
 SETTINGS_TEST_SCENARIOS.md
 
+# Local-only ops scripts (real team emails / account passwords — do not push)
+scripts/setup-accounts.ts
+scripts/reset-real-team.ts
+scripts/fix-daily-tasks.ts
+
 # Uploads
 public/uploads/mom/*
 !public/uploads/mom/.gitkeep
