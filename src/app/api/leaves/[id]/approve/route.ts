@@ -1,123 +1,138 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { sendLeaveApprovalEmail, sendLeaveRejectedEmail } from '@/lib/notifications';
-import { addEventToGoogleCalendar } from '@/lib/gcal';
-import { checkRole } from '@/lib/auth';
+import { auth } from '@/lib/auth'
+import { sendLeaveApprovalEmail, sendLeaveRejectedEmail } from '@/lib/notifications'
+import { addEventToGoogleCalendar } from '@/lib/gcal'
+import { notify } from '@/lib/notify'
+import { runInBackground } from '@/lib/background'
+import { leavePaidDeduction } from '@/lib/leave-balance'
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
-const prisma = new PrismaClient();
+const ALLOWED = ['Founder', 'HR', 'Manager']
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const deny = await checkRole(['Founder', 'HR', 'Manager']);
-    if (deny) return deny;
-
-    const { id } = params;
-    const body = await request.json();
-    const { approvedById, status, approvalNotes } = body;
-
-    if (!approvedById || !status) {
-      return NextResponse.json({ error: 'Missing approvedById or status' }, { status: 400 });
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Sign in required.' }, { status: 401 })
+    }
+    if (!session.user.role || !ALLOWED.includes(session.user.role)) {
+      return NextResponse.json({ error: 'You do not have permission for this action.' }, { status: 403 })
     }
 
-    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    const approvedById = session.user.id
+    const actorLabel = 'Management'
+    const { id } = params
+    const body = await request.json()
+    const { status, approvalNotes } = body
+
+    if (!status || !['approved', 'rejected', 'cancelled'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+    if (!(typeof approvalNotes === 'string' && approvalNotes.trim())) {
+      return NextResponse.json(
+        { error: status === 'rejected' ? 'Rejection reason is required' : 'Approval comment is required' },
+        { status: 400 }
+      )
     }
 
-    // Get the leave request first
     const leave = await prisma.leaveRequest.findUnique({
       where: { id },
-      include: { member: true }
-    });
+      include: { member: true },
+    })
 
     if (!leave) {
-      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 })
+    }
+    if (leave.status !== 'pending') {
+      return NextResponse.json({ error: 'Only pending leave requests can be decided' }, { status: 400 })
     }
 
-    if (leave.status === 'approved') {
-      return NextResponse.json({ error: 'Leave request is already approved' }, { status: 400 });
-    }
+    const notes = approvalNotes.trim()
+    const isShortLeave = leave.leaveType === 'short_leave'
+    const deduction =
+      status === 'approved' && !isShortLeave ? leavePaidDeduction(leave) : 0
+    const year = new Date(leave.startDate).getFullYear()
 
-    // Update the leave request
-    const updatedLeave = await prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status,
-        approvedById,
-        approvalNotes,
-        approvedAt: new Date()
-      },
-      include: { member: true }
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        userId: approvedById,
-        action: 'status_changed',
-        entityType: 'LeaveRequest',
-        entityId: updatedLeave.id,
-        entityName: 'Leave Request',
-        changes: JSON.stringify({ status: { old: leave.status, new: status } }),
-        metadata: JSON.stringify({ notes: approvalNotes })
-      }
-    });
-
-    // Create in-app notification for the employee
-    const approver = await prisma.teamMember.findUnique({ where: { id: approvedById } });
-    await prisma.notification.create({
-      data: {
-        memberId: leave.memberId,
-        type: `leave_${status}`,
-        message: `Your leave request was ${status} by ${approver?.name || 'an admin'}.`,
-        linkTo: '/leaves'
-      }
-    });
-
-    // Deduct from balance if approved
-    if (status === 'approved') {
-      const year = new Date().getFullYear();
-      let deduction = 1.0;
-      if (leave.leaveType === 'short_leave') deduction = 0.25;
-      else if (leave.leaveType === 'half_day') deduction = 0.5;
-
-      // Upsert leave balance to deduct
-      await prisma.leaveBalance.upsert({
-        where: {
-          memberId_year: {
-            memberId: leave.memberId,
-            year
-          }
+    const updatedLeave = await prisma.$transaction(async tx => {
+      const updated = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status,
+          approvedById,
+          approvalNotes: notes,
+          approvedAt: new Date(),
         },
-        update: {
-          used: { increment: deduction }
+        include: { member: true },
+      })
+
+      await tx.auditLog.create({
+        data: {
+          userId: approvedById,
+          action: 'status_changed',
+          entityType: 'LeaveRequest',
+          entityId: updated.id,
+          entityName: `${leave.member.name} leave request`,
+          changes: JSON.stringify({ status: { old: leave.status, new: status } }),
+          metadata: JSON.stringify({
+            notes,
+            by: actorLabel,
+            actorId: approvedById,
+            unpaid: leave.unpaid,
+            paidDays: leave.paidDays,
+            unpaidDays: leave.unpaidDays,
+            deduction,
+          }),
         },
-        create: {
-          memberId: leave.memberId,
-          year,
-          used: deduction
+      })
+
+      if (status === 'approved') {
+        if (isShortLeave) {
+          await tx.leaveBalance.upsert({
+            where: { memberId_year: { memberId: leave.memberId, year } },
+            update: { shortLeaves: { increment: 1 } },
+            create: { memberId: leave.memberId, year, shortLeaves: 1, used: 0, accrued: 0 },
+          })
+        } else if (deduction > 0) {
+          await tx.leaveBalance.upsert({
+            where: { memberId_year: { memberId: leave.memberId, year } },
+            update: { used: { increment: deduction } },
+            create: { memberId: leave.memberId, year, used: deduction, accrued: 0 },
+          })
         }
-      });
-
-      // Send email notification
-      try {
-        await sendLeaveApprovalEmail(updatedLeave);
-        // Also add to Google Calendar
-        await addEventToGoogleCalendar(updatedLeave);
-      } catch (emailError) {
-        console.error('Failed to send email/calendar invite:', emailError);
-        // Continue, as the DB was updated successfully
       }
-    } else if (status === 'rejected') {
-      try {
-        await sendLeaveRejectedEmail(updatedLeave);
-      } catch (emailError) {
-        console.error('Failed to send rejected email:', emailError);
-      }
-    }
 
-    return NextResponse.json(updatedLeave);
+      return updated
+    })
+
+    const notesPart = ` — ${notes}`
+    runInBackground(
+      (async () => {
+        if (status === 'approved') {
+          await notify(
+            'leave_approved',
+            [leave.memberId],
+            `Management approved your leave request${notesPart}`,
+            '/leaves'
+          )
+          await sendLeaveApprovalEmail(updatedLeave, actorLabel)
+          await addEventToGoogleCalendar(updatedLeave)
+        } else if (status === 'rejected') {
+          await notify(
+            'leave_rejected',
+            [leave.memberId],
+            `Management rejected your leave request${notesPart}`,
+            '/leaves'
+          )
+          await sendLeaveRejectedEmail(updatedLeave, actorLabel)
+        }
+      })(),
+      `leave-${status}-side-effects`
+    )
+
+    return NextResponse.json(updatedLeave)
   } catch (error: unknown) {
-    console.error('Error updating leave status:', error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('Error updating leave status:', error)
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

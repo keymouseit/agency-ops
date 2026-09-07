@@ -186,13 +186,13 @@ model Project {
   leadId         String?    @unique
   lead           Lead?      @relation(fields: [leadId], references: [id])
 
-  // Team assignment - both dev and BD
+  // Team assignment - both assignee and BD
   developerId    String
   developer      TeamMember @relation("ProjectDeveloper", fields: [developerId], references: [id])
   bdMemberId     String?
   bdMember       TeamMember? @relation("ProjectBD", fields: [bdMemberId], references: [id])
 
-  status         String     @default("scoping")
+  status         String     @default("scoping") // scoping | active | qa | on_hold | maintenance | delivered | cancelled
   channel        String?
   contractValue  Float?
   currency       String     @default("USD")
@@ -886,8 +886,9 @@ model LeaveBalance {
   member      TeamMember @relation("EmployeeLeaveBalance", fields: [memberId], references: [id])
   year        Int        // e.g., 2026
   accrued     Float      @default(0) // Max 12 (1 added per month)
-  used        Float      @default(0) // Deducted based on approved leaves
-  
+  used        Float      @default(0) // Half-day + full-day only (not short leave)
+  shortLeaves Int        @default(0) // Count of approved short leaves (2 hours)
+
   @@unique([memberId, year])
 }
 
@@ -896,13 +897,16 @@ model LeaveRequest {
   memberId        String
   member          TeamMember @relation("EmployeeLeaves", fields: [memberId], references: [id])
   
-  leaveType       String     // "short_leave" (0.25 days) | "half_day" (0.5 days) | "full_day" (1 day)
+  leaveType       String     // "short_leave" | "half_day" | "full_day" | "birthday_leave" | "work_from_home"
   startDate       DateTime
   endDate         DateTime
   reason          String?
   timeSlot        String?    // e.g., "morning", "afternoon", "evening", "before_lunch", "after_lunch"
   
   status          String     @default("pending") // "pending" | "approved" | "rejected" | "cancelled"
+  unpaid          Boolean    @default(false) // true when unpaidDays > 0
+  paidDays        Float      @default(0) // portion deducted from paid balance on approval
+  unpaidDays      Float      @default(0) // portion treated as unpaid (LWP)
   
   appliedAt       DateTime   @default(now())
   

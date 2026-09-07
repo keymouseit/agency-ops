@@ -1,101 +1,179 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { sendLeaveAppliedEmail } from '@/lib/notifications';
+import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { sendLeaveAppliedEmail } from '@/lib/notifications'
+import { notify } from '@/lib/notify'
+import { format } from 'date-fns'
+import { runInBackground } from '@/lib/background'
+import {
+  assertLeaveTypePolicy,
+  assertNoOverlappingLeave,
+  computeLeaveBalanceSplit,
+} from '@/lib/leave-balance'
 
-const prisma = new PrismaClient();
+const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const memberId = searchParams.get('memberId');
-    const status = searchParams.get('status');
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Sign in required.' }, { status: 401 })
+    }
 
-    const whereClause: { memberId?: string; status?: string } = {};
-    if (memberId) {
-      whereClause.memberId = memberId;
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get('status')
+    const isAdmin = ADMIN_ROLES.includes(session.user.role || '')
+    const requestedMemberId = searchParams.get('memberId')
+
+    const whereClause: { memberId?: string; status?: string } = {}
+    if (isAdmin) {
+      if (requestedMemberId) whereClause.memberId = requestedMemberId
+    } else {
+      whereClause.memberId = session.user.id
     }
-    if (status) {
-      whereClause.status = status;
-    }
+    if (status) whereClause.status = status
 
     const leaves = await prisma.leaveRequest.findMany({
       where: whereClause,
       include: {
-        member: {
-          select: { name: true, email: true }
-        },
-        approvedBy: {
-          select: { name: true }
-        }
+        member: { select: { name: true, email: true } },
+        approvedBy: { select: { name: true } },
       },
-      orderBy: { startDate: 'desc' }
-    });
+      orderBy: { startDate: 'desc' },
+    })
 
-    return NextResponse.json(leaves);
+    return NextResponse.json(leaves)
   } catch (error: unknown) {
-    console.error('Error fetching leaves:', error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('Error fetching leaves:', error)
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { memberId, leaveType, startDate, endDate, reason, timeSlot } = body;
-
-    if (!memberId || !leaveType || !startDate || !endDate) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Sign in required.' }, { status: 401 })
     }
 
-    const start = new Date(startDate);
-    
-    // In a real app we would determine the user's role here via session.
-    // Assuming standard employee checks for now:
-    // Enforce future date for start date unless overridden
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // If we wanted to check if admin is applying, we'd look at body.isAdmin
-    const isAdmin = body.isAdmin === true;
-    if (!isAdmin && start < today) {
-      return NextResponse.json({ error: 'Standard employees can only apply for future dates' }, { status: 400 });
+    const body = await request.json()
+    const { leaveType, startDate, endDate, reason, timeSlot } = body
+    const sessionIsAdmin = ADMIN_ROLES.includes(session.user.role || '')
+    const wantsAdminLog = body.isAdmin === true
+
+    if (wantsAdminLog && !sessionIsAdmin) {
+      return NextResponse.json({ error: 'You do not have permission for this action.' }, { status: 403 })
     }
+
+    const memberId =
+      wantsAdminLog && sessionIsAdmin && typeof body.memberId === 'string'
+        ? body.memberId
+        : session.user.id
+
+    if (!leaveType || !startDate || !endDate) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (!wantsAdminLog && start < today) {
+      return NextResponse.json(
+        { error: 'Standard employees can only apply for future dates' },
+        { status: 400 }
+      )
+    }
+    if (wantsAdminLog && !(typeof reason === 'string' && reason.trim())) {
+      return NextResponse.json(
+        { error: 'Reason is required when logging leave manually' },
+        { status: 400 }
+      )
+    }
+
+    await assertNoOverlappingLeave({ memberId, startDate: start, endDate: end })
+    await assertLeaveTypePolicy({ memberId, leaveType, startDate: start })
+
+    const split = await computeLeaveBalanceSplit(memberId, leaveType, start, end)
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         memberId,
         leaveType,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: start,
+        endDate: end,
         reason,
-        timeSlot
+        timeSlot,
+        unpaid: split.unpaid,
+        paidDays: split.paidDays,
+        unpaidDays: split.unpaidDays,
       },
-      include: { member: true }
-    });
-
-    try {
-      const hrEmail = process.env.HR_EMAIL || process.env.SMTP_USER || 'hr@example.com';
-      await sendLeaveAppliedEmail(leaveRequest, hrEmail);
-    } catch (e) {
-      console.error('Error sending applied email', e);
-    }
+      include: { member: true },
+    })
 
     await prisma.auditLog.create({
       data: {
-        userId: memberId,
+        userId: session.user.id,
         action: 'created',
         entityType: 'LeaveRequest',
         entityId: leaveRequest.id,
         entityName: 'Leave Request',
-        changes: JSON.stringify({ status: 'pending' })
-      }
-    });
+        changes: JSON.stringify({
+          status: 'pending',
+          unpaid: split.unpaid,
+          paidDays: split.paidDays,
+          unpaidDays: split.unpaidDays,
+        }),
+      },
+    })
 
-    return NextResponse.json(leaveRequest, { status: 201 });
+    runInBackground(
+      (async () => {
+        const hrEmail = process.env.HR_EMAIL || process.env.SMTP_USER || 'hr@example.com'
+        await sendLeaveAppliedEmail(leaveRequest, hrEmail)
+
+        const reviewers = await prisma.teamMember.findMany({
+          where: { active: true, role: { in: ['HR', 'Founder', 'Manager'] } },
+          select: { id: true },
+        })
+        const reviewerIds = reviewers
+          .map(r => r.id)
+          .filter(id => id !== leaveRequest.memberId)
+        if (!reviewerIds.length) return
+
+        const startLabel = format(new Date(leaveRequest.startDate), 'MMM d, yyyy')
+        const endLabel = format(new Date(leaveRequest.endDate), 'MMM d, yyyy')
+        const typeLabel = leaveRequest.leaveType.replace(/_/g, ' ')
+        let unpaidLabel = ''
+        if (leaveRequest.unpaidDays > 0 && leaveRequest.paidDays > 0) {
+          unpaidLabel = ` (partial unpaid: ${leaveRequest.paidDays} paid + ${leaveRequest.unpaidDays} unpaid)`
+        } else if (leaveRequest.unpaid) {
+          unpaidLabel = ' (unpaid)'
+        }
+        await notify(
+          'leave_applied',
+          reviewerIds,
+          `${leaveRequest.member.name} applied for ${typeLabel} leave${unpaidLabel} — ${startLabel} to ${endLabel}`,
+          '/leaves'
+        )
+      })(),
+      'leave-applied-side-effects'
+    )
+
+    return NextResponse.json(leaveRequest, { status: 201 })
   } catch (error: unknown) {
-    console.error('Error creating leave request:', error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('Error creating leave request:', error)
+    const err = error as { message?: string; status?: number }
+    if (err.status === 400) {
+      return NextResponse.json({ error: err.message || 'Bad request' }, { status: 400 })
+    }
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

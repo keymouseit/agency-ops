@@ -165,15 +165,13 @@ export default function EditProjectForm({
                 <div className="grid grid-cols-2 gap-3">
                   {can('developerId') && (
                     <div>
-                      <label className="label">Developer (technical owner) *</label>
+                      <label className="label">Assigned person *</label>
                       <select name="developerId" required className="input" defaultValue={project.developerId}>
-                        {members
-                          .filter(m => ['Dev', 'Both'].includes(m.role))
-                          .map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} · {m.role}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   )}

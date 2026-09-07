@@ -1,16 +1,8 @@
 import Link from 'next/link'
-import { fmtDate, STATUS_COLORS } from '@/lib/utils'
+import { fmtDate, STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { isBlockingCycleResult, QA_CYCLE_RESULT_CONFIG } from '@/lib/qa'
-
-const PROJECT_STATUS_LABELS: Record<string, string> = {
-  scoping: 'Scoping',
-  active: 'Active',
-  qa: 'QA',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
 
 const CYCLE_RESULT_CONFIG = QA_CYCLE_RESULT_CONFIG
 

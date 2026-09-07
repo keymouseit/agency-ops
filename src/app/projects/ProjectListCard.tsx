@@ -1,15 +1,7 @@
 import Link from 'next/link'
-import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
+import { fmtCurrency, fmtDate, STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { projectListCardProgress } from '@/lib/qa-dashboard'
-
-const STATUS_LABELS: Record<string, string> = {
-  scoping: 'Scoping',
-  active: 'Active',
-  qa: 'QA',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
 
 type Project = {
   id: string
@@ -65,7 +57,7 @@ export default function ProjectListCard({
                 {project.name}
               </Link>
               <span className={`badge text-[11px] ${STATUS_COLORS[project.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                {STATUS_LABELS[project.status] ?? project.status}
+                {PROJECT_STATUS_LABELS[project.status] ?? project.status}
               </span>
               {project.releaseSignOff && <QASignOffBadge signed />}
               {unsigned > 0 && (

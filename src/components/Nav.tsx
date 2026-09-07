@@ -77,13 +77,18 @@ const NAV_STRUCTURE = {
   ],
   BD: [
     { href: '/me', label: 'My Day' },
-    { href: '/pipeline', label: 'Pipeline' },
-    { href: '/mom', label: 'MOM' },
-    { href: '/campaigns', label: 'Campaigns' },
-    { href: '/projects', label: 'Projects' },
-    { href: '/qa', label: 'QA' },
-    { href: '/qa/activity', label: 'QA activity' },
-    { href: '/estimate', label: 'Estimates' },
+    {
+      label: 'Work',
+      items: [
+        { href: '/pipeline', label: 'Pipeline' },
+        { href: '/mom', label: 'MOM' },
+        { href: '/campaigns', label: 'Campaigns' },
+        { href: '/projects', label: 'Projects' },
+        { href: '/qa', label: 'QA' },
+        { href: '/qa/activity', label: 'QA activity' },
+        { href: '/estimate', label: 'Estimates' },
+      ],
+    },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
@@ -118,15 +123,21 @@ const NAV_STRUCTURE = {
   ],
   Both: [
     { href: '/me', label: 'My Day' },
-    { href: '/pipeline', label: 'Pipeline' },
-    { href: '/mom', label: 'MOM' },
-    { href: '/campaigns', label: 'Campaigns' },
-    { href: '/projects', label: 'Projects' },
-    { href: '/qa', label: 'QA' },
-    { href: '/qa/activity', label: 'QA activity' },
-    { href: '/estimate', label: 'Estimates' },
+    {
+      label: 'Work',
+      items: [
+        { href: '/pipeline', label: 'Pipeline' },
+        { href: '/mom', label: 'MOM' },
+        { href: '/campaigns', label: 'Campaigns' },
+        { href: '/projects', label: 'Projects' },
+        { href: '/qa', label: 'QA' },
+        { href: '/qa/activity', label: 'QA activity' },
+        { href: '/estimate', label: 'Estimates' },
+      ],
+    },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
+    { href: '/leaves', label: 'Leaves' },
   ],
 }
 
@@ -255,8 +266,8 @@ function NavDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 pt-1.5 z-[60]">
-          <div className="w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute top-full left-0 pt-1 z-[80]">
+          <div className="w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg ring-1 ring-black/5">
             {items.map(item => {
               const active = isLinkActive(currentPath, item.href)
               return (
@@ -439,8 +450,8 @@ export default function Nav({ branding }: { branding: Branding }) {
   return (
     <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2">
       <div className="app-header">
-        <div className="flex h-12 items-center justify-between gap-4 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
-          <div className="flex items-center gap-4 sm:gap-6 min-w-0 overflow-visible">
+        <div className="flex h-12 items-center gap-3 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 overflow-visible">
             <Link
               href={homeHref}
               prefetch
@@ -451,7 +462,9 @@ export default function Nav({ branding }: { branding: Branding }) {
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-[10px] font-bold text-white">
                 {branding.initials}
               </span>
-              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden sm:block">{branding.name}</span>
+              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden lg:block">
+                {branding.name}
+              </span>
             </Link>
 
             <nav className="flex items-center gap-0.5 min-w-0 overflow-visible">
@@ -480,28 +493,30 @@ export default function Nav({ branding }: { branding: Branding }) {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
             <NotificationBell />
 
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className={`flex items-center gap-2 rounded-lg border border-gray-200 pl-1 pr-2 py-1 transition-colors ${
+                className={`flex items-center gap-2 rounded-lg border border-gray-200 pl-1 pr-2 py-1 transition-colors max-w-[11rem] sm:max-w-none ${
                   userDropdownOpen ? 'bg-gray-50' : 'hover:bg-gray-50'
                 }`}
               >
                 <UserAvatar name={fullName} />
-                <span className="hidden sm:inline text-sm font-medium text-gray-900">{firstName}</span>
+                <span className="hidden sm:inline text-sm font-medium text-gray-900 truncate max-w-[5.5rem]">
+                  {firstName}
+                </span>
                 {role && (
                   <span
-                    className={`hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded font-medium ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'}`}
+                    className={`hidden md:inline-flex text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'}`}
                   >
                     {roleLabel}
                   </span>
                 )}
                 <svg
-                  className={`w-3.5 h-3.5 text-gray-400 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`}
+                  className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

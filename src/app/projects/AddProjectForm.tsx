@@ -105,10 +105,14 @@ export default function AddProjectForm({
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Developer (technical owner) *</label>
+                  <label className="label">Assigned person *</label>
                   <select name="developerId" required className="input">
-                    <option value="">Select developer...</option>
-                    {members.filter(m => ['Dev', 'Both'].includes(m.role)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    <option value="">Select person...</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} · {m.role}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

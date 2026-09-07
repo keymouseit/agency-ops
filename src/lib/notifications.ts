@@ -57,25 +57,34 @@ function getEmailTemplate(title: string, contentHtml: string, accentColor: strin
   `;
 }
 
-export async function sendLeaveApprovalEmail(leave: LeaveRequest & { member: TeamMember }) {
+export async function sendLeaveApprovalEmail(
+  leave: LeaveRequest & { member: TeamMember },
+  _approverName?: string
+) {
+  const actorLabel = 'Management'
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
   const timeSlotStr = leave.timeSlot ? ` (${leave.timeSlot.replace('_', ' ')})` : '';
+  const notesHtml = leave.approvalNotes
+    ? `<div class="details-row"><span class="details-label">Comment:</span> ${leave.approvalNotes}</div>`
+    : '';
 
   const mailOptions = {
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
     to: leave.member.email,
-    subject: `Leave Request Approved - ${leave.leaveType.replace('_', ' ')}${timeSlotStr}`,
-    text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been approved.\n\nBest,\nHR Team`,
+    subject: `Leave Request Approved - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
+    text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been approved by ${actorLabel}.\n${leave.approvalNotes ? `Comment: ${leave.approvalNotes}\n` : ''}\nBest,\nHR Team`,
     html: getEmailTemplate(
       'Leave Request Approved',
       `
       <p>Hello <strong>${leave.member.name}</strong>,</p>
-      <p>Great news! Your recent leave request has been approved.</p>
+      <p>Great news! Your leave request has been approved by <strong>${actorLabel}</strong>.</p>
       
       <div class="details-box">
         <div class="details-row"><span class="details-label">Dates:</span> <strong>${startDate.toDateString()}</strong> to <strong>${endDate.toDateString()}</strong></div>
-        <div class="details-row"><span class="details-label">Type:</span> <span style="text-transform: capitalize;">${leave.leaveType.replace('_', ' ')}${timeSlotStr}</span></div>
+        <div class="details-row"><span class="details-label">Type:</span> <span style="text-transform: capitalize;">${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}</span></div>
+        <div class="details-row"><span class="details-label">Approved by:</span> <strong>${actorLabel}</strong></div>
+        ${notesHtml}
       </div>
       
       <p>Enjoy your time off! Your approved leave has been recorded in the system.</p>
@@ -102,7 +111,7 @@ export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: Team
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
     to: hrEmail,
     subject: `New Leave Request - ${leave.member.name}`,
-    text: `Hello,\n\n${leave.member.name} has applied for leave from ${startDate.toDateString()} to ${endDate.toDateString()}.\n\nType: ${leave.leaveType.replace('_', ' ')}${timeSlotStr}\nReason: ${leave.reason || 'N/A'}\n\nPlease review this request in the admin dashboard.\n\nBest,\nSystem`,
+    text: `Hello,\n\n${leave.member.name} has applied for leave from ${startDate.toDateString()} to ${endDate.toDateString()}.\n\nType: ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}\nReason: ${leave.reason || 'N/A'}\n\nPlease review this request in the admin dashboard.\n\nBest,\nSystem`,
     html: getEmailTemplate(
       'New Leave Request',
       `
@@ -112,7 +121,7 @@ export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: Team
       <div class="details-box">
         <div class="details-row"><span class="details-label">Employee:</span> <strong>${leave.member.name}</strong></div>
         <div class="details-row"><span class="details-label">Dates:</span> <strong>${startDate.toDateString()}</strong> to <strong>${endDate.toDateString()}</strong></div>
-        <div class="details-row"><span class="details-label">Type:</span> <span style="text-transform: capitalize;">${leave.leaveType.replace('_', ' ')}${timeSlotStr}</span></div>
+        <div class="details-row"><span class="details-label">Type:</span> <span style="text-transform: capitalize;">${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}</span></div>
         <div class="details-row"><span class="details-label">Reason:</span> ${leave.reason || '<em>Not provided</em>'}</div>
       </div>
       
@@ -129,7 +138,11 @@ export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: Team
   }
 }
 
-export async function sendLeaveRejectedEmail(leave: LeaveRequest & { member: TeamMember }) {
+export async function sendLeaveRejectedEmail(
+  leave: LeaveRequest & { member: TeamMember },
+  _rejectorName?: string
+) {
+  const actorLabel = 'Management'
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
   const timeSlotStr = leave.timeSlot ? ` (${leave.timeSlot.replace('_', ' ')})` : '';
@@ -137,16 +150,18 @@ export async function sendLeaveRejectedEmail(leave: LeaveRequest & { member: Tea
   const mailOptions = {
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
     to: leave.member.email,
-    subject: `Leave Request Rejected - ${leave.leaveType.replace('_', ' ')}${timeSlotStr}`,
-    text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been rejected.\n\nReason: ${leave.approvalNotes || 'No reason provided'}\n\nBest,\nHR Team`,
+    subject: `Leave Request Rejected - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
+    text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been rejected by ${actorLabel}.\n\nReason: ${leave.approvalNotes || 'No reason provided'}\n\nBest,\nHR Team`,
     html: getEmailTemplate(
       'Leave Request Update',
       `
       <p>Hello <strong>${leave.member.name}</strong>,</p>
-      <p>Your recent leave request has unfortunately been declined.</p>
+      <p>Your leave request has been declined by <strong>${actorLabel}</strong>.</p>
       
       <div class="details-box">
         <div class="details-row"><span class="details-label">Dates:</span> <strong>${startDate.toDateString()}</strong> to <strong>${endDate.toDateString()}</strong></div>
+        <div class="details-row"><span class="details-label">Type:</span> <span style="text-transform: capitalize;">${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}</span></div>
+        <div class="details-row"><span class="details-label">Rejected by:</span> <strong>${actorLabel}</strong></div>
         <div class="details-row"><span class="details-label" style="color: #dc2626;">Reason:</span> <strong>${leave.approvalNotes || 'No specific reason provided.'}</strong></div>
       </div>
       

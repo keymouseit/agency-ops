@@ -27,6 +27,8 @@ export type AuditEntity =
   | 'ScopeChange'
   | 'CheckIn'
   | 'PostDeliveryIssue'
+  | 'LeaveBalance'
+  | 'LeaveRequest'
 
 export interface AuditLogParams {
   action: AuditAction

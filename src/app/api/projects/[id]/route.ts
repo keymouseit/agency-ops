@@ -79,8 +79,8 @@ export async function PATCH(
       where: { id: data.developerId },
       select: { id: true, role: true, active: true },
     })
-    if (!developer?.active || !['Dev', 'Both'].includes(developer.role)) {
-      return NextResponse.json({ error: 'Select an active developer.' }, { status: 400 })
+    if (!developer?.active) {
+      return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
     }
     setIfAllowed('developerId', developer.id)
   }

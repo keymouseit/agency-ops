@@ -87,7 +87,6 @@ export default function ProjectActions({ project, members, userRole }: { project
   const canAddPostMortem = (project.status === 'qa' && !!project.releaseSignOff) || project.status === 'delivered'
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
   const canAssignDeveloper = ['Founder', 'Manager', 'BD', 'Both'].includes(userRole || '')
-  const developers = members.filter(m => ['Dev', 'Both'].includes(m.role || ''))
 
   return (
     <div className="space-y-3">
@@ -98,7 +97,7 @@ export default function ProjectActions({ project, members, userRole }: { project
         {canAddPostMortem && !project.postMortem && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('postmortem') }}>+ Post-mortem</button>}
         <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('status') }}>Update status</button>
         {canAssignBD && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assignbd') }}>{project.bdMemberId ? 'Change BD' : 'Assign BD'}</button>}
-        {canAssignDeveloper && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assigndev') }}>Change developer</button>}
+        {canAssignDeveloper && <button className="btn-secondary text-xs" onClick={() => { setFormError(''); setView('assigndev') }}>Change assigned person</button>}
       </div>
 
       {view === 'checkin' && (
@@ -384,18 +383,20 @@ export default function ProjectActions({ project, members, userRole }: { project
 
       {view === 'assigndev' && (
         <div className="card p-4">
-          <h3 className="text-sm font-semibold mb-3">Change assigned developer</h3>
+          <h3 className="text-sm font-semibold mb-3">Change assigned person</h3>
           <p className="text-xs text-gray-500 mb-3">
-            Reassign the technical owner. The new developer will get a notification.
+            Reassign the project owner. The new assignee will get a notification.
           </p>
           <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/assign-developer`)} className="space-y-3">
             <div>
-              <label className="label">Developer</label>
+              <label className="label">Assigned person</label>
               <select name="developerId" className="input" defaultValue={project.developerId || ''} required>
-                <option value="">Select developer...</option>
-                {developers.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
+                <option value="">Select person...</option>
+                {members.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}{m.role ? ` · ${m.role}` : ''}
+                  </option>
                 ))}
               </select>
             </div>
