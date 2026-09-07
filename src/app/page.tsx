@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { fmtCurrency, scoreColor, avg, timeGreeting } from '@/lib/utils'
 import Link from 'next/link'
-import { startOfWeek, subWeeks, startOfDay, format } from 'date-fns'
+import { startOfWeek, subWeeks, format } from 'date-fns'
+import { businessDayStart } from '@/lib/daily'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export default async function Dashboard() {
     }),
     prisma.teamMember.findMany({ where: { active: true } }),
     prisma.dailyLog.findMany({
-      where: { date: startOfDay(new Date()) },
+      where: { date: businessDayStart() },
       include: {
         member: true,
         tasks: true,

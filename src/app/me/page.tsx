@@ -1,14 +1,14 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { startOfDay, startOfWeek, subDays, differenceInDays, format, isWeekend } from 'date-fns'
+import { startOfWeek, subDays, differenceInDays, isWeekend } from 'date-fns'
 import Link from 'next/link'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 import MeDayHeader from './MeDayHeader'
 import MeSection from './MeSection'
-import { canEditEod, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
+import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
 
@@ -27,9 +27,9 @@ export default async function MePage() {
 
   const memberId = session.user.id
   const role     = session.user.role as string
-  const today    = startOfDay(new Date())
+  const today    = businessDayStart()
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
-  const isWeekday = !isWeekend(today)
+  const isWeekday = !isWeekend(new Date())
 
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
@@ -244,7 +244,7 @@ export default async function MePage() {
       <MeDayHeader
         greeting={greeting}
         firstName={firstName}
-        dateLabel={format(today, 'EEEE, d MMMM')}
+        dateLabel={formatDailyLogDate(today)}
         role={role}
         isWeekday={isWeekday}
         hasPlan={hasPlan}

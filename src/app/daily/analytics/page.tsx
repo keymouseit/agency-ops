@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { eachDayOfInterval, format, startOfDay, subDays } from 'date-fns'
+import { eachDayOfInterval, subDays } from 'date-fns'
+import { businessDayKey, businessDayStart } from '@/lib/daily'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DatePicker from './DatePicker'
@@ -10,13 +11,13 @@ export const dynamic = 'force-dynamic'
 
 function parseSelectedDate(raw?: string) {
   if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return startOfDay(new Date(raw))
+    return businessDayStart(raw)
   }
-  return startOfDay(new Date())
+  return businessDayStart()
 }
 
 function dayKey(date: Date) {
-  return format(startOfDay(new Date(date)), 'yyyy-MM-dd')
+  return businessDayKey(date)
 }
 
 export default async function DailyAnalyticsPage({
@@ -29,10 +30,10 @@ export default async function DailyAnalyticsPage({
   if (session.user.role !== 'Founder') redirect('/daily')
 
   const selectedDate = parseSelectedDate(searchParams.date)
-  const dateValue = format(selectedDate, 'yyyy-MM-dd')
+  const dateValue = dayKey(selectedDate)
   const isToday = dayKey(selectedDate) === dayKey(new Date())
-  const thirtyDaysAgo = startOfDay(subDays(new Date(), 29))
-  const today = startOfDay(new Date())
+  const thirtyDaysAgo = businessDayStart(subDays(new Date(), 29))
+  const today = businessDayStart()
 
   const [members, logs, dayLogs] = await Promise.all([
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -71,7 +72,11 @@ export default async function DailyAnalyticsPage({
     const dayEntries = logsByDay.get(key) ?? []
     const tasks = dayEntries.flatMap(l => l.tasks)
     return {
-      label: format(day, 'd MMM'),
+      label: new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+      }).format(day),
       plans: dayEntries.filter(l => l.planSubmittedAt).length,
       eods: dayEntries.filter(l => l.eodSubmittedAt).length,
       team: members.length,
@@ -129,7 +134,15 @@ export default async function DailyAnalyticsPage({
               Daily report
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Who submitted a plan on {format(selectedDate, 'EEEE, d MMMM yyyy')} — plus 30-day trends.
+              Who submitted a plan on{' '}
+              {new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata',
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              }).format(selectedDate)}{' '}
+              — plus 30-day trends.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">

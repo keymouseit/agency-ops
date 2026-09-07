@@ -1,5 +1,36 @@
 import { prisma } from '@/lib/prisma'
-import { isSameDay, startOfDay, format } from 'date-fns'
+
+/** Company operates in India — all DailyLog "days" use this timezone. */
+export const BUSINESS_TIMEZONE = 'Asia/Kolkata'
+
+/**
+ * Calendar day key (YYYY-MM-DD) in Asia/Kolkata.
+ * Avoids UTC vs local mismatches between Vercel and developer machines.
+ */
+export function businessDayKey(input: Date | string = new Date()): string {
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input
+  const date = typeof input === 'string' ? new Date(input) : input
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+/**
+ * Start of the business calendar day as a Date.
+ * Stored/queried for DailyLog.date — midnight IST (= previous day 18:30 UTC).
+ * Matches what `startOfDay` produced on IST machines; works the same on Vercel UTC.
+ */
+export function businessDayStart(input: Date | string = new Date()): Date {
+  const key = businessDayKey(input)
+  return new Date(`${key}T00:00:00+05:30`)
+}
+
+export function isSameBusinessDay(a: Date | string, b: Date | string = new Date()) {
+  return businessDayKey(a) === businessDayKey(b)
+}
 
 export const MAX_DAILY_PLAN_HOURS = 8
 
@@ -176,7 +207,7 @@ export async function findOpenDailyLog(memberId: string) {
   const pendingPast = await findPendingPastEodLog(memberId)
   if (pendingPast) return pendingPast
 
-  const today = startOfDay(new Date())
+  const today = businessDayStart()
   return prisma.dailyLog.findFirst({
     where: {
       memberId,
@@ -188,11 +219,11 @@ export async function findOpenDailyLog(memberId: string) {
   })
 }
 
-export function isPastDailyLogDate(logDate: Date | string, today = startOfDay(new Date())) {
-  return startOfDay(new Date(logDate)) < today
+export function isPastDailyLogDate(logDate: Date | string, today = businessDayStart()) {
+  return businessDayStart(logDate) < today
 }
 
-const pendingPastEodWhere = (memberId: string, today = startOfDay(new Date())) => ({
+const pendingPastEodWhere = (memberId: string, today = businessDayStart()) => ({
   memberId,
   planSubmittedAt: { not: null } as const,
   eodSubmittedAt: null,
@@ -218,15 +249,20 @@ export async function findPendingPastEodLog(memberId: string) {
 }
 
 export function formatDailyLogDate(date: Date | string) {
-  return format(new Date(date), 'EEEE, d MMMM')
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TIMEZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(date))
 }
 
 export const dailyLogWithTasksInclude = openLogInclude
 
-/** True if EOD has not been submitted yet, or was submitted today (editable until midnight). */
+/** True if EOD has not been submitted yet, or was submitted today (editable until midnight IST). */
 export function canEditEod(eodSubmittedAt: Date | string | null | undefined): boolean {
   if (!eodSubmittedAt) return true
-  return isSameDay(new Date(eodSubmittedAt), new Date())
+  return isSameBusinessDay(eodSubmittedAt)
 }
 
 export function isEodReadOnly(eodSubmittedAt: Date | string | null | undefined): boolean {
@@ -235,7 +271,7 @@ export function isEodReadOnly(eodSubmittedAt: Date | string | null | undefined):
 
 /** Today's log with EOD submitted today — available for same-day edits. */
 export function findTodayEditableEodLog(memberId: string) {
-  const today = startOfDay(new Date())
+  const today = businessDayStart()
   return prisma.dailyLog.findFirst({
     where: {
       memberId,

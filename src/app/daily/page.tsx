@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { findPendingPastEodLogSummary } from '@/lib/daily'
-import { format, startOfDay, subDays } from 'date-fns'
+import { businessDayKey, businessDayStart, findPendingPastEodLogSummary } from '@/lib/daily'
 import { redirect } from 'next/navigation'
 import DailyHeader from './DailyHeader'
 import DailyStats from './DailyStats'
@@ -22,8 +21,8 @@ export default async function DailyPage({
   }
 
   const targetDate = searchParams.date
-    ? startOfDay(new Date(searchParams.date))
-    : startOfDay(new Date())
+    ? businessDayStart(searchParams.date)
+    : businessDayStart()
 
   const isFounder = session.user.role === 'Founder'
   const viewMode = searchParams.view || 'team'
@@ -46,10 +45,16 @@ export default async function DailyPage({
     showTeamView ? Promise.resolve(null) : findPendingPastEodLogSummary(session.user.id),
   ])
 
-  const isToday = targetDate.toDateString() === new Date().toDateString()
-  const prevDate = format(subDays(targetDate, 1), 'yyyy-MM-dd')
-  const nextDate = format(new Date(targetDate.getTime() + 86400000), 'yyyy-MM-dd')
-  const dateLabel = format(targetDate, 'EEEE, d MMMM yyyy')
+  const isToday = businessDayKey(targetDate) === businessDayKey()
+  const prevDate = businessDayKey(new Date(targetDate.getTime() - 86400000))
+  const nextDate = businessDayKey(new Date(targetDate.getTime() + 86400000))
+  const dateLabel = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(targetDate)
 
   const myLog = logs.find(l => l.memberId === session.user.id)
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt

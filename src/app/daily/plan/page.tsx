@@ -1,8 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
+import { businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
 import { redirect } from 'next/navigation'
-import { startOfDay, format } from 'date-fns'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
 
@@ -13,7 +12,7 @@ export default async function MorningPlanPage() {
   if (!session?.user?.id) redirect('/login')
 
   const memberId = session.user.id
-  const today = startOfDay(new Date())
+  const today = businessDayStart()
 
   const [member, todayLog, pendingPastEodLog, projects] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
@@ -105,7 +104,7 @@ export default async function MorningPlanPage() {
             href={`/daily/eod?logId=${pendingPastEodLog.id}`}
             className="btn-primary inline-flex text-sm"
           >
-            Submit {format(pendingPastEodLog.date, 'EEEE')}&apos;s EOD →
+            Submit {formatDailyLogDate(pendingPastEodLog.date)}&apos;s EOD →
           </Link>
           <p className="text-xs text-gray-400 mt-6">
             Today&apos;s plan will be available once your pending EOD is submitted.

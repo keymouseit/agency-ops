@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { startOfDay } from 'date-fns'
+import { businessDayStart } from '@/lib/daily'
 
 export async function POST(req: Request) {
   const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Every task needs estimated hours.' }, { status: 400 })
   }
 
-  const today = startOfDay(new Date())
+  const today = businessDayStart()
 
   const log = await prisma.$transaction(async tx => {
     const existing = await tx.dailyLog.findUnique({
