@@ -3,8 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { startOfDay, startOfWeek, subDays, differenceInDays, format, isWeekend } from 'date-fns'
 import Link from 'next/link'
-import { fmtDate, avg } from '@/lib/utils'
+import { QASignOffBadge } from '@/components/QASignOffStatus'
+import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
+import MeDayHeader from './MeDayHeader'
+import MeSection from './MeSection'
+import { canEditEod, findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
+import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
+import { testCycleCaseSummary } from '@/lib/qa'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +26,7 @@ export default async function MePage() {
   if (session.user.role === 'Founder') redirect('/')
 
   const memberId = session.user.id
-  const role     = session.user.role as 'Dev' | 'BD' | 'QA' | 'Both'
+  const role     = session.user.role as string
   const today    = startOfDay(new Date())
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday = start of week
   const isWeekday = !isWeekend(today)
@@ -28,12 +34,13 @@ export default async function MePage() {
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
   const isQA  = role === 'QA'
+  // SocialMedia / HR see My Day with today + check-in/score widgets only
 
   // ── Queries — only fetch what this role actually needs ───────────────────
   const [
     member,
     todayLog,
-    yesterdayLog,
+    pendingPastEodLog,
     myProjects,
     myLeads,
     devEstimates,     // estimates assigned TO me (Dev fills these)
@@ -58,11 +65,7 @@ export default async function MePage() {
       },
     }),
 
-    // Yesterday's log — everyone needs this (missing EOD check)
-    prisma.dailyLog.findUnique({
-      where: { memberId_date: { memberId, date: startOfDay(subDays(today, 1)) } },
-      select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
-    }),
+    findPendingPastEodLog(memberId),
 
     // My projects — Dev and Both only
     // BD and QA do not own projects
@@ -73,7 +76,7 @@ export default async function MePage() {
             milestones:     { orderBy: { dueDate: 'asc' } }, // Get all milestones for progress calculation
             checkIns:       { orderBy: { weekOf: 'desc' }, take: 1 },
             testCycles:     { orderBy: { startedAt: 'desc' }, take: 1 },
-            releaseSignOff: true,
+            releaseSignOff: { include: { signedOffBy: true } },
           },
           orderBy: { updatedAt: 'desc' },
         })
@@ -151,10 +154,10 @@ export default async function MePage() {
         })
       : Promise.resolve([]),
 
-    // My active goals — everyone
+    // My goals — active plus recently closed (achieved / missed)
     prisma.goal.findMany({
-      where: { memberId, status: 'active' },
-      orderBy: { progressPct: 'asc' }, // lowest progress first = most urgent
+      where: { memberId, status: { in: ['active', 'achieved', 'missed'] } },
+      orderBy: [{ quarter: 'desc' }, { updatedAt: 'desc' }],
     }),
 
     // This week's self-score — everyone
@@ -174,8 +177,16 @@ export default async function MePage() {
       ? prisma.project.findMany({
           where: { status: { in: ['active', 'qa'] } },
           include: {
-            testCycles:         { orderBy: { startedAt: 'desc' }, take: 1 },
-            releaseSignOff:     true,
+            milestones: {
+              orderBy: { dueDate: 'asc' },
+              include: { testCases: { select: { status: true } } },
+            },
+            testCycles: {
+              orderBy: { startedAt: 'desc' },
+              take: 1,
+              include: { cases: { select: { status: true, devFixedAt: true } } },
+            },
+            releaseSignOff: true,
             postDeliveryIssues: { where: { resolvedAt: null }, take: 1 },
           },
           orderBy: { updatedAt: 'desc' },
@@ -183,12 +194,14 @@ export default async function MePage() {
       : Promise.resolve([]),
   ])
 
-  if (!member) redirect('/login')
+  if (!member) redirect('/api/auth/signout?callbackUrl=/login')
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const hasPlan        = !!todayLog?.planSubmittedAt
   const hasEOD         = !!todayLog?.eodSubmittedAt
-  const missingYestEOD = !!(yesterdayLog?.planSubmittedAt && !yesterdayLog?.eodSubmittedAt)
+  const canEditTodayEOD = hasEOD && canEditEod(todayLog?.eodSubmittedAt)
+  const missingPastEOD = !!pendingPastEodLog
+  const pendingEodDateLabel = pendingPastEodLog ? formatDailyLogDate(pendingPastEodLog.date) : ''
   const todayTasks     = todayLog?.tasks ?? []
   const doneTasks      = todayTasks.filter(t => t.status === 'done').length
   const blockedTasks   = todayTasks.filter(t => t.status === 'blocked').length
@@ -204,8 +217,7 @@ export default async function MePage() {
   const scoreTrend  = scoreAvg && prevAvg ? scoreAvg - prevAvg : null
 
   const firstName = member.name.split(' ')[0]
-  const hour      = new Date().getHours()
-  const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const greeting  = timeGreeting()
 
   const PRIORITY_DOT: Record<string, string> = {
     high: 'bg-red-500', medium: 'bg-amber-400', low: 'bg-gray-300',
@@ -218,118 +230,197 @@ export default async function MePage() {
     planned: 'text-gray-800',
   }
 
-  return (
-    <div className="max-w-3xl mx-auto">
+  const goalStatusOrder: Record<string, number> = { active: 0, achieved: 1, missed: 2 }
+  const sortedGoals = [...myGoals].sort(
+    (a, b) => (goalStatusOrder[a.status] ?? 9) - (goalStatusOrder[b.status] ?? 9)
+      || a.progressPct - b.progressPct,
+  )
+  const activeGoals = sortedGoals.filter(g => g.status === 'active')
+  const closedGoals = sortedGoals.filter(g => g.status !== 'active')
 
-      {/* Greeting */}
-      <div className="mb-7">
-        <h1 className="text-2xl font-semibold text-gray-900">{greeting}, {firstName}.</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {format(today, 'EEEE, d MMMM')}
-        </p>
-      </div>
+  return (
+    <div className="w-full mx-auto pb-8">
+
+      <MeDayHeader
+        greeting={greeting}
+        firstName={firstName}
+        dateLabel={format(today, 'EEEE, d MMMM')}
+        role={role}
+        isWeekday={isWeekday}
+        hasPlan={hasPlan}
+        hasEOD={hasEOD}
+        hasCheckin={hasCheckin}
+        doneTasks={doneTasks}
+        totalTasks={todayTasks.length}
+        totalHours={totalHours}
+      />
 
       {/* ── URGENT: Missing yesterday's EOD ─────────────────────────────── */}
-      {missingYestEOD && (
-        <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4">
+      {missingPastEOD && pendingPastEodLog && (
+        <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 shadow-sm">
           <div>
-            <div className="text-sm font-semibold text-red-800">Yesterday&apos;s EOD report is missing</div>
+            <div className="text-sm font-semibold text-red-800">Pending EOD from {pendingEodDateLabel}</div>
             <div className="text-xs text-red-600 mt-0.5">
-              You submitted a plan but never closed the day. Hours won&apos;t be logged until you do.
+              You submitted a plan but never closed that day. Submit EOD before planning today — hours won&apos;t be logged until you do.
             </div>
           </div>
           <Link
-            href={`/daily/eod?logId=${yesterdayLog?.id}`}
+            href={`/daily/eod?logId=${pendingPastEodLog.id}`}
             className="flex-shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors"
           >
-            Submit now →
+            Submit EOD →
           </Link>
         </div>
       )}
 
-      {/* ── TODAY ────────────────────────────────────────────────────────── */}
       {isWeekday && (
-        <div className="card p-5 mb-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Today</h2>
-            {hasPlan && !hasEOD && (
-              <Link
-                href={`/daily/eod?logId=${todayLog?.id}`}
-                className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
-              >
-                Submit EOD →
-              </Link>
-            )}
-          </div>
-
+        <MeSection
+          title="Today"
+          icon="📋"
+          headerActions={
+            hasPlan && !hasEOD ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href="/daily/plan"
+                  className="text-xs px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-white transition-colors"
+                >
+                  Edit plan
+                </Link>
+                <Link
+                  href="/daily/eod"
+                  className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Submit EOD →
+                </Link>
+              </div>
+            ) : undefined
+          }
+        >
           {!hasPlan ? (
-            <MePlanWidget />
+            missingPastEOD && pendingPastEodLog ? (
+              <div className="rounded-xl border border-red-200 bg-gradient-to-br from-red-50 to-orange-50 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white text-lg shadow-sm shrink-0">
+                      ⏰
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-red-950">Submit {pendingEodDateLabel}&apos;s EOD first</p>
+                      <p className="text-xs text-red-700 mt-1 max-w-md">
+                        Close your previous day before planning today. Your morning plan unlocks once EOD is submitted.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/daily/eod?logId=${pendingPastEodLog.id}`}
+                    className="inline-flex items-center justify-center px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm shrink-0"
+                  >
+                    Submit EOD →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <MePlanWidget />
+            )
+          ) : hasEOD ? (
+            <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white text-lg shrink-0">✓</span>
+                  <div>
+                    <p className="text-sm font-semibold text-green-900">EOD submitted — day closed</p>
+                    <p className="text-xs text-green-700 mt-1">
+                      {doneTasks} of {todayTasks.length} tasks done.
+                      {canEditTodayEOD
+                        ? ' You can edit your EOD until the end of today.'
+                        : ' Start a new plan if you\'re continuing today.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  {canEditTodayEOD && todayLog && (
+                    <Link
+                      href={`/daily/eod?logId=${todayLog.id}`}
+                      className="px-3 py-1.5 border border-green-200 text-green-800 text-xs rounded-lg hover:bg-green-100 transition-colors text-center"
+                    >
+                      Edit EOD
+                    </Link>
+                  )}
+                  <Link
+                    href="/daily/plan"
+                    className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors text-center"
+                  >
+                    New plan →
+                  </Link>
+                </div>
+              </div>
+            </div>
           ) : (
             <div>
-              {/* Summary strip */}
-              <div className="flex gap-6 mb-4 text-sm">
-                <div>
-                  <div className="text-xs text-gray-400 mb-0.5">Planned</div>
-                  <div className="font-semibold text-gray-900">{todayTasks.length} tasks · {totalHours}h</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400 mb-0.5">Done</div>
-                  <div className={`font-semibold ${doneTasks === todayTasks.length && todayTasks.length > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                    {doneTasks} / {todayTasks.length}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                {[
+                  { label: 'Planned', value: `${todayTasks.length} tasks`, sub: `${totalHours}h` },
+                  { label: 'Done', value: `${doneTasks}/${todayTasks.length}`, highlight: doneTasks === todayTasks.length && todayTasks.length > 0 },
+                  ...(blockedTasks > 0 ? [{ label: 'Blocked', value: String(blockedTasks), danger: true }] : []),
+                ].map(stat => (
+                  <div
+                    key={stat.label}
+                    className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5"
+                  >
+                    <div className="text-[11px] text-gray-400 uppercase tracking-wide">{stat.label}</div>
+                    <div className={`text-lg font-semibold mt-0.5 ${
+                      stat.danger ? 'text-red-600' : stat.highlight ? 'text-green-700' : 'text-gray-900'
+                    }`}>
+                      {stat.value}
+                    </div>
+                    {'sub' in stat && stat.sub && (
+                      <div className="text-xs text-gray-500">{stat.sub}</div>
+                    )}
                   </div>
-                </div>
-                {blockedTasks > 0 && (
-                  <div>
-                    <div className="text-xs text-gray-400 mb-0.5">Blocked</div>
-                    <div className="font-semibold text-red-600">{blockedTasks}</div>
-                  </div>
-                )}
-                {hasEOD && (
-                  <div className="ml-auto self-center">
-                    <span className="text-xs text-green-600 font-medium">✓ EOD done</span>
-                  </div>
-                )}
+                ))}
               </div>
 
-              {/* Task list */}
-              <div className="space-y-0">
+              <div className="rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
                 {todayTasks.map(task => (
                   <div
                     key={task.id}
-                    className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0"
+                    className="flex items-start gap-3 px-3 py-3 bg-white hover:bg-gray-50/80 transition-colors"
                   >
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-0.5 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
-                    <span className={`flex-1 text-sm ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
-                      {task.title}
-                    </span>
-                    {task.project && (
-                      <span className="text-xs text-gray-400 flex-shrink-0">{task.project.name}</span>
-                    )}
-                    {task.status !== 'planned' && (
-                      <span className={`text-xs flex-shrink-0 px-1.5 py-0.5 rounded font-medium ${
-                        task.status === 'done'    ? 'bg-green-100 text-green-700'
-                        : task.status === 'blocked' ? 'bg-red-100 text-red-700'
-                        : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {task.status}
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm whitespace-pre-line block ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
+                        {task.title}
                       </span>
-                    )}
-                    {task.estimatedHours && (
-                      <span className="text-xs text-gray-300 flex-shrink-0">{task.estimatedHours}h</span>
-                    )}
+                      {task.project && (
+                        <span className="text-xs text-gray-400 mt-0.5 block">{task.project.name}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {task.status !== 'planned' && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          task.status === 'done'    ? 'bg-green-100 text-green-700'
+                          : task.status === 'blocked' ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {task.status}
+                        </span>
+                      )}
+                      {task.estimatedHours != null && (
+                        <span className="text-xs text-gray-400 tabular-nums">{task.estimatedHours}h</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </MeSection>
       )}
 
       {/* ── ESTIMATION TASKS (Dev / Both) ────────────────────────────────── */}
       {/* Dev sees: what they need to fill out. No BD context, no lead status, no pipeline. */}
       {isDev && devEstimates.length > 0 && (
-        <div className="card p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Estimates you need to fill</h2>
+        <MeSection title="Estimates you need to fill" icon="📝">
           <div className="space-y-2">
             {devEstimates.map(req => {
               const needsRevision = req.status === 'revision'
@@ -377,14 +468,13 @@ export default async function MePage() {
               )
             })}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── ESTIMATES TO REVIEW (BD / Both) ──────────────────────────────── */}
       {/* BD sees: estimates confirmed by dev, waiting for their approval. */}
       {isBD && bdEstimates.length > 0 && (
-        <div className="card p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Estimates ready for your review</h2>
+        <MeSection title="Estimates ready for your review" icon="✅">
           <div className="space-y-2">
             {bdEstimates.map(req => (
               <div key={req.id} className="flex items-center justify-between p-3 rounded-xl border border-amber-100 bg-amber-50">
@@ -415,16 +505,12 @@ export default async function MePage() {
               </div>
             ))}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── MY PROJECTS (Dev / Both) ──────────────────────────────────────── */}
       {isDev && myProjects.length > 0 && (
-        <div className="card p-5 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Your projects</h2>
-            <Link href="/projects" className="text-xs text-gray-400 hover:text-gray-600">All →</Link>
-          </div>
+        <MeSection title="Your projects" icon="🚀" actionHref="/projects" actionLabel="All →">
           <div className="space-y-3">
             {myProjects.map(p => {
               const ci            = p.checkIns[0]
@@ -441,10 +527,13 @@ export default async function MePage() {
               const isUrgent      = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3
               // Only show check-in button on Mondays OR if truly overdue (>7 days)
               const isMonday = today.getDay() === 1
-              const needsCheckin  = (!ci || differenceInDays(today, new Date(ci.weekOf)) > 7) && (isMonday || (ci && differenceInDays(today, new Date(ci.weekOf)) > 7))
+              const projectCheckinThisWeek = ci ? isSameWeek(ci.weekOf, today) : false
+              const projectCheckinOverdue = ci
+                ? differenceInDays(today, new Date(ci.weekOf)) > 7
+                : true
+              const needsCheckin = !hasCheckin && !projectCheckinThisWeek && (isMonday || projectCheckinOverdue)
               const inQA          = p.status === 'qa'
-              const needsSignOff  = inQA && !p.releaseSignOff && p.testCycles[0]?.result === 'pass'
-              const needsCycle    = inQA && !p.releaseSignOff && !p.testCycles[0]
+              const signedOff     = !!p.releaseSignOff
 
               return (
                 <div
@@ -467,6 +556,7 @@ export default async function MePage() {
                           : p.status === 'active' ? 'bg-blue-100 text-blue-800'
                           : 'bg-gray-100 text-gray-500'
                         }`}>{p.status}</span>
+                        {signedOff && <QASignOffBadge signed />}
                         {ci?.onTrack === 'no'      && <span className="badge bg-red-100 text-red-800 text-xs">At risk</span>}
                         {ci?.onTrack === 'at_risk'  && <span className="badge bg-amber-100 text-amber-800 text-xs">Monitor</span>}
                       </div>
@@ -516,16 +606,12 @@ export default async function MePage() {
               )
             })}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── MY PIPELINE (BD / Both) ───────────────────────────────────────── */}
       {isBD && myLeads.length > 0 && (
-        <div className="card p-5 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Your pipeline</h2>
-            <Link href="/pipeline" className="text-xs text-gray-400 hover:text-gray-600">Full pipeline →</Link>
-          </div>
+        <MeSection title="Your pipeline" icon="📈" actionHref="/pipeline" actionLabel="Full pipeline →">
           <div className="space-y-1.5">
             {myLeads.map(lead => {
               // Calculate staleness based on most recent meaningful activity
@@ -561,21 +647,20 @@ export default async function MePage() {
               )
             })}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── QA: PROJECTS NEEDING ATTENTION (QA only) ─────────────────────── */}
       {isQA && qaProjects.length > 0 && (
-        <div className="card p-5 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Projects needing QA</h2>
-            <Link href="/qa" className="text-xs text-gray-400 hover:text-gray-600">QA dashboard →</Link>
-          </div>
-          <div className="space-y-1.5">
+        <MeSection title="Projects needing QA" icon="🔍" actionHref="/qa" actionLabel="QA dashboard →">
+          <div className="space-y-2">
             {qaProjects.map(p => {
-              const cycle    = p.testCycles[0]
-              const signed   = !!p.releaseSignOff
+              const cycle = p.testCycles[0]
+              const signed = !!p.releaseSignOff
               const hasIssue = p.postDeliveryIssues.length > 0
+              const milestoneProgress = projectMilestoneProgress(p.milestones)
+              const cycleProgress = latestCycleProgress(cycle)
+              const cycleFixSummary = cycle?.cases?.length ? testCycleCaseSummary(cycle.cases) : null
 
               let stateLabel: string, stateCls: string, action: string | null
               if (signed) {
@@ -583,7 +668,11 @@ export default async function MePage() {
               } else if (!cycle) {
                 stateLabel = 'No test cycle'; stateCls = 'bg-gray-100 text-gray-500'; action = 'Start test cycle →'
               } else if (cycle.result === 'fail') {
-                stateLabel = 'Blocked'; stateCls = 'bg-red-100 text-red-700'; action = 'View blocker →'
+                if (cycleFixSummary?.allFailuresFixed) {
+                  stateLabel = 'Re-test needed'; stateCls = 'bg-teal-100 text-teal-800'; action = 'Re-test fixes →'
+                } else {
+                  stateLabel = 'Blocked'; stateCls = 'bg-red-100 text-red-700'; action = 'View blocker →'
+                }
               } else if (cycle.result === 'pass' || cycle.result === 'conditional') {
                 stateLabel = 'Ready to sign off'; stateCls = 'bg-amber-100 text-amber-800'; action = 'Submit sign-off →'
               } else {
@@ -591,28 +680,80 @@ export default async function MePage() {
               }
 
               return (
-                <div key={p.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-100 bg-gray-50">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                    <span className={`badge text-xs ${stateCls}`}>{stateLabel}</span>
-                    {hasIssue && <span className="badge bg-red-100 text-red-700 text-xs">Client issue open</span>}
+                <div key={p.id} className="py-3 px-3 rounded-lg border border-gray-100 bg-gray-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <Link href={`/qa/${p.id}`} className="text-sm font-medium text-gray-900 hover:underline">
+                          {p.name}
+                        </Link>
+                        <span className={`badge text-xs ${stateCls}`}>{stateLabel}</span>
+                        <span className="badge text-xs bg-blue-100 text-blue-800">{p.status}</span>
+                        {hasIssue && <span className="badge bg-red-100 text-red-700 text-xs">Client issue open</span>}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {milestoneProgress.total > 0 && (
+                          <div className="rounded-md bg-white border border-gray-100 px-2.5 py-2">
+                            <div className="flex justify-between text-[11px] text-gray-500 mb-1">
+                              <span className="font-medium text-gray-700">Milestones</span>
+                              <span>{milestoneProgress.approved}/{milestoneProgress.total} approved</span>
+                            </div>
+                            <div className="h-1 bg-gray-100 rounded-full overflow-hidden mb-1">
+                              <div className="h-full bg-green-500 rounded-full" style={{ width: `${milestoneProgress.pct}%` }} />
+                            </div>
+                            <div className="text-[10px] text-gray-500 flex gap-2 flex-wrap">
+                              {milestoneProgress.testing > 0 && (
+                                <span className="text-teal-600">{milestoneProgress.testing} in testing</span>
+                              )}
+                              {milestoneProgress.totalCases > 0 && (
+                                <span>
+                                  {milestoneProgress.passedCases}/{milestoneProgress.totalCases} cases passed
+                                  {milestoneProgress.failedCases > 0 && (
+                                    <span className="text-red-600"> · {milestoneProgress.failedCases} failed</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {cycleProgress && (
+                          <div className="rounded-md bg-white border border-gray-100 px-2.5 py-2">
+                            <div className="flex justify-between text-[11px] text-gray-500 mb-1">
+                              <span className="font-medium text-gray-700">Test cycle</span>
+                              <span className="capitalize">{cycleProgress.result}</span>
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {cycleProgress.passed}/{cycleProgress.total} cases passed
+                              {cycleProgress.failing > 0 && (
+                                <span className="text-red-600"> · {cycleProgress.failing} failing</span>
+                              )}
+                              {cycleProgress.awaitingRetest > 0 && (
+                                <span className="text-amber-600"> · {cycleProgress.awaitingRetest} to re-test</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {action && (
+                      <Link href={`/qa/${p.id}`} className="text-xs text-gray-500 hover:text-gray-800 hover:underline shrink-0 self-start">
+                        {action}
+                      </Link>
+                    )}
                   </div>
-                  {action && (
-                    <Link href={`/qa/${p.id}`} className="text-xs text-gray-500 hover:text-gray-800 hover:underline ml-3 flex-shrink-0">
-                      {action}
-                    </Link>
-                  )}
                 </div>
               )
             })}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── OPEN BLOCKERS (Dev / Both / QA) ──────────────────────────────── */}
       {myOpenBlockers.length > 0 && (
-        <div className="card p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Your open blockers</h2>
+        <MeSection title="Your open blockers" icon="⚠️" badge={String(myOpenBlockers.length)}>
           <div className="space-y-2">
             {myOpenBlockers.map(b => {
               const ageDays = differenceInDays(today, new Date(b.raisedAt))
@@ -638,65 +779,96 @@ export default async function MePage() {
               )
             })}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── GOALS ────────────────────────────────────────────────────────── */}
-      {myGoals.length > 0 && (
-        <div className="card p-5 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Your goals this quarter</h2>
-            <Link href="/goals" className="text-xs text-gray-400 hover:text-gray-600">All →</Link>
-          </div>
+      {sortedGoals.length > 0 && (
+        <MeSection
+          title="Your goals this quarter"
+          icon="🎯"
+          badge={`${activeGoals.length} active${closedGoals.length > 0 ? ` · ${closedGoals.length} closed` : ''}`}
+        >
           <div className="space-y-3">
-            {myGoals.map(g => (
-              <div key={g.id}>
-                <div className="flex justify-between items-baseline text-sm mb-1">
-                  <span className="text-gray-800">{g.title}</span>
-                  <span className={`font-semibold flex-shrink-0 ml-3 ${
-                    g.progressPct >= 80 ? 'text-green-700'
-                    : g.progressPct >= 50 ? 'text-amber-700'
-                    : 'text-red-500'
-                  }`}>{g.progressPct}%</span>
+            {sortedGoals.map(g => (
+              <div
+                key={g.id}
+                className={`rounded-lg p-3 ${
+                  g.status === 'achieved' ? 'bg-green-50 border border-green-100'
+                  : g.status === 'missed' ? 'bg-red-50 border border-red-100'
+                  : 'bg-gray-50 border border-gray-100'
+                }`}
+              >
+                <div className="flex justify-between items-start gap-3 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-800 font-medium">{g.title}</span>
+                      {g.status === 'achieved' && (
+                        <span className="badge bg-green-100 text-green-800 text-xs">✓ Achieved</span>
+                      )}
+                      {g.status === 'missed' && (
+                        <span className="badge bg-red-100 text-red-800 text-xs">✗ Missed</span>
+                      )}
+                      <span className="text-xs text-gray-400">{g.quarter}</span>
+                    </div>
+                  </div>
+                  {g.status === 'active' && (
+                    <span className={`text-sm font-semibold flex-shrink-0 ${
+                      g.progressPct >= 80 ? 'text-green-700'
+                      : g.progressPct >= 50 ? 'text-amber-700'
+                      : 'text-red-500'
+                    }`}>{g.progressPct}%</span>
+                  )}
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      g.progressPct >= 80 ? 'bg-green-500'
-                      : g.progressPct >= 50 ? 'bg-amber-400'
-                      : 'bg-red-400'
-                    }`}
-                    style={{ width: `${g.progressPct}%` }}
-                  />
-                </div>
+                {g.status === 'active' && (
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        g.progressPct >= 80 ? 'bg-green-500'
+                        : g.progressPct >= 50 ? 'bg-amber-400'
+                        : 'bg-red-400'
+                      }`}
+                      style={{ width: `${g.progressPct}%` }}
+                    />
+                  </div>
+                )}
                 {g.successMetric && (
-                  <p className="text-xs text-gray-400 mt-0.5">Done when: {g.successMetric}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">Done when: {g.successMetric}</p>
                 )}
               </div>
             ))}
           </div>
-        </div>
+        </MeSection>
       )}
 
       {/* ── WEEKLY SCORE ─────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-900">This week&apos;s score</h2>
-          {!hasCheckin && (
-            <Link href="/checkin" className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700">
+      <MeSection
+        title="This week's score"
+        icon="📊"
+        headerActions={
+          !hasCheckin ? (
+            <Link href="/checkin" className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 shrink-0">
               Submit check-in →
             </Link>
-          )}
-        </div>
+          ) : undefined
+        }
+      >
 
         {!hasCheckin ? (
           <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
             <p className="text-sm text-amber-800 font-medium">Weekly check-in not submitted yet.</p>
             <p className="text-xs text-amber-600 mt-0.5">
-              Covers your project status and your self-score for the week.
+              Due every Monday. Covers your project status and your self-score for the week.
             </p>
           </div>
         ) : (
+          <div className="p-3 bg-green-50 border border-green-100 rounded-lg mb-3">
+            <p className="text-sm text-green-800 font-medium">✓ Weekly check-in submitted</p>
+            <p className="text-xs text-green-600 mt-0.5">Next check-in due Monday morning.</p>
+          </div>
+        )}
+
+        {hasCheckin && thisWeekScore && (
           <div className="space-y-2.5">
             {(['delivery', 'process', 'communication', 'growth', 'culture'] as const).map(dim => {
               const val = thisWeekScore[dim] as number
@@ -728,7 +900,7 @@ export default async function MePage() {
             )}
           </div>
         )}
-      </div>
+      </MeSection>
 
     </div>
   )

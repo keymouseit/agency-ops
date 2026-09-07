@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger'
 export async function GET() {
   const startTime = Date.now()
 
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
   if (deny) return deny
 
   const session = await auth()
@@ -33,7 +33,7 @@ export async function GET() {
 export async function PATCH() {
   const startTime = Date.now()
 
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
   if (deny) return deny
 
   const session = await auth()

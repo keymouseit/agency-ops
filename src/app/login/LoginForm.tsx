@@ -1,14 +1,14 @@
 'use client'
+
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 export default function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') ?? '/me'
 
@@ -27,86 +27,104 @@ export default function LoginForm() {
       setLoading(false)
       setError('Incorrect email or password. Check your credentials and try again.')
     } else {
-      // Use full page reload to ensure session is properly loaded
       window.location.href = callbackUrl
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <div className="relative min-h-screen overflow-hidden bg-gray-50 flex items-center justify-center p-4">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-violet-200/40 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-blue-200/35 blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-teal-100/50 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-[26rem]">
         <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-white tracking-tight mb-1">Agency Ops</div>
-          <div className="text-sm text-gray-500">KeyMouse IT · Internal platform</div>
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-md mb-4">
+            AO
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Agency Ops</h1>
+          <p className="text-sm text-gray-500 mt-1">KeyMouse IT · Internal platform</p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800 shadow-2xl">
-          <h1 className="text-lg font-semibold text-white mb-1">Sign in</h1>
-          <p className="text-sm text-gray-400 mb-6">Use your team email and password.</p>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-xl shadow-gray-200/60 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-violet-400 via-blue-400 to-teal-400" />
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white
-                           text-sm placeholder-gray-600 focus:outline-none focus:ring-2
-                           focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@keymouse.com"
-              />
+          <div className="p-8">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Sign in</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Use your team email and password.</p>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white
-                           text-sm placeholder-gray-600 focus:outline-none focus:ring-2
-                           focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <div className="px-3 py-2.5 bg-red-950 border border-red-800 rounded-lg">
-                <p className="text-sm text-red-400">{error}</p>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="login-input input bg-gray-50/80 focus:bg-white"
+                  placeholder="you@keymouse.com"
+                />
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="w-full py-2.5 px-4 bg-white text-gray-900 rounded-lg text-sm font-semibold
-                         hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              {loading ? 'Signing in…' : 'Sign in →'}
-            </button>
-          </form>
+              <div>
+                <label className="label">Password</label>
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="login-input input bg-gray-50/80 focus:bg-white"
+                  placeholder="••••••••"
+                />
+              </div>
 
-          <div className="mt-6 pt-5 border-t border-gray-800">
-            <p className="text-xs text-gray-600 text-center">
-              Can&apos;t log in? Ask Shiven to reset your password.
-            </p>
+              {error && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3">
+                  <span className="text-red-500 shrink-0" aria-hidden>
+                    ⚠
+                  </span>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !email || !password}
+                className="btn-primary w-full py-3 mt-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {loading ? 'Signing in…' : 'Sign in →'}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-gray-100">
+              <p className="text-xs text-gray-500 text-center leading-relaxed">
+                Can&apos;t log in? Ask Shiven to reset your password.
+              </p>
+            </div>
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-700 mt-6">
+        <p className="text-center text-[11px] text-gray-400 mt-6">
           KeyMouse IT · Agency Ops · Internal use only
         </p>
       </div>
+
+      <style jsx global>{`
+        .login-input:-webkit-autofill,
+        .login-input:-webkit-autofill:hover,
+        .login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #111827;
+          -webkit-box-shadow: 0 0 0 1000px #f9fafb inset;
+          transition: background-color 5000s ease-in-out 0s;
+          caret-color: #111827;
+        }
+      `}</style>
     </div>
   )
 }

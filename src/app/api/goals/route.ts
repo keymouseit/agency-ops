@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -18,5 +19,10 @@ export async function POST(req: Request) {
       targetDate: data.targetDate ? new Date(data.targetDate) : null,
     },
   })
+
+  revalidatePath('/goals')
+  revalidatePath('/me')
+  revalidatePath('/intelligence')
+
   return NextResponse.json(goal)
 }

@@ -1,7 +1,8 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
 import { redirect } from 'next/navigation'
-import { startOfDay, subDays, isWeekend } from 'date-fns'
+import { startOfDay, format } from 'date-fns'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
 
@@ -12,84 +13,103 @@ export default async function MorningPlanPage() {
   if (!session?.user?.id) redirect('/login')
 
   const memberId = session.user.id
-  const today     = startOfDay(new Date())
-  const yesterday = startOfDay(subDays(today, 1))
+  const today = startOfDay(new Date())
 
-  const [member, projects, todayLog, yesterdayLog] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, projects] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
+
+    prisma.dailyLog.findUnique({
+      where: { memberId_date: { memberId, date: today } },
+      select: {
+        id: true,
+        planSubmittedAt: true,
+        eodSubmittedAt: true,
+        planNotes: true,
+        tasks: {
+          select: {
+            title: true,
+            taskType: true,
+            priority: true,
+            projectId: true,
+            estimatedHours: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    }),
+
+    findPendingPastEodLog(memberId),
 
     prisma.project.findMany({
       where: { status: { in: ['active', 'qa', 'scoping'] } },
       select: { id: true, name: true, clientName: true },
       orderBy: { name: 'asc' },
     }),
-
-    prisma.dailyLog.findUnique({
-      where: { memberId_date: { memberId, date: today } },
-      select: { id: true, planSubmittedAt: true },
-    }),
-
-    // Skip weekend — don't gate on Sat/Sun
-    !isWeekend(yesterday)
-      ? prisma.dailyLog.findUnique({
-          where: { memberId_date: { memberId, date: yesterday } },
-          select: { id: true, planSubmittedAt: true, eodSubmittedAt: true },
-        })
-      : Promise.resolve(null),
   ])
 
   if (!member) redirect('/login')
 
-  const alreadyPlannedToday = !!todayLog?.planSubmittedAt
-  const missingYesterdayEOD = !!(yesterdayLog?.planSubmittedAt && !yesterdayLog?.eodSubmittedAt)
+  const isEditMode = !!(todayLog?.planSubmittedAt && !todayLog?.eodSubmittedAt)
+  const missingPastEOD = !!pendingPastEodLog
+  const replanAfterEod = !!(todayLog?.planSubmittedAt && todayLog?.eodSubmittedAt)
 
-  // ── GATE ─────────────────────────────────────────────────────────────────
-  if (missingYesterdayEOD) {
+  const initialTasks = todayLog?.tasks.map(t => ({
+    title: t.title,
+    taskType: t.taskType,
+    priority: t.priority,
+    projectId: t.projectId ?? '',
+    estimatedHours: t.estimatedHours?.toString() ?? '',
+  }))
+  const alreadyPlannedToday = !!todayLog?.planSubmittedAt;
+
+  if (alreadyPlannedToday && !isEditMode) {
     return (
-      <div className="max-w-lg mx-auto py-16">
-        <div className="card p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⏰</span>
+      <div className="py-8">
+        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-white to-green-50/40 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-600 text-2xl text-white shadow-sm">
+            ✓
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            Yesterday&apos;s EOD is missing
-          </h1>
-          <p className="text-sm text-gray-500 mb-1">
-            You submitted a plan yesterday but never closed the day.
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Plan already submitted</h1>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">
+            You have already submitted your plan for today.
           </p>
-          <p className="text-sm text-gray-500 mb-6">
-            Submit your EOD first — then you can plan today.
-          </p>
-          <Link
-            href={`/daily/eod?logId=${yesterdayLog?.id}`}
-            className="inline-block btn-primary px-6 py-2.5 text-sm"
-          >
-            Submit yesterday&apos;s EOD →
+          {todayLog?.eodSubmittedAt && (
+            <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+              Your EOD is also completed. You can create a new plan tomorrow.
+            </p>
+          )}
+          <Link href="/daily" className="btn-secondary inline-flex mt-6 text-sm">
+            ← Back to daily log
           </Link>
-          <p className="text-xs text-gray-400 mt-6">
-            Today&apos;s plan will be available once your EOD is submitted.
-          </p>
         </div>
       </div>
     )
   }
 
-  // ── Already done today ────────────────────────────────────────────────────
-  if (alreadyPlannedToday) {
+  if (missingPastEOD) {
+    const pendingDateLabel = formatDailyLogDate(pendingPastEodLog.date)
     return (
-      <div className="max-w-lg mx-auto py-16 text-center">
-        <div className="text-4xl mb-4">☀</div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">Plan already submitted</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          {member.name.split(' ')[0]}, your morning plan for today is already in.
-        </p>
-        <div className="flex gap-3 justify-center">
-          {todayLog?.id ? (
-            <Link href={`/daily/eod?logId=${todayLog.id}`} className="btn-secondary text-sm">Submit EOD →</Link>
-          ) : (
-            <Link href="/daily/eod" className="btn-secondary text-sm">Submit EOD →</Link>
-          )}
-          <Link href="/me" className="btn-primary text-sm">Back to My Day →</Link>
+      <div className="py-8">
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-white via-white to-red-50/40 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-2xl shadow-sm">
+            ⏰
+          </div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Previous EOD is missing</h1>
+          <p className="text-sm text-gray-500 max-w-md mx-auto mb-1">
+            You submitted a plan on {pendingDateLabel} but never closed the day.
+          </p>
+          <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
+            Submit that EOD first — then you can plan today.
+          </p>
+          <Link
+            href={`/daily/eod?logId=${pendingPastEodLog.id}`}
+            className="btn-primary inline-flex text-sm"
+          >
+            Submit {format(pendingPastEodLog.date, 'EEEE')}&apos;s EOD →
+          </Link>
+          <p className="text-xs text-gray-400 mt-6">
+            Today&apos;s plan will be available once your pending EOD is submitted.
+          </p>
         </div>
       </div>
     )
@@ -99,6 +119,10 @@ export default async function MorningPlanPage() {
     <MorningPlanForm
       member={{ id: member.id, name: member.name, role: member.role }}
       projects={projects}
+      replanAfterEod={replanAfterEod}
+      isEdit={isEditMode}
+      initialTasks={isEditMode ? initialTasks : undefined}
+      initialPlanNotes={isEditMode ? (todayLog?.planNotes ?? '') : undefined}
     />
   )
 }

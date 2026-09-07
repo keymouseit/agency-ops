@@ -1,177 +1,366 @@
 'use client'
+
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import MorningPlanHeader from './MorningPlanHeader'
 
-type Member  = { id: string; name: string; role: string }
+type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
-type Task    = {
-  title: string; taskType: string; priority: string
-  projectId: string; estimatedHours: string
+type Task = {
+  title: string
+  taskType: string
+  priority: string
+  projectId: string
+  estimatedHours: string
 }
 
-const TASK_TYPES = ['feature','bug','review','meeting','admin','qa','research']
-const PRIORITIES = ['high','medium','low']
-const PRIORITY_COLORS: Record<string,string> = {
-  high:'border-red-300 bg-red-50', medium:'border-amber-200 bg-amber-50', low:'border-gray-200 bg-gray-50',
+const PRIORITIES = ['high', 'medium', 'low'] as const
+
+const PRIORITY_STYLES: Record<string, { ring: string; badge: string; pill: string; pillActive: string }> = {
+  high: {
+    ring: 'ring-red-200',
+    badge: 'bg-red-100 text-red-800',
+    pill: 'border-red-200 text-red-700 hover:bg-red-50',
+    pillActive: 'bg-red-600 text-white border-red-600',
+  },
+  medium: {
+    ring: 'ring-amber-200',
+    badge: 'bg-amber-100 text-amber-800',
+    pill: 'border-amber-200 text-amber-700 hover:bg-amber-50',
+    pillActive: 'bg-amber-500 text-white border-amber-500',
+  },
+  low: {
+    ring: 'ring-gray-200',
+    badge: 'bg-gray-100 text-gray-700',
+    pill: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+    pillActive: 'bg-gray-600 text-white border-gray-600',
+  },
 }
-const emptyTask = (): Task => ({ title:'', taskType:'feature', priority:'medium', projectId:'', estimatedHours:'' })
+
+const emptyTask = (role: string): Task => ({
+  title: '',
+  taskType: defaultDailyTaskType(role),
+  priority: 'medium',
+  projectId: '',
+  estimatedHours: '',
+})
+
+function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount: number }) {
+  const pct = Math.min(100, (totalHours / MAX_DAILY_PLAN_HOURS) * 100)
+  const barColor =
+    totalHours > MAX_DAILY_PLAN_HOURS
+      ? 'bg-amber-500'
+      : totalHours >= 6
+        ? 'bg-green-500'
+        : totalHours >= 3
+          ? 'bg-blue-400'
+          : 'bg-gray-300'
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Day load</span>
+        <span
+          className={`text-sm font-semibold tabular-nums ${
+            totalHours > MAX_DAILY_PLAN_HOURS
+              ? 'text-amber-700'
+              : totalHours >= 6
+                ? 'text-green-700'
+                : 'text-gray-700'
+          }`}
+        >
+          {totalHours}h / {MAX_DAILY_PLAN_HOURS}h
+        </span>
+      </div>
+      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-gray-500 mt-2">
+        {taskCount} task{taskCount !== 1 ? 's' : ''}
+        {totalHours > MAX_DAILY_PLAN_HOURS && ' · Over a standard workday'}
+        {totalHours > 0 && totalHours < 3 && ' · Consider adding more tasks'}
+      </p>
+    </div>
+  )
+}
 
 export default function MorningPlanForm({
-  member, projects,
+  member,
+  projects,
+  replanAfterEod = false,
+  isEdit = false,
+  initialTasks,
+  initialPlanNotes = '',
 }: {
   member: Member
   projects: Project[]
+  replanAfterEod?: boolean
+  isEdit?: boolean
+  initialTasks?: Task[]
+  initialPlanNotes?: string
 }) {
-  const [tasks, setTasks]         = useState<Task[]>([emptyTask()])
-  const [planNotes, setPlanNotes] = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [done, setDone]           = useState(false)
-  const [logId, setLogId]         = useState('')
+  const [tasks, setTasks] = useState<Task[]>(
+    initialTasks?.length
+      ? initialTasks.map(t => (member.role === 'SocialMedia' ? { ...t, projectId: '' } : t))
+      : [emptyTask(member.role)]
+  )
+  const [planNotes, setPlanNotes] = useState(initialPlanNotes)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
+  const hideProject = member.role === 'SocialMedia'
 
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
-    setTasks(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
+    setTasks(prev => prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)))
   }, [])
 
   const totalHours = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0)
-  const canSubmit  = tasks.every(t => t.title.trim()) && tasks.length > 0
+  const canSubmit = tasks.every(t => t.title.trim() && parseFloat(t.estimatedHours) > 0) && tasks.length > 0
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    setError('')
     setLoading(true)
 
     try {
       const res = await fetch('/api/daily/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // memberId comes from the session on the server — but the API still needs it
-        // We pass it here for the existing API contract; the server validates via auth
-        body: JSON.stringify({ memberId: member.id, planNotes, tasks }),
+        body: JSON.stringify({
+          planNotes,
+          tasks: hideProject ? tasks.map(t => ({ ...t, projectId: '' })) : tasks,
+          replanAfterEod,
+        }),
       })
 
       if (!res.ok) {
-        throw new Error('Failed to submit plan')
+        const err = await res.json().catch(() => ({ error: 'Failed to submit plan' }))
+        throw new Error(err.error ?? `Failed to submit plan (${res.status})`)
       }
 
       const data = await res.json()
+      if (!data.id) throw new Error('No log ID returned from server')
 
-      if (!data.id) {
-        throw new Error('No log ID returned from server')
+      setLoading(false)
+      router.replace(isEdit ? '/daily' : '/daily?saved=1')
+      router.refresh()
+    } catch (err) {
+      setLoading(false)
+      if (err instanceof TypeError) {
+        setError('Could not reach the server. Check your connection and try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to submit plan. Please try again.')
       }
-
-      setLogId(data.id)
-      setLoading(false)
-      setDone(true)
-    } catch (error) {
-      setLoading(false)
-      alert('Failed to submit plan. Please try again.')
-      console.error('Plan submission error:', error)
     }
   }
 
-  if (done) return (
-    <div className="max-w-lg mx-auto text-center py-20">
-      <div className="text-5xl mb-4">☀</div>
-      <h1 className="text-2xl font-semibold mb-2">Plan locked in</h1>
-      <p className="text-gray-500 mb-1">
-        {member.name.split(' ')[0]} — {tasks.length} task{tasks.length !== 1 ? 's' : ''}, {totalHours}h planned.
-      </p>
-      <p className="text-sm text-gray-400 mb-8">EOD report due by 7pm.</p>
-      <div className="flex gap-3 justify-center">
-        <Link href={`/daily/eod?logId=${logId}`} className="btn-secondary">Submit EOD now →</Link>
-        <Link href="/me" className="btn-primary">My Day →</Link>
-      </div>
-    </div>
-  )
-
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Morning plan</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {member.name} · Due by 9:30am
-          </p>
-        </div>
-        <Link href="/me" className="text-xs text-gray-400 hover:text-gray-700">← My Day</Link>
-      </div>
+    <div className="w-full mx-auto">
+      <MorningPlanHeader
+        memberName={member.name}
+        memberRole={member.role}
+        isEdit={isEdit}
+        replanAfterEod={replanAfterEod}
+      />
 
-      <form onSubmit={submit} className="space-y-4">
-        {/* Task list */}
-        <div className="space-y-3">
-          {tasks.map((task, i) => (
-            <div key={i} className={`card p-4 border-l-4 ${PRIORITY_COLORS[task.priority]}`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Task {i + 1}</span>
-                {tasks.length > 1 && (
-                  <button type="button" onClick={() => setTasks(prev => prev.filter((_, idx) => idx !== i))}
-                    className="text-xs text-red-400 hover:text-red-600">Remove</button>
-                )}
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="label">What will you do? *</label>
-                  <input value={task.title} onChange={e => updateTask(i,'title',e.target.value)}
-                    required className="input"
-                    placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"' />
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  <div>
-                    <label className="label">Type</label>
-                    <select value={task.taskType} onChange={e => updateTask(i,'taskType',e.target.value)} className="input">
-                      {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Priority</label>
-                    <select value={task.priority} onChange={e => updateTask(i,'priority',e.target.value)} className="input">
-                      {PRIORITIES.map(p => <option key={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Project</label>
-                    <select value={task.projectId} onChange={e => updateTask(i,'projectId',e.target.value)} className="input">
-                      <option value="">— None —</option>
-                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Est. hours</label>
-                    <input type="number" step="0.5" min="0.5" max="8" value={task.estimatedHours}
-                      onChange={e => updateTask(i,'estimatedHours',e.target.value)}
-                      className="input" placeholder="2" />
-                  </div>
-                </div>
-              </div>
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl shrink-0" aria-hidden>
+              ⚠️
+            </span>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-red-900 mb-1">Submission failed</h3>
+              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-xs text-red-600 mt-1">Your entries are saved — fix the issue and submit again.</p>
             </div>
-          ))}
+            <button
+              type="button"
+              onClick={() => setError('')}
+              className="text-red-400 hover:text-red-600 text-sm shrink-0"
+              aria-label="Dismiss error"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isEdit && !replanAfterEod && (
+        <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800">
+          <span className="font-semibold">Tip:</span> Be specific — &quot;Fix the date picker bug on iOS&quot; beats
+          &quot;work on app&quot;. Your EOD report will reference these tasks.
+        </div>
+      )}
+
+      <form onSubmit={submit} className="space-y-5">
+        <div className="space-y-4">
+          {tasks.map((task, i) => {
+            const p = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium
+            return (
+              <div
+                key={i}
+                className={`rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden ring-1 ${p.ring}`}
+              >
+                <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm">
+                      {i + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</span>
+                    <span className={`badge text-[11px] ${p.badge}`}>{task.priority}</span>
+                  </div>
+                  {tasks.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setTasks(prev => prev.filter((_, idx) => idx !== i))}
+                      className="text-xs font-medium text-red-500 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="label">What will you do? *</label>
+                    <textarea
+                      value={task.title}
+                      onChange={e => updateTask(i, 'title', e.target.value)}
+                      required
+                      rows={3}
+                      className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
+                      placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"'
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label mb-2">Priority</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRIORITIES.map(priority => {
+                        const styles = PRIORITY_STYLES[priority]
+                        const active = task.priority === priority
+                        return (
+                          <button
+                            key={priority}
+                            type="button"
+                            onClick={() => updateTask(i, 'priority', priority)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-medium capitalize transition-colors ${
+                              active ? styles.pillActive : styles.pill
+                            }`}
+                          >
+                            {priority}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className={`grid gap-3 ${hideProject ? 'sm:grid-cols-3' : 'sm:grid-cols-3 lg:grid-cols-4'}`}>
+                    <div>
+                      <label className="label">Type</label>
+                      <select
+                        value={task.taskType}
+                        onChange={e => updateTask(i, 'taskType', e.target.value)}
+                        className="input bg-gray-50/50 focus:bg-white"
+                      >
+                        {dailyTaskTypeGroupsForRole(member.role, task.taskType).map(group => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.types.map(t => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    {!hideProject && (
+                      <div>
+                        <label className="label">Project</label>
+                        <select
+                          value={task.projectId}
+                          onChange={e => updateTask(i, 'projectId', e.target.value)}
+                          className="input bg-gray-50/50 focus:bg-white"
+                        >
+                          <option value="">— None —</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="label">Est. hours *</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        value={task.estimatedHours}
+                        onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
+                        required
+                        className="input bg-gray-50/50 focus:bg-white tabular-nums"
+                        placeholder="2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
-        {/* Hours + add task */}
-        <div className="flex items-center justify-between px-1">
-          <button type="button" onClick={() => setTasks(prev => [...prev, emptyTask()])}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-            + Add another task
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setTasks(prev => [...prev, emptyTask(member.role)])}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+          >
+            <span className="text-base leading-none">+</span>
+            Add another task
           </button>
-          <div className={`text-sm font-medium ${totalHours > 8 ? 'text-red-600' : totalHours >= 6 ? 'text-green-700' : 'text-gray-500'}`}>
-            {totalHours}h planned
-            {totalHours > 8 && ' — over capacity'}
-            {totalHours > 0 && totalHours < 3 && ' — consider adding more'}
+          <div className="sm:w-56">
+            <HoursSummary totalHours={totalHours} taskCount={tasks.length} />
           </div>
         </div>
 
-        {/* Plan notes */}
-        <div className="card p-5">
-          <label className="label">Anything blocking today before you start?</label>
-          <textarea value={planNotes} onChange={e => setPlanNotes(e.target.value)}
-            rows={2} className="input mt-1"
-            placeholder="Waiting on client response, need staging access, etc." />
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-3 mb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-base shrink-0">
+              🚧
+            </span>
+            <div>
+              <label className="text-sm font-semibold text-gray-900">
+                Anything blocking today before you start?
+              </label>
+              <p className="text-xs text-gray-500 mt-0.5">Optional — flag blockers so your team can help early.</p>
+            </div>
+          </div>
+          <textarea
+            value={planNotes}
+            onChange={e => setPlanNotes(e.target.value)}
+            rows={3}
+            className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
+            placeholder="Waiting on client response, need staging access, etc."
+          />
         </div>
 
-        <button type="submit" disabled={loading || !canSubmit} className="btn-primary w-full py-3 text-base">
-          {loading ? 'Locking in plan...' : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
+        <button
+          type="submit"
+          disabled={loading || !canSubmit}
+          className="btn-primary w-full py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+        >
+          {loading
+            ? isEdit
+              ? 'Saving changes...'
+              : 'Locking in plan...'
+            : isEdit
+              ? `Save changes — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`
+              : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
         </button>
       </form>
     </div>

@@ -5,9 +5,24 @@ export default auth((req) => {
   const { pathname } = req.nextUrl
   const session = req.auth
 
-  // Always allow: login page, NextAuth internals, static assets
+  // Login page: redirect authenticated users to their home
+  if (pathname === '/login') {
+    if (session?.user) {
+      const rawCallback = req.nextUrl.searchParams.get('callbackUrl')
+      const callbackUrl =
+        rawCallback?.startsWith('/') && !rawCallback.startsWith('//') && rawCallback !== '/login'
+          ? rawCallback
+          : null
+      const role = session.user.role as string
+      const defaultHome = ['Founder', 'Manager'].includes(role) ? '/' : '/me'
+      const destination = callbackUrl ?? defaultHome
+      return NextResponse.redirect(new URL(destination, req.url))
+    }
+    return NextResponse.next()
+  }
+
+  // Always allow: NextAuth internals, static assets
   if (
-    pathname === '/login' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')
@@ -20,6 +35,14 @@ export default auth((req) => {
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Personal pages — every authenticated user
+  if (
+    pathname === '/me' || pathname.startsWith('/me/') ||
+    pathname === '/account' || pathname.startsWith('/account/')
+  ) {
+    return NextResponse.next()
   }
 
   const role = session.user.role as string
@@ -46,18 +69,33 @@ export default auth((req) => {
   }
 
   if (!allowed) {
-    // Non-Founders land on their personal home page
-    const home = role === 'Founder' ? '/' : '/me'
-    return NextResponse.redirect(new URL(home, req.url))
+    const home = ['Founder', 'Manager'].includes(role) ? '/' : '/me'
+    if (pathname !== home && !pathname.startsWith(home + '/')) {
+      return NextResponse.redirect(new URL(home, req.url))
+    }
   }
 
   return NextResponse.next()
 })
 
 function checkApiAccess(path: string, role: string): boolean {
-  // BD can access lead/proposal/estimation/project APIs
-  if (['BD', 'Both', 'Founder'].includes(role)) {
-    if (path.startsWith('/api/leads') || path.startsWith('/api/estimate') || path.startsWith('/api/projects')) return true
+  // All authenticated users can manage their own account.
+  if (path.startsWith('/api/account')) return true
+
+  // Entity audit trails are visible to authenticated users who can access the
+  // underlying page. The system-wide audit route still enforces Founder-only
+  // access in its route handler.
+  if (path.startsWith('/api/audit')) return true
+
+  // BD can access lead/proposal/estimation/project/MOM APIs
+  if (['BD', 'Both', 'Founder', 'Manager'].includes(role)) {
+    if (
+      path.startsWith('/api/leads') ||
+      path.startsWith('/api/estimate') ||
+      path.startsWith('/api/projects') ||
+      path.startsWith('/api/mom') ||
+      path.startsWith('/api/campaigns')
+    ) return true
   }
   // Dev can access project/daily/checkin/estimate APIs
   if (['Dev', 'Both', 'Founder'].includes(role)) {
@@ -65,7 +103,8 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/projects') ||
       path.startsWith('/api/daily') ||
       path.startsWith('/api/scores') ||
-      path.startsWith('/api/estimate')
+      path.startsWith('/api/estimate') ||
+      path.startsWith('/api/qa/cycle-cases')
     ) return true
   }
   // BD can access daily APIs
@@ -81,8 +120,21 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/daily')
     ) return true
   }
-  // Everyone can access scores, notifications
-  if (path.startsWith('/api/scores') || path.startsWith('/api/notifications')) return true
+  // HR: daily plans and EOD
+  if (role === 'HR') {
+    if (path.startsWith('/api/daily')) return true
+  }
+  // Social Media: daily + weekly check-in scores
+  if (role === 'SocialMedia') {
+    if (path.startsWith('/api/daily') || path.startsWith('/api/scores')) return true
+  }
+  // Everyone can access scores, notifications, apply for leaves, and project check-ins
+  if (
+    path.startsWith('/api/scores') || 
+    path.startsWith('/api/notifications') || 
+    path.startsWith('/api/leaves') ||
+    path.match(/^\/api\/projects\/[^/]+\/checkin/)
+  ) return true
   return false
 }
 

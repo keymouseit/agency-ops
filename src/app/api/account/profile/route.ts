@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { logTeamMemberChange, captureChanges } from '@/lib/audit'
 
 export async function PATCH(req: Request) {
   const session = await auth()
@@ -40,6 +41,15 @@ export async function PATCH(req: Request) {
 
   // Update member
   try {
+    // Get current member data for audit logging
+    const currentMember = await prisma.teamMember.findUnique({
+      where: { id: session.user.id }
+    })
+
+    if (!currentMember) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+    }
+
     const updated = await prisma.teamMember.update({
       where: { id: session.user.id },
       data: {
@@ -47,6 +57,23 @@ export async function PATCH(req: Request) {
         email: email.trim().toLowerCase(),
       }
     })
+
+    // Capture changes for audit log
+    const changes = captureChanges(currentMember, {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+    })
+
+    // Log the change if there are any
+    if (Object.keys(changes).length > 0) {
+      await logTeamMemberChange(
+        'updated',
+        session.user.id,
+        updated.name,
+        changes,
+        req
+      )
+    }
 
     return NextResponse.json({
       success: true,

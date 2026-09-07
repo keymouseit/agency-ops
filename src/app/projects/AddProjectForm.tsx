@@ -37,12 +37,15 @@ export default function AddProjectForm({
       const fd = new FormData(e.currentTarget)
       const data = Object.fromEntries(fd)
 
-      // Validate estimated hours > 0
-      const estimatedHours = parseFloat(data.estimatedHours as string)
-      if (estimatedHours <= 0) {
-        setError('Estimated hours must be greater than 0')
-        setLoading(false)
-        return
+      // Validate estimated hours only when provided
+      const estimatedHoursRaw = (data.estimatedHours as string)?.trim()
+      if (estimatedHoursRaw) {
+        const estimatedHours = parseFloat(estimatedHoursRaw)
+        if (Number.isNaN(estimatedHours) || estimatedHours <= 0) {
+          setError('Estimated hours must be greater than 0 when provided')
+          setLoading(false)
+          return
+        }
       }
 
       const res = await fetch('/api/projects', {
@@ -143,8 +146,8 @@ export default function AddProjectForm({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Estimated hours *</label>
-                  <input name="estimatedHours" type="number" required className="input" placeholder="e.g. 280" />
+                  <label className="label">Estimated hours</label>
+                  <input name="estimatedHours" type="number" min="0" step="1" className="input" placeholder="Optional — e.g. 280" />
                 </div>
                 <div>
                   <label className="label">Tech stack</label>
@@ -157,8 +160,8 @@ export default function AddProjectForm({
                   <input name="startDate" type="date" className="input" />
                 </div>
                 <div>
-                  <label className="label">Estimated end date *</label>
-                  <input name="estimatedEnd" type="date" required className="input" />
+                  <label className="label">Estimated end date</label>
+                  <input name="estimatedEnd" type="date" className="input" />
                 </div>
               </div>
               <div className="flex gap-2 pt-2">

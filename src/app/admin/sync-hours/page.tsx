@@ -31,7 +31,7 @@ export default function SyncHoursPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="w-full mx-auto py-8">
       <h1 className="text-2xl font-semibold text-gray-900 mb-4">
         Sync Project Actual Hours
       </h1>

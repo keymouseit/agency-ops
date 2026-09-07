@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LOSS_REASONS, FAULT_AREAS, LEAD_STATUSES } from '@/lib/utils'
+import { LOSS_REASONS, FAULT_AREAS, LEAD_STATUSES, formatLossReason } from '@/lib/utils'
 
 type Member = { id: string; name: string; role: string }
 type Lead = { id: string; status: string; clientName: string }
@@ -27,7 +27,7 @@ export default function LeadActions({ lead, members }: { lead: Lead; members: Me
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap mt-[20px]">
         <button className="btn-secondary text-xs" onClick={() => setView('proposal')}>+ Log proposal</button>
         {lead.status === 'lost' && <button className="btn-secondary text-xs" onClick={() => setView('loss')}>+ Add loss analysis</button>}
         <button className="btn-secondary text-xs" onClick={() => setView('status')}>Update status</button>
@@ -85,7 +85,7 @@ export default function LeadActions({ lead, members }: { lead: Lead; members: Me
               <div>
                 <label className="label">Why did we lose? *</label>
                 <select name="reason" required className="input">
-                  {LOSS_REASONS.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+                  {LOSS_REASONS.map(r => <option key={r} value={r}>{formatLossReason(r)}</option>)}
                 </select>
               </div>
               <div>

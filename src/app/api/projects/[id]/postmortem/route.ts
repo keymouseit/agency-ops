@@ -5,7 +5,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const deny = await checkRole(['Dev', 'Both', 'Founder'])
   if (deny) return deny
 
-  // Check project has QA sign-off - post-mortem only allowed after QA signs off
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     include: { releaseSignOff: true },
@@ -15,9 +14,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 })
   }
 
-  if (!project.releaseSignOff) {
+  if (project.status === 'qa' && !project.releaseSignOff) {
     return NextResponse.json(
-      { error: 'Post-mortem can only be added after QA has signed off the project.' },
+      { error: 'Post-mortem can only be added after QA sign-off or when delivered.' },
+      { status: 403 }
+    )
+  }
+
+  if (!['qa', 'delivered'].includes(project.status)) {
+    return NextResponse.json(
+      { error: 'Post-mortem can only be added when project is in QA or delivered status.' },
       { status: 403 }
     )
   }

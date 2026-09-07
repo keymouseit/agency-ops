@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { fmtCurrency } from '@/lib/utils'
 
 type Member = { id: string; name: string; role: string }
 type Lead = { id: string; clientName: string; description: string | null; budget: number | null; currency: string; source: string; owner: { name: string } }
@@ -167,7 +168,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full mx-auto">
       <div className="text-xs text-gray-400 mb-2">← <a href={`/pipeline/${lead.id}`} className="hover:text-gray-700">Pipeline / {lead.clientName}</a></div>
 
       <div className="flex items-start justify-between mb-6">
@@ -176,7 +177,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
             <span>{lead.source}</span>
             {lead.budget && session?.user?.role && ['BD', 'Founder', 'Both'].includes(session.user.role) && (
-              <span>Client budget: ${lead.budget.toLocaleString()} {lead.currency}</span>
+              <span>Client budget: {fmtCurrency(lead.budget, lead.currency)}</span>
             )}
             <span>BD owner: {lead.owner.name}</span>
           </div>

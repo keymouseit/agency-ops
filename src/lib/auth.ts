@@ -6,11 +6,14 @@ import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate'],
-  BD:      ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
-  Dev:     ['/me', '/projects', '/checkin', '/daily', '/estimate'],
-  QA:      ['/me', '/qa', '/checkin', '/daily'],
-  Both:    ['/me', '/pipeline', '/projects', '/checkin', '/daily', '/estimate'],
+  Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
+  Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
+  Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
+  QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
+  HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
+  SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
+  Both:         ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────
@@ -67,10 +70,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id   = user.id ?? ''
         token.role = (user as { role: string }).role
+        token.name = user.name ?? ''
+        token.email = user.email ?? ''
+      }
+      // Handle session updates (e.g., when profile is updated)
+      if (trigger === 'update' && session) {
+        token.name = session.name as string
+        token.email = session.email as string
       }
       return token
     },
@@ -78,6 +88,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id   = token.id as string
         session.user.role = token.role as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
       }
       return session
     },
@@ -106,10 +118,28 @@ export async function requireRole(
   if (!session?.user?.id) {
     throw Object.assign(new Error('UNAUTHORIZED'), { status: 401 })
   }
-  if (!allowed.includes(session.user.role)) {
+
+  let member = await prisma.teamMember.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true, active: true },
+  })
+
+  // Session may hold a stale member id after db reset — resolve by email
+  if (!member && session.user.email) {
+    member = await prisma.teamMember.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, active: true },
+    })
+  }
+
+  if (!member?.active) {
+    throw Object.assign(new Error('STALE_SESSION'), { status: 401 })
+  }
+  if (!allowed.includes(member.role)) {
     throw Object.assign(new Error('FORBIDDEN'), { status: 403 })
   }
-  return { memberId: session.user.id, role: session.user.role }
+
+  return { memberId: member.id, role: member.role }
 }
 
 /**
@@ -126,6 +156,12 @@ export async function checkRole(allowed: string[]): Promise<NextResponse | null>
     return null
   } catch (e: unknown) {
     const err = e as { message: string; status?: number }
+    if (err.message === 'STALE_SESSION') {
+      return NextResponse.json(
+        { error: 'Your session is out of date. Please sign out and sign in again.' },
+        { status: 401 }
+      )
+    }
     const isUnauthed = err.message === 'UNAUTHORIZED'
     return NextResponse.json(
       { error: isUnauthed ? 'Sign in required.' : 'You do not have permission for this action.' },

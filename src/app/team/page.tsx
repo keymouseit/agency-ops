@@ -11,21 +11,24 @@ export default async function TeamPage() {
   const [members, allScores] = await Promise.all([
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.weeklyScore.findMany({
-      where: { weekOf: { gte: subWeeks(startOfWeek(new Date()), 5) } },
+      where: { weekOf: { gte: subWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), 5) } },
       include: { member: true },
       orderBy: { weekOf: 'asc' },
     }),
   ])
 
-  const weeks = Array.from({ length: 6 }, (_, i) => startOfWeek(subWeeks(new Date(), 5 - i)))
-  const thisWeek = startOfWeek(new Date())
+  const weeks = Array.from({ length: 6 }, (_, i) =>
+    startOfWeek(subWeeks(new Date(), 5 - i), { weekStartsOn: 1 })
+  )
+  const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
 
-  function getScore(memberId: string, weekOf: Date, founderScore = false) {
-    return allScores.find(
-      s => s.memberId === memberId &&
-           s.weekOf.toISOString().slice(0, 10) === weekOf.toISOString().slice(0, 10) &&
-           s.founderScore === founderScore
+  function getScore(memberId: string, weekOf: Date) {
+    const weekKey = weekOf.toISOString().slice(0, 10)
+    const weekScores = allScores.filter(
+      s => s.memberId === memberId && s.weekOf.toISOString().slice(0, 10) === weekKey
     )
+    // Prefer founder score on team page; fall back to self-assessment
+    return weekScores.find(s => s.founderScore) ?? weekScores.find(s => !s.founderScore) ?? null
   }
 
   const memberSummaries = members.map(m => {
@@ -52,7 +55,7 @@ export default async function TeamPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Team scorecards</h1>
           <p className="text-sm text-gray-500 mt-0.5">Delivery · Process · Communication · Growth · Culture — tracked weekly.</p>
         </div>
-        <SubmitScoreForm members={members} />
+        <SubmitScoreForm members={members} founderMode />
       </div>
 
       {/* Score definitions */}

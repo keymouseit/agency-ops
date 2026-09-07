@@ -2,6 +2,18 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { fmtDate } from '@/lib/utils'
+import MilestoneTestProgress from '@/components/MilestoneTestProgress'
+import MilestoneBugFixActions from '@/components/MilestoneBugFixActions'
+import { openBugCount, SerializedBug } from '@/lib/milestone-qa'
+
+type TestCase = {
+  id: string
+  title: string
+  status: string
+  notes: string | null
+  testedAt: string | null
+  testedBy: { name: string } | null
+}
 
 type Milestone = {
   id: string
@@ -9,6 +21,9 @@ type Milestone = {
   dueDate: Date
   status: string
   completedAt: Date | null
+  qaStartedAt?: string | null
+  testCases?: TestCase[]
+  bugs?: SerializedBug[]
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
@@ -23,6 +38,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
     color: 'text-blue-700',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200'
+  },
+  testing: {
+    label: 'In testing',
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200'
   },
   done: {
     label: 'QA Approved',
@@ -41,18 +62,21 @@ export default function DeveloperMilestones({
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   async function updateMilestoneStatus(milestoneId: string, newStatus: string) {
     setLoading(milestoneId)
     try {
       const res = await fetch(`/api/projects/milestones/${milestoneId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ status: newStatus }),
       })
-
+      const data = await res.json()
       if (!res.ok) {
-        throw new Error('Failed to update milestone')
+        throw new Error(data?.error || 'Failed to update milestone')
       }
 
       router.refresh()
@@ -72,6 +96,7 @@ export default function DeveloperMilestones({
   }
 
   const readyForQACount = milestones.filter(m => m.status === 'ready_for_qa').length
+  const testingCount = milestones.filter(m => m.status === 'testing').length
   const approvedCount = milestones.filter(m => m.status === 'done').length
   const progressPct = Math.round((approvedCount / milestones.length) * 100)
 
@@ -80,6 +105,11 @@ export default function DeveloperMilestones({
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-gray-500">
           {approvedCount} of {milestones.length} QA-approved
+          {testingCount > 0 && (
+            <span className="ml-2 text-teal-600">
+              · {testingCount} in testing
+            </span>
+          )}
           {readyForQACount > 0 && (
             <span className="ml-2 text-blue-600">
               · {readyForQACount} ready for QA
@@ -111,22 +141,44 @@ export default function DeveloperMilestones({
         {milestones.map(m => {
           const statusConfig = STATUS_CONFIG[m.status] || STATUS_CONFIG.pending
           const isOverdue = new Date(m.dueDate) < new Date() && m.status !== 'done'
+          const testCases = m.testCases ?? []
+          const bugs = m.bugs ?? []
+          const canExpand = ['ready_for_qa', 'testing', 'done'].includes(m.status)
+          const isExpanded = expanded === m.id
+          const openBugs = openBugCount(bugs)
 
           return (
             <div
               key={m.id}
-              className={`p-3 rounded-lg border ${statusConfig.borderColor} ${statusConfig.bgColor}`}
+              className={`rounded-lg border ${statusConfig.borderColor} ${statusConfig.bgColor}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
+              <div
+                className={`p-3 flex items-start justify-between gap-3 ${
+                  canExpand ? 'cursor-pointer select-none' : ''
+                }`}
+                onClick={canExpand ? () => setExpanded(isExpanded ? null : m.id) : undefined}
+                onKeyDown={canExpand ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setExpanded(isExpanded ? null : m.id)
+                  }
+                } : undefined}
+                role={canExpand ? 'button' : undefined}
+                tabIndex={canExpand ? 0 : undefined}
+                aria-expanded={canExpand ? isExpanded : undefined}
+              >
+                <div className="flex-1 min-w-0">
                   <div className={`text-sm font-medium ${
                     m.status === 'done' ? 'text-gray-500 line-through' : 'text-gray-900'
                   }`}>
                     {m.title}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                     <span>Due: {fmtDate(m.dueDate)}</span>
                     {isOverdue && <span className="text-red-600">⚠ Overdue</span>}
+                    {openBugs > 0 && (
+                      <span className="text-red-600 font-medium">{openBugs} open bug(s)</span>
+                    )}
                     {m.completedAt && (
                       <span className="text-green-600">
                         ✓ Approved {fmtDate(m.completedAt)}
@@ -134,16 +186,25 @@ export default function DeveloperMilestones({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2 shrink-0"
+                  onClick={e => e.stopPropagation()}
+                >
                   <span className={`badge text-xs ${statusConfig.color} ${statusConfig.bgColor}`}>
                     {statusConfig.label}
                   </span>
+                  {canExpand && (
+                    <span className="text-gray-400 text-sm w-4 text-center" aria-hidden>
+                      {isExpanded ? '▾' : '▸'}
+                    </span>
+                  )}
                   {loading === m.id ? (
                     <span className="text-xs text-gray-400">Updating...</span>
                   ) : (
                     <div className="flex gap-1">
                       {m.status === 'pending' && (
                         <button
+                          type="button"
                           onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa')}
                           className="btn-secondary text-xs py-1 px-2"
                           title="Mark as ready for QA testing"
@@ -153,6 +214,7 @@ export default function DeveloperMilestones({
                       )}
                       {m.status === 'ready_for_qa' && (
                         <button
+                          type="button"
                           onClick={() => updateMilestoneStatus(m.id, 'pending')}
                           className="btn-secondary text-xs py-1 px-2"
                           title="Move back to pending"
@@ -167,13 +229,26 @@ export default function DeveloperMilestones({
                   )}
                 </div>
               </div>
+
+              {isExpanded && (
+                <div className="px-3 pb-3">
+                <MilestoneTestProgress
+                  milestoneTitle={m.title}
+                  milestoneStatus={m.status}
+                  qaStartedAt={m.qaStartedAt}
+                  testCases={testCases}
+                  bugs={bugs}
+                />
+                <MilestoneBugFixActions milestoneId={m.id} bugs={bugs} />
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        ℹ️ Mark milestones as "Ready for QA" when complete. QA will test and approve them individually.
+        Mark milestones as &quot;Ready for QA&quot; when complete. Click a milestone row to see test summary and bugs.
       </p>
     </div>
   )

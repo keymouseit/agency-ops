@@ -1,13 +1,39 @@
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { auth, checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { canEditEod } from '@/lib/daily'
 
 export async function POST(
   req: Request,
   { params }: { params: { logId: string } }
 ) {
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
   if (deny) return deny
+
+  const session = await auth()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const existingLog = await prisma.dailyLog.findUnique({
+    where: { id: params.logId },
+    select: { memberId: true, eodSubmittedAt: true },
+  })
+
+  if (!existingLog) {
+    return NextResponse.json({ error: 'Daily log not found' }, { status: 404 })
+  }
+
+  if (existingLog.memberId !== session.user.id) {
+    return NextResponse.json({ error: 'You can only submit your own EOD' }, { status: 403 })
+  }
+
+  if (existingLog.eodSubmittedAt && !canEditEod(existingLog.eodSubmittedAt)) {
+    return NextResponse.json(
+      { error: 'EOD can only be edited on the day it was submitted' },
+      { status: 403 }
+    )
+  }
 
   const data = await req.json()
 
@@ -18,7 +44,6 @@ export async function POST(
     blockedReason: string
   }>
 
-  // Update each task
   await Promise.all(
     Object.entries(taskUpdates).map(([taskId, update]) =>
       prisma.dailyTask.update({
@@ -33,7 +58,6 @@ export async function POST(
     )
   )
 
-  // Compute completion rate and estimation score for the log
   const tasks = await prisma.dailyTask.findMany({
     where: { dailyLogId: params.logId },
   })
@@ -49,11 +73,10 @@ export async function POST(
     ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) / tasksWithBothHours.length
     : null
 
-  // Update the log with EOD data
   const log = await prisma.dailyLog.update({
     where: { id: params.logId },
     data: {
-      eodSubmittedAt: new Date(),
+      eodSubmittedAt: existingLog.eodSubmittedAt ?? new Date(),
       blockers:        data.blockers  || null,
       carryOver:       data.carryOver || null,
       dayRating:       data.dayRating ? parseInt(data.dayRating) : null,
@@ -63,8 +86,6 @@ export async function POST(
     },
   })
 
-  // ── BLOCKER 3 FIX: Sync project.actualHours from all daily task logs ──────
-  // Find every project touched in this log that has actual hours logged
   const projectIds = [...new Set(
     tasks
       .filter(t => t.projectId && t.actualHours !== null && t.actualHours !== undefined)
@@ -75,7 +96,6 @@ export async function POST(
     try {
       await Promise.all(
         projectIds.map(async (projectId) => {
-          // Sum ALL actual hours ever logged against this project across all daily tasks
           const agg = await prisma.dailyTask.aggregate({
             where: {
               projectId,
@@ -94,10 +114,8 @@ export async function POST(
       )
     } catch (error) {
       console.error('Error syncing project actual hours:', error)
-      // Continue anyway - don't fail the EOD submission
     }
   }
 
   return NextResponse.json(log)
 }
-

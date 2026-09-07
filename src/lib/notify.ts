@@ -10,9 +10,45 @@ type NotificationType =
   | 'project_assigned'
   | 'project_in_qa'
   | 'milestone_ready_for_qa'
+  | 'milestone_testing_started'
+  | 'milestone_test_case_failed'
+  | 'milestone_qa_approved'
+  | 'milestone_bug_logged'
+  | 'scope_change_requested'
+  | 'scope_change_approved'
+  | 'scope_change_declined'
   | 'test_cycle_fail'
   | 'test_cycle_pass'
+  | 'test_cycle_fix_ready'
   | 'eod_missing'
+  | 'mom_attendee'
+
+/**
+ * Notify developer and/or BD when assigned to a project (skips the creator).
+ */
+export async function notifyProjectAssigned(
+  assigneeIds: (string | null | undefined)[],
+  creatorId: string | undefined,
+  projectName: string,
+  projectLink: string
+): Promise<void> {
+  const uniqueIds = [...new Set(
+    assigneeIds.filter((id): id is string => !!id && id !== creatorId)
+  )]
+  if (!uniqueIds.length) return
+
+  const creator = creatorId
+    ? await prisma.teamMember.findUnique({ where: { id: creatorId }, select: { name: true } })
+    : null
+  const creatorName = creator?.name ?? 'Someone'
+
+  await notify(
+    'project_assigned',
+    uniqueIds,
+    `${creatorName} assigned you to project: ${projectName}`,
+    projectLink
+  )
+}
 
 /**
  * Fire a notification to one or more members.

@@ -1,14 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
+import { fmtCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import AddProjectForm from './AddProjectForm'
+import ProjectListCard from './ProjectListCard'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
-
-const STATUS_LABELS: Record<string, string> = {
-  scoping: 'Scoping', active: 'Active', qa: 'QA', delivered: 'Delivered', cancelled: 'Cancelled',
-}
 
 export default async function ProjectsPage() {
   const session = await auth()
@@ -27,146 +24,213 @@ export default async function ProjectsPage() {
         scopeChanges: true,
         milestones: true,
         postMortem: true,
+        releaseSignOff: { include: { signedOffBy: true } },
+        testCycles: { orderBy: { startedAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
+    prisma.teamMember.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, role: true },
+    }),
     prisma.lead.findMany({ where: { status: 'won', project: null }, select: { id: true, clientName: true } }),
   ])
 
   const active = projects.filter(p => ['active', 'qa', 'scoping'].includes(p.status))
   const delivered = projects.filter(p => p.status === 'delivered')
+  const unsignedCount = projects.reduce(
+    (n, p) => n + p.scopeChanges.filter(s => !s.changeOrderSigned).length,
+    0
+  )
+  const totalMilestones = active.reduce((n, p) => n + p.milestones.length, 0)
+  const doneMilestones = active.reduce(
+    (n, p) => n + p.milestones.filter(m => m.status === 'done').length,
+    0
+  )
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Full lifecycle — scoping to delivery. Every scope change logged.</p>
+    <div className="space-y-5">
+      <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-4 py-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-lg text-white shrink-0">
+              📁
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Projects</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Full lifecycle — scoping to delivery. Every scope change logged.
+              </p>
+            </div>
+          </div>
+          {!isDev && (
+            <AddProjectForm
+              members={members}
+              wonLeads={leads}
+              currentUserId={userId}
+              currentUserRole={userRole}
+            />
+          )}
         </div>
-        {!isDev && <AddProjectForm members={members} wonLeads={leads} currentUserId={userId} currentUserRole={userRole} />}
       </div>
 
-      {/* Unsigned scope changes alert */}
-      {projects.some(p => p.scopeChanges.some(s => !s.changeOrderSigned)) && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800 font-medium">
-          ⚠️ {projects.reduce((n, p) => n + p.scopeChanges.filter(s => !s.changeOrderSigned).length, 0)} scope change(s) missing signed change order — action required.
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Active', value: active.length.toString(), icon: '🚀' },
+          { label: 'Delivered', value: delivered.length.toString(), icon: '✅' },
+          {
+            label: 'Milestones done',
+            value: totalMilestones > 0 ? `${doneMilestones}/${totalMilestones}` : '—',
+            icon: '🎯',
+          },
+          {
+            label: 'CO missing',
+            value: unsignedCount.toString(),
+            icon: '⚠️',
+            bad: unsignedCount > 0,
+          },
+        ].map(stat => (
+          <div key={stat.label} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{stat.label}</span>
+              <span className="text-base opacity-80" aria-hidden>
+                {stat.icon}
+              </span>
+            </div>
+            <div className={`text-xl font-semibold ${stat.bad ? 'text-red-600' : 'text-gray-900'}`}>
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {unsignedCount > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
+          <span aria-hidden>⚠️</span>
+          <span>
+            <span className="font-semibold">{unsignedCount} scope change(s)</span> missing signed change order —
+            action required.
+          </span>
         </div>
       )}
 
-      {/* Active projects */}
-      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Active ({active.length})</h2>
-      <div className="space-y-3 mb-8">
-        {active.map(p => {
-          const ci = p.checkIns[0]
-          // Calculate progress based on milestones
-          const totalMilestones = p.milestones.length
-          const completedMilestones = p.milestones.filter(m => m.status === 'done').length
-          const pct = totalMilestones > 0
-            ? Math.round((completedMilestones / totalMilestones) * 100)
-            : 0
-          const onTrack = ci?.onTrack ?? 'yes'
-          const unsigned = p.scopeChanges.filter(s => !s.changeOrderSigned).length
-          const overdue = p.estimatedEnd && new Date(p.estimatedEnd) < new Date() && p.status !== 'delivered'
-          const estAccuracy = p.actualHours && p.estimatedHours
-            ? Math.round((p.actualHours / p.estimatedHours) * 100)
-            : null
-
-          return (
-            <div key={p.id} className="card p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <Link href={`/projects/${p.id}`} className="text-base font-semibold text-gray-900 hover:underline">{p.name}</Link>
-                    <span className={`badge ${STATUS_COLORS[p.status]}`}>{STATUS_LABELS[p.status]}</span>
-                    {unsigned > 0 && <span className="badge bg-red-100 text-red-800">{unsigned} CO missing</span>}
-                    {overdue && <span className="badge bg-red-100 text-red-800">Overdue</span>}
-                  </div>
-                  <div className="flex gap-4 text-xs text-gray-400 mb-3">
-                    <span>Dev: {p.developer.name}</span>
-                    {p.bdMember && <span>BD: {p.bdMember.name}</span>}
-                    {p.contractValue && isBD && <span>Value: {fmtCurrency(p.contractValue, p.currency)}</span>}
-                    {p.estimatedEnd && <span>Due: {fmtDate(p.estimatedEnd)}</span>}
-                    {estAccuracy && <span className={estAccuracy > 120 ? 'text-red-500' : 'text-gray-400'}>Est. usage: {estAccuracy}%</span>}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 max-w-xs h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          pct >= 80 ? 'bg-green-500'
-                          : pct >= 50 ? 'bg-amber-400'
-                          : pct >= 25 ? 'bg-blue-500'
-                          : 'bg-gray-400'
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500">{pct}% · {completedMilestones}/{totalMilestones} milestones</span>
-                  </div>
-                  {ci?.blockers && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">Blocker: {ci.blockers}</p>}
-                </div>
-                <Link href={`/projects/${p.id}`} className="text-xs text-gray-400 hover:text-gray-700 ml-4">Details →</Link>
+      <section>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-gray-900">Active projects</h2>
+          <span className="badge bg-gray-100 text-gray-600 text-[11px]">{active.length}</span>
+        </div>
+        <div className="space-y-3">
+          {active.map(p => (
+            <ProjectListCard key={p.id} project={p} showValue={!!isBD} />
+          ))}
+          {active.length === 0 && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-xl">
+                📁
               </div>
+              <p className="text-sm font-medium text-gray-700">No active projects</p>
+              <p className="text-xs text-gray-400 mt-1">Projects in scoping, active, or QA will appear here.</p>
             </div>
-          )
-        })}
-        {active.length === 0 && <div className="card p-8 text-center text-gray-400 text-sm">No active projects.</div>}
-      </div>
+          )}
+        </div>
+      </section>
 
-      {/* Delivered */}
       {delivered.length > 0 && (
-        <>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Delivered ({delivered.length})</h2>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-4 py-3 font-medium">Project</th>
-                  <th className="text-left px-4 py-3 font-medium">Developer</th>
-                  <th className="text-left px-4 py-3 font-medium">BD</th>
-                  {isBD && <th className="text-left px-4 py-3 font-medium">Value</th>}
-                  <th className="text-left px-4 py-3 font-medium">On time?</th>
-                  <th className="text-left px-4 py-3 font-medium">Client score</th>
-                  <th className="text-left px-4 py-3 font-medium">Est. accuracy</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {delivered.map(p => {
-                  const acc = p.actualHours && p.estimatedHours
-                    ? Math.round((p.actualHours / p.estimatedHours) * 100)
-                    : null
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{p.developer.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{p.bdMember?.name || '—'}</td>
-                      {isBD && <td className="px-4 py-3">{fmtCurrency(p.contractValue, p.currency)}</td>}
-                      <td className="px-4 py-3">
-                        {p.onTime == null ? '—' : p.onTime
-                          ? <span className="badge bg-green-100 text-green-800">Yes</span>
-                          : <span className="badge bg-red-100 text-red-800">Late</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        {p.clientScore
-                          ? <span className={p.clientScore >= 8 ? 'text-green-700 font-semibold' : p.clientScore >= 6 ? 'text-amber-700 font-semibold' : 'text-red-600 font-semibold'}>{p.clientScore}/10</span>
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {acc
-                          ? <span className={acc > 120 ? 'text-red-600 font-semibold' : 'text-green-700'}>{acc}%</span>
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/projects/${p.id}`} className="text-xs text-gray-400 hover:text-gray-700 underline">View</Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-900">Delivered</h2>
+            <span className="badge bg-green-100 text-green-700 text-[11px]">{delivered.length}</span>
           </div>
-        </>
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50/80 border-b border-gray-100">
+                  <tr className="text-[11px] text-gray-400 uppercase tracking-wide">
+                    <th className="text-left px-4 py-3 font-semibold">Project</th>
+                    <th className="text-left px-4 py-3 font-semibold">Developer</th>
+                    <th className="text-left px-4 py-3 font-semibold">BD</th>
+                    {isBD && <th className="text-left px-4 py-3 font-semibold">Value</th>}
+                    <th className="text-left px-4 py-3 font-semibold">On time</th>
+                    <th className="text-left px-4 py-3 font-semibold">Client score</th>
+                    <th className="text-left px-4 py-3 font-semibold">Est. accuracy</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {delivered.map(p => {
+                    const acc =
+                      p.actualHours && p.estimatedHours
+                        ? Math.round((p.actualHours / p.estimatedHours) * 100)
+                        : null
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/projects/${p.id}`}
+                            className="font-medium text-gray-900 hover:text-gray-700"
+                          >
+                            {p.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">{p.developer.name}</td>
+                        <td className="px-4 py-3 text-gray-500">{p.bdMember?.name || '—'}</td>
+                        {isBD && (
+                          <td className="px-4 py-3 text-gray-700">
+                            {fmtCurrency(p.contractValue, p.currency)}
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          {p.onTime == null ? (
+                            '—'
+                          ) : p.onTime ? (
+                            <span className="badge bg-green-100 text-green-800 text-[11px]">Yes</span>
+                          ) : (
+                            <span className="badge bg-red-100 text-red-800 text-[11px]">Late</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {p.clientScore ? (
+                            <span
+                              className={
+                                p.clientScore >= 8
+                                  ? 'text-green-700 font-semibold'
+                                  : p.clientScore >= 6
+                                    ? 'text-amber-700 font-semibold'
+                                    : 'text-red-600 font-semibold'
+                              }
+                            >
+                              {p.clientScore}/10
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {acc ? (
+                            <span className={acc > 120 ? 'text-red-600 font-semibold' : 'text-green-700'}>
+                              {acc}%
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/projects/${p.id}`}
+                            className="text-xs font-medium text-gray-500 hover:text-gray-900"
+                          >
+                            View →
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       )}
     </div>
   )

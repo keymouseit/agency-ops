@@ -3,15 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./agency-ops.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model TeamMember {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
-  role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder"
+  role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder" | "Manager" | "HR" | "SocialMedia"
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -36,6 +36,18 @@ model TeamMember {
   notifications          Notification[]
   notificationPreference NotificationPreference?
   auditLogs              AuditLog[]
+  meetingMinutes         MeetingMinute[]
+  campaigns              Campaign[]
+  campaignCalls          CampaignCall[]
+  milestonesQAStarted    Milestone[]         @relation("MilestoneQAStartedBy")
+  milestoneTestCases     MilestoneTestCase[] @relation("TestCaseTestedBy")
+  milestoneBugsReported  MilestoneBug[]      @relation("BugReportedBy")
+  testCycleCasesFixed    TestCycleCase[]     @relation("TestCycleCaseFixedBy")
+  testCycleCasesRetested TestCycleCase[]     @relation("TestCycleCaseRetestedBy")
+  
+  leaves                 LeaveRequest[]      @relation("EmployeeLeaves")
+  leavesApproved         LeaveRequest[]      @relation("ApprovedLeaves")
+  leaveBalances          LeaveBalance[]      @relation("EmployeeLeaveBalance")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -58,6 +70,81 @@ model Lead {
   lossAnalysis       LossAnalysis?
   estimationRequests EstimationRequest[]
   estimationRecords  EstimationRecord[]
+}
+
+// ─── MINUTES OF MEETING ──────────────────────────────────────
+
+model MeetingMinute {
+  id                     String     @id @default(cuid())
+  meetingDate            DateTime
+  meetingTime            String?
+  clientName             String
+  clientLinkedIn         String?
+  companyName            String?
+  companyLinkedIn        String?
+  clientEmail            String?
+  clientPhone            String?
+  meetingType            String
+  meetingOutcome         String?
+  attendees              String?
+  domain                 String?
+  clientPainPoints       String?
+  ourApproach            String?
+  requirementsFromClient String?
+  followUpDate           DateTime?
+  followUpCompletedAt    DateTime?
+  meetingVideoPath       String?
+  meetingVideoUrl        String?
+  leadSource             String?
+  nextActionItem         String?
+  campaignCall           CampaignCall?
+  createdById            String
+  createdBy              TeamMember @relation(fields: [createdById], references: [id])
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+}
+
+// ─── LINKEDIN / OUTREACH CAMPAIGNS ───────────────────────────
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  channel     String         @default("LinkedIn")
+  objective   String?
+  status      String         @default("active") // draft | active | paused | completed
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?
+  createdById String
+  createdBy   TeamMember     @relation(fields: [createdById], references: [id])
+  calls       CampaignCall[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model CampaignCall {
+  id             String         @id @default(cuid())
+  campaignId     String
+  campaign       Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  clientName     String
+  companyName    String?
+  clientLinkedIn String?
+  clientEmail    String?
+  clientPhone    String?
+  scheduledDate  DateTime
+  scheduledTime  String?
+  status         String         @default("scheduled") // scheduled | completed | no_show | cancelled
+  notes          String?
+  momId          String?        @unique
+  mom            MeetingMinute? @relation(fields: [momId], references: [id])
+  createdById    String
+  createdBy      TeamMember     @relation(fields: [createdById], references: [id])
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([campaignId, scheduledDate])
+  @@index([status, scheduledDate])
 }
 
 model Proposal {
@@ -142,14 +229,53 @@ model Project {
 }
 
 model Milestone {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id])
+  title         String
+  dueDate       DateTime
+  completedAt   DateTime?
+  status        String     @default("pending") // pending | ready_for_qa | testing | done
+  notes         String?
+  qaStartedAt   DateTime?
+  qaStartedById String?
+  qaStartedBy   TeamMember? @relation("MilestoneQAStartedBy", fields: [qaStartedById], references: [id])
+  testCases     MilestoneTestCase[]
+  bugs          MilestoneBug[]
+}
+
+model MilestoneTestCase {
   id          String     @id @default(cuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id])
+  milestoneId String
+  milestone   Milestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   title       String
-  dueDate     DateTime
-  completedAt DateTime?
-  status      String     @default("pending")
+  status      String     @default("pending") // pending | pass | fail | blocked | skipped
   notes       String?
+  testedById  String?
+  testedBy    TeamMember? @relation("TestCaseTestedBy", fields: [testedById], references: [id])
+  testedAt    DateTime?
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  bug         MilestoneBug?
+}
+
+model MilestoneBug {
+  id              String             @id @default(cuid())
+  milestoneId     String
+  milestone       Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  testCaseId      String?            @unique
+  testCase        MilestoneTestCase? @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  severity        String             @default("medium") // critical | high | medium | low
+  status          String             @default("open") // open | fixed | closed | wont_fix
+  reportedById    String
+  reportedBy      TeamMember         @relation("BugReportedBy", fields: [reportedById], references: [id])
+  resolvedAt      DateTime?
+  resolutionNotes String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model ScopeChange {
@@ -161,8 +287,11 @@ model ScopeChange {
   hoursAdded        Float?
   valueAdded        Float?
   changeOrderSigned Boolean     @default(false)
+  approvalStatus    String      @default("pending") // "pending" | "approved" | "declined"
   approvedById      String?
   approvedBy        TeamMember? @relation(fields: [approvedById], references: [id])
+  decidedAt         DateTime?
+  decisionNote      String?
   createdAt         DateTime    @default(now())
 }
 
@@ -554,7 +683,7 @@ model TestCycle {
   completedAt   DateTime?
 
   // Overall result
-  result        String     @default("pending") // "pending" | "pass" | "fail" | "conditional"
+  result        String     @default("pending") // pending | pass | fail | conditional | not_applicable | out_of_scope | deferred | environment_issue
   // pass        = all clear, ready for sign-off
   // fail        = blocked, cannot release
   // conditional = minor issues, release possible with client acknowledgement
@@ -579,6 +708,26 @@ model TestCycle {
   updatedAt     DateTime  @updatedAt
 
   signOff       ReleaseSignOff?
+  cases         TestCycleCase[]
+}
+
+model TestCycleCase {
+  id            String      @id @default(cuid())
+  testCycleId   String
+  testCycle     TestCycle   @relation(fields: [testCycleId], references: [id], onDelete: Cascade)
+  title         String
+  status        String      @default("pass") // pass | fail | blocked | skipped
+  notes         String?
+  sortOrder     Int         @default(0)
+  devFixedAt    DateTime?
+  devFixNotes   String?
+  devFixedById  String?
+  devFixedBy    TeamMember? @relation("TestCycleCaseFixedBy", fields: [devFixedById], references: [id])
+  qaRetestedAt    DateTime?
+  qaRetestNotes   String?
+  qaRetestedById  String?
+  qaRetestedBy    TeamMember? @relation("TestCycleCaseRetestedBy", fields: [qaRetestedById], references: [id])
+  createdAt     DateTime    @default(now())
 }
 
 // Formal release sign-off. One per release attempt (linked to a TestCycle).
@@ -648,6 +797,9 @@ model Notification {
   // "project_in_qa"        — QA: a project moved to QA stage
   // "test_cycle_fail"      — dev: their project is blocked in QA
   // "test_cycle_pass"      — QA: project ready for sign-off
+  // "scope_change_requested" — BD/founder: scope change needs a decision
+  // "scope_change_approved"  — dev: scope change approved
+  // "scope_change_declined"  — dev: scope change declined
   // "eod_missing"          — reminder: EOD not submitted (set by cron)
 
   message   String     // plain English: "Kavya requested an estimate for HealthCo"
@@ -717,4 +869,38 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([timestamp])
   @@index([action])
+}
+
+// ─── LEAVE MANAGEMENT ────────────────────────────────────────
+
+model LeaveBalance {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      TeamMember @relation("EmployeeLeaveBalance", fields: [memberId], references: [id])
+  year        Int        // e.g., 2026
+  accrued     Float      @default(0) // Max 12 (1 added per month)
+  used        Float      @default(0) // Deducted based on approved leaves
+  
+  @@unique([memberId, year])
+}
+
+model LeaveRequest {
+  id              String     @id @default(cuid())
+  memberId        String
+  member          TeamMember @relation("EmployeeLeaves", fields: [memberId], references: [id])
+  
+  leaveType       String     // "short_leave" (0.25 days) | "half_day" (0.5 days) | "full_day" (1 day)
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  timeSlot        String?    // e.g., "morning", "afternoon", "evening", "before_lunch", "after_lunch"
+  
+  status          String     @default("pending") // "pending" | "approved" | "rejected" | "cancelled"
+  
+  appliedAt       DateTime   @default(now())
+  
+  approvedById    String?
+  approvedBy      TeamMember? @relation("ApprovedLeaves", fields: [approvedById], references: [id])
+  approvalNotes   String?
+  approvedAt      DateTime?
 }

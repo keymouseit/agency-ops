@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { formatQAActivitySummary } from '@/lib/qa-audit-format'
 
 type AuditLog = {
   id: string
@@ -41,20 +42,23 @@ interface EntityAuditTrailProps {
   entityType: string
   entityId: string
   title?: string
+  refreshKey?: number
 }
 
-export default function EntityAuditTrail({ entityType, entityId, title = 'Change History' }: EntityAuditTrailProps) {
+export default function EntityAuditTrail({ entityType, entityId, title = 'Change History', refreshKey }: EntityAuditTrailProps) {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     fetchLogs()
-  }, [entityType, entityId])
+  }, [entityType, entityId, refreshKey])
 
   async function fetchLogs() {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`/api/audit/${entityType}/${entityId}`)
       if (!res.ok) throw new Error('Failed to fetch logs')
@@ -63,6 +67,8 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
       setLogs(data.logs)
     } catch (error) {
       console.error('Failed to fetch audit logs:', error)
+      setLogs([])
+      setError('Change history is unavailable right now.')
     } finally {
       setLoading(false)
     }
@@ -81,7 +87,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
     return (
       <div className="card p-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
-        <div className="text-sm text-gray-400">No changes recorded yet.</div>
+        <div className="text-sm text-gray-400">{error || 'No changes recorded yet.'}</div>
       </div>
     )
   }
@@ -96,7 +102,9 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
       </div>
 
       <div className="space-y-3">
-        {displayLogs.map(log => (
+        {displayLogs.map(log => {
+          const qaSummary = formatQAActivitySummary(log.metadata)
+          return (
           <div
             key={log.id}
             className="flex items-start gap-3 pb-3 border-b border-gray-100 last:border-0 last:pb-0"
@@ -115,14 +123,42 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                 </span>
               </div>
 
+              {qaSummary && (
+                <p className="text-sm text-gray-800 mb-1">{qaSummary}</p>
+              )}
+
               {/* Changes Summary */}
               {log.changes && Object.keys(log.changes).length > 0 && (
                 <div className="text-xs text-gray-600 mb-1">
-                  Changed: {Object.keys(log.changes).map((field, i) => (
-                    <span key={field}>
-                      {i > 0 && ', '}
-                      <span className="font-medium">{field}</span>
-                    </span>
+                  {Object.entries(log.changes).map(([field, change], i) => (
+                    <div key={field}>
+                      {field === 'status' ? (
+                        <>
+                          Project status changed from{' '}
+                          <span className="font-medium">
+                            {String(change.old || 'Not Set')}
+                          </span>{' '}
+                          →{' '}
+                          <span className="font-medium text-green-600">
+                            {String(change.new)}
+                          </span>
+                        </>
+                      ) : field === "name" ? (
+                        <>
+                          <span className="font-medium">{field}</span> changed <span className="font-medium">
+                            {String(change.old || 'Not Set')}
+                          </span>{' '}
+                          →{' '}
+                          <span className="font-medium text-green-600">
+                            {String(change.new)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium">{field}</span> changed
+                        </>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -141,7 +177,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
               Details
             </button>
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Show More/Less Button */}
@@ -197,6 +233,13 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                   {selectedLog.action}
                 </span>
               </div>
+
+              {formatQAActivitySummary(selectedLog.metadata) && (
+                <div>
+                  <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Summary</div>
+                  <p className="text-gray-900">{formatQAActivitySummary(selectedLog.metadata)}</p>
+                </div>
+              )}
 
               {/* Changes */}
               {selectedLog.changes && Object.keys(selectedLog.changes).length > 0 && (

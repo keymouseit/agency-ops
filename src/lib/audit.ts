@@ -234,25 +234,3 @@ export async function logProjectChange(
     userAgent: request ? request.headers.get('user-agent') || undefined : undefined,
   })
 }
-
-/**
- * Helper to log QA-related actions
- */
-export async function logQAAction(
-  action: AuditAction,
-  entityType: 'TestCycle' | 'ReleaseSignOff',
-  entityId: string,
-  projectName: string,
-  metadata?: Record<string, any>,
-  request?: Request
-) {
-  await logAudit({
-    action,
-    entityType,
-    entityId,
-    entityName: projectName,
-    metadata,
-    ipAddress: request ? getClientIP(request) : undefined,
-    userAgent: request ? request.headers.get('user-agent') || undefined : undefined,
-  })
-}

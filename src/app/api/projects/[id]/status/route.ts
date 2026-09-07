@@ -8,7 +8,7 @@ import { logProjectChange, getClientIP } from '@/lib/audit'
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
   try {
-    const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager'])
+    const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager', "BD"])
     if (deny) return deny
 
     const { status, qaHandoff } = await req.json()

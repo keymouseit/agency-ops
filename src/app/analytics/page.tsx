@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { avg, fmtCurrency } from '@/lib/utils'
+import { avg, fmtCurrency, formatLossReason } from '@/lib/utils'
 import { startOfWeek, subWeeks } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -131,7 +131,7 @@ export default async function AnalyticsPage() {
                   <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">By reason</div>
                   {(Object.entries(lossReasonCount) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([reason, count]) => (
                     <div key={reason} className="flex items-center gap-2 mb-1">
-                      <div className="text-xs text-gray-600 w-36">{reason.replace(/_/g, ' ')}</div>
+                      <div className="text-xs text-gray-600 w-36">{formatLossReason(reason)}</div>
                       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-red-400 rounded-full" style={{ width: `${(count / lossAnalyses.length) * 100}%` }} />
                       </div>
