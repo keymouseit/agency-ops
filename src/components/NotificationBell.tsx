@@ -31,6 +31,9 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
   milestone_test_case_failed: { icon: '⛔', box: 'bg-red-100', label: 'Milestone' },
   milestone_bug_logged: { icon: '🐛', box: 'bg-red-100', label: 'Bug' },
   eod_missing: { icon: '⏰', box: 'bg-amber-100', label: 'Daily' },
+  leave_applied: { icon: '🏖', box: 'bg-sky-100', label: 'Leave' },
+  leave_approved: { icon: '✓', box: 'bg-green-100', label: 'Leave' },
+  leave_rejected: { icon: '✕', box: 'bg-red-100', label: 'Leave' },
 }
 
 const DEFAULT_STYLE: TypeStyle = { icon: '•', box: 'bg-gray-100', label: 'Update' }
@@ -155,11 +158,24 @@ export default function NotificationBell() {
     } catch {}
   }
 
+  async function markOneRead(id: string) {
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
+    setUnread(prev => Math.max(0, prev - 1))
+    try {
+      await fetch(`/api/notifications/${id}`, { method: 'PATCH', credentials: 'include' })
+    } catch {
+      // Keep optimistic UI; next poll will resync if needed
+    }
+  }
+
   async function handleOpen() {
     setOpen(prev => !prev)
   }
 
   async function handleClick(n: Notification) {
+    if (!n.read) {
+      void markOneRead(n.id)
+    }
     setOpen(false)
     if (n.linkTo) {
       router.push(n.linkTo)

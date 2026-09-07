@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fetchProjectForDetailPage, serializeMilestoneBug, serializeMilestoneTestCase } from '@/lib/project-queries'
-import { fmtCurrency, STATUS_COLORS } from '@/lib/utils'
+import { fmtCurrency, STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import QAReadyPrompt from './QAReadyPrompt'
@@ -11,10 +11,6 @@ import ProjectDetailTabs from './ProjectDetailTabs'
 import { canDeleteProject, canEditProject, projectEditFields } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
-
-const STATUS_LABELS: Record<string, string> = {
-  scoping: 'Scoping', active: 'Active', qa: 'QA', delivered: 'Delivered', cancelled: 'Cancelled',
-}
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
   const session = await auth()
@@ -73,7 +69,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
-            <span className={`badge ${STATUS_COLORS[project.status]}`}>{STATUS_LABELS[project.status]}</span>
+            <span className={`badge ${STATUS_COLORS[project.status]}`}>{PROJECT_STATUS_LABELS[project.status] ?? project.status}</span>
             {project.releaseSignOff && <QASignOffBadge signed />}
           </div>
           <div className="flex gap-4 text-sm text-gray-500">

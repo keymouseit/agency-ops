@@ -4,6 +4,8 @@ import { fmtCurrency, scoreColor, avg, timeGreeting } from '@/lib/utils'
 import Link from 'next/link'
 import { startOfWeek, subWeeks, format } from 'date-fns'
 import { businessDayStart } from '@/lib/daily'
+import { getApprovedOnLeaveToday } from '@/lib/leave-today'
+import OnLeaveTodayCard from '@/components/OnLeaveTodayCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +13,7 @@ export default async function Dashboard() {
   const session = await auth()
   const firstName = (session?.user?.name ?? '').split(' ')[0]
 
-  const [leads, projects, scores, members, dailyLogs, allQAIssues] = await Promise.all([
+  const [leads, projects, scores, members, dailyLogs, allQAIssues, onLeaveToday] = await Promise.all([
     prisma.lead.findMany({ include: { owner: true } }),
     prisma.project.findMany({ include: { developer: true, checkIns: { orderBy: { weekOf: 'desc' }, take: 1 }, scopeChanges: true, releaseSignOff: true, postDeliveryIssues: { where: { resolvedAt: null }, take: 1 } } }),
     prisma.weeklyScore.findMany({
@@ -29,6 +31,7 @@ export default async function Dashboard() {
     prisma.postDeliveryIssue.findMany({
       select: { id: true, severity: true, wasInScope: true, resolvedAt: true },
     }),
+    getApprovedOnLeaveToday(),
   ])
 
   const totalPipeline = leads.filter(l => !['won','lost'].includes(l.status)).reduce((s, l) => s + (l.budget || 0), 0)
@@ -82,6 +85,11 @@ export default async function Dashboard() {
         </div>
         <div className="text-xs text-gray-400">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
       </div>
+
+      <OnLeaveTodayCard
+        people={onLeaveToday}
+        dateLabel={format(businessDayStart(), 'EEEE d MMM')}
+      />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">

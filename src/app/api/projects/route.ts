@@ -19,11 +19,23 @@ export async function POST(req: Request) {
     )
   }
 
+  if (!data.developerId || typeof data.developerId !== 'string') {
+    return NextResponse.json({ error: 'Assigned person is required.' }, { status: 400 })
+  }
+
+  const assignee = await prisma.teamMember.findUnique({
+    where: { id: data.developerId },
+    select: { id: true, active: true },
+  })
+  if (!assignee?.active) {
+    return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
+  }
+
   const project = await prisma.project.create({
     data: {
       name: data.name,
       leadId: data.leadId || null,
-      developerId: data.developerId,
+      developerId: assignee.id,
       bdMemberId: data.bdMemberId || null,
       clientName: data.clientName || null,
       contractValue: data.contractValue ? parseFloat(data.contractValue) : null,
@@ -35,9 +47,8 @@ export async function POST(req: Request) {
     },
   })
 
-  // Notify assigned developer and BD (if different from creator)
   await notifyProjectAssigned(
-    [data.developerId, data.bdMemberId],
+    [assignee.id, data.bdMemberId],
     creatorId,
     data.name,
     `/projects/${project.id}`

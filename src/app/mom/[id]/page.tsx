@@ -156,11 +156,19 @@ export default async function MomDetailPage({ params }: { params: { id: string }
               )}
             </p>
           </div>
-          <div className="text-left sm:text-right shrink-0">
-            <div className="text-lg font-semibold text-gray-900">{fmtDate(record.meetingDate)}</div>
-            {record.meetingTime && (
-              <div className="text-sm text-gray-500 mt-0.5">{record.meetingTime}</div>
-            )}
+          <div className="text-left sm:text-right shrink-0 space-y-2">
+            <div>
+              <div className="text-lg font-semibold text-gray-900">{fmtDate(record.meetingDate)}</div>
+              {record.meetingTime && (
+                <div className="text-sm text-gray-500 mt-0.5">{record.meetingTime}</div>
+              )}
+            </div>
+            <Link
+              href={`/mom/${record.id}/edit`}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Edit MOM
+            </Link>
           </div>
         </div>
 

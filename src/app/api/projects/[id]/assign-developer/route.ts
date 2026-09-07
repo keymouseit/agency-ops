@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { developerId } = await req.json()
 
   if (!developerId || typeof developerId !== 'string') {
-    return NextResponse.json({ error: 'Developer is required.' }, { status: 400 })
+    return NextResponse.json({ error: 'Assigned person is required.' }, { status: 400 })
   }
 
   const project = await prisma.project.findUnique({
@@ -28,27 +28,27 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  const newDeveloper = await prisma.teamMember.findUnique({
+  const newAssignee = await prisma.teamMember.findUnique({
     where: { id: developerId },
-    select: { id: true, name: true, role: true, active: true },
+    select: { id: true, name: true, active: true },
   })
 
-  if (!newDeveloper?.active || !['Dev', 'Both'].includes(newDeveloper.role)) {
-    return NextResponse.json({ error: 'Select an active developer.' }, { status: 400 })
+  if (!newAssignee?.active) {
+    return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
   }
 
-  if (newDeveloper.id === project.developerId) {
+  if (newAssignee.id === project.developerId) {
     return NextResponse.json({ success: true })
   }
 
   await prisma.project.update({
     where: { id: params.id },
-    data: { developerId: newDeveloper.id },
+    data: { developerId: newAssignee.id },
   })
 
   const session = await auth()
   await notifyProjectAssigned(
-    [newDeveloper.id],
+    [newAssignee.id],
     session?.user?.id,
     project.name,
     `/projects/${project.id}`
@@ -62,7 +62,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     changes: {
       developer: {
         old: project.developer.name,
-        new: newDeveloper.name,
+        new: newAssignee.name,
       },
     },
   })

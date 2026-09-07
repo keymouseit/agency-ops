@@ -50,7 +50,7 @@ export async function addEventToGoogleCalendar(leave: LeaveRequest & { member: T
 
     const event = {
       summary: `${leave.member.name} - Leave${timeSlotStr}`,
-      description: `Leave Type: ${leave.leaveType.replace('_', ' ')}\nReason: ${leave.reason || 'N/A'}\nStatus: Approved`,
+      description: `Leave Type: ${leave.leaveType.replace(/_/g, ' ')}\nReason: ${leave.reason || 'N/A'}\nStatus: Approved`,
       start: {
         date: startDate.toISOString().split('T')[0],
       },

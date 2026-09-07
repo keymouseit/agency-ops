@@ -22,6 +22,9 @@ type NotificationType =
   | 'test_cycle_fix_ready'
   | 'eod_missing'
   | 'mom_attendee'
+  | 'leave_applied'
+  | 'leave_approved'
+  | 'leave_rejected'
 
 /**
  * Notify developer and/or BD when assigned to a project (skips the creator).

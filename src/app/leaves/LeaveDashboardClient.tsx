@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { 
   format, 
   startOfMonth, 
@@ -17,27 +18,47 @@ import {
   parseISO
 } from 'date-fns'
 import toast, { Toaster } from 'react-hot-toast'
+import { leaveRequestDayCost } from '@/lib/leave-math'
 
 export default function LeaveDashboardClient({
   memberId,
   isAdmin,
+  canManageBalances = false,
   myLeaves,
   accrued,
   used,
+  shortLeaves = 0,
   allPendingLeaves,
   allMembers,
   allLeaves
 }: {
   memberId: string
   isAdmin: boolean
+  canManageBalances?: boolean
   myLeaves: any[]
   accrued: number
   used: number
+  shortLeaves?: number
   allPendingLeaves: any[]
   allMembers: any[]
   allLeaves?: any[]
 }) {
   const [tab, setTab] = useState<'my_leaves' | 'admin'>('my_leaves')
+  const [leaves, setLeaves] = useState(myLeaves)
+  const [pendingLeaves, setPendingLeaves] = useState(allPendingLeaves)
+  const [companyLeaves, setCompanyLeaves] = useState(allLeaves || [])
+
+  useEffect(() => {
+    setLeaves(myLeaves)
+  }, [myLeaves])
+
+  useEffect(() => {
+    setPendingLeaves(allPendingLeaves)
+  }, [allPendingLeaves])
+
+  useEffect(() => {
+    setCompanyLeaves(allLeaves || [])
+  }, [allLeaves])
   
   // Apply/Edit Leave Form State
   const [leaveType, setLeaveType] = useState('full_day')
@@ -50,6 +71,11 @@ export default function LeaveDashboardClient({
 
   // Edit Modal State
   const [editingLeaveId, setEditingLeaveId] = useState<string | null>(null)
+  const [deleteConfirmLeave, setDeleteConfirmLeave] = useState<any | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [revokeConfirmLeave, setRevokeConfirmLeave] = useState<any | null>(null)
+  const [revokeNotes, setRevokeNotes] = useState('')
+  const [isRevoking, setIsRevoking] = useState(false)
 
   // Audit Log Modal State
   const [auditLogs, setAuditLogs] = useState<any[]>([])
@@ -62,13 +88,22 @@ export default function LeaveDashboardClient({
 
   // Confirm Approval/Rejection Modal State
   const [confirmModal, setConfirmModal] = useState<{ leaveId: string; status: 'approved' | 'rejected' } | null>(null)
-  const [rejectionReason, setRejectionReason] = useState('')
+  const [decisionNotes, setDecisionNotes] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
 
   // Report Filter & View State
   const [reportEmployeeFilter, setReportEmployeeFilter] = useState('all')
   const [reportView, setReportView] = useState<'list' | 'calendar'>('list')
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [adminSection, setAdminSection] = useState<'approvals' | 'history'>('approvals')
+  const [myLeaveFilter, setMyLeaveFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+
+  function formatLeaveDates(start: string | Date, end: string | Date) {
+    const s = new Date(start)
+    const e = new Date(end)
+    if (isSameDay(s, e)) return format(s, 'MMM d, yyyy')
+    return `${format(s, 'MMM d, yyyy')} – ${format(e, 'MMM d, yyyy')}`
+  }
 
   // Reset form to defaults
   const resetForm = () => {
@@ -89,6 +124,63 @@ export default function LeaveDashboardClient({
     setEndDate(new Date(leave.endDate).toISOString().split('T')[0])
     setReason(leave.reason || '')
     setEditingLeaveId(leave.id)
+  }
+
+  async function confirmDeleteLeave() {
+    const leave = deleteConfirmLeave
+    if (!leave || leave.status === 'approved') return
+
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/leaves/${leave.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to delete')
+
+      setLeaves(prev => prev.filter(l => l.id !== leave.id))
+      setPendingLeaves(prev => prev.filter(l => l.id !== leave.id))
+      setCompanyLeaves(prev => prev.filter(l => l.id !== leave.id))
+      if (editingLeaveId === leave.id) resetForm()
+      if (selectedLeaveForModal?.id === leave.id) setSelectedLeaveForModal(null)
+      setDeleteConfirmLeave(null)
+      toast.success('Leave request deleted')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  async function confirmRevokeLeave() {
+    const leave = revokeConfirmLeave
+    if (!leave) return
+    if (!revokeNotes.trim()) {
+      toast.error('Please add a reason for revoking')
+      return
+    }
+    setIsRevoking(true)
+    try {
+      const res = await fetch(`/api/leaves/${leave.id}/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: revokeNotes.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke')
+
+      setCompanyLeaves(prev =>
+        prev.map(l => (l.id === leave.id ? { ...l, ...data, status: 'cancelled' } : l))
+      )
+      setLeaves(prev =>
+        prev.map(l => (l.id === leave.id ? { ...l, ...data, status: 'cancelled' } : l))
+      )
+      setRevokeConfirmLeave(null)
+      setRevokeNotes('')
+      toast.success('Leave revoked and balance updated')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to revoke')
+    } finally {
+      setIsRevoking(false)
+    }
   }
 
   // View History Modal
@@ -113,14 +205,19 @@ export default function LeaveDashboardClient({
     setError('')
 
     try {
+      if (isManualLogModalOpen && !reason.trim()) {
+        throw new Error('Reason is required when logging leave manually')
+      }
+
+      const targetMemberId = tab === 'admin' || isManualLogModalOpen ? adminMemberId : memberId
       const payload = {
-        memberId: tab === 'admin' ? adminMemberId : memberId,
+        memberId: targetMemberId,
         leaveType,
         timeSlot: (leaveType === 'half_day' || leaveType === 'short_leave') ? timeSlot : undefined,
         startDate,
         endDate,
-        reason,
-        isAdmin: tab === 'admin'
+        reason: reason.trim(),
+        isAdmin: tab === 'admin' || isManualLogModalOpen
       }
 
       const url = editingLeaveId ? `/api/leaves/${editingLeaveId}` : '/api/leaves'
@@ -134,11 +231,32 @@ export default function LeaveDashboardClient({
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to submit')
-      
+
+      const saved = {
+        ...data,
+        member: data.member || allMembers.find((m: any) => m.id === targetMemberId) || { id: targetMemberId, name: 'Employee' },
+      }
+
+      if (editingLeaveId) {
+        setLeaves(prev => prev.map(l => (l.id === editingLeaveId ? { ...l, ...saved } : l)))
+        setPendingLeaves(prev => prev.map(l => (l.id === editingLeaveId ? { ...l, ...saved } : l)))
+        setCompanyLeaves(prev => prev.map(l => (l.id === editingLeaveId ? { ...l, ...saved } : l)))
+      } else {
+        if (targetMemberId === memberId) {
+          setLeaves(prev => [saved, ...prev])
+        }
+        if (isAdmin) {
+          setPendingLeaves(prev => [saved, ...prev])
+          setCompanyLeaves(prev => [saved, ...prev])
+        }
+      }
+
       toast.success(editingLeaveId ? 'Leave updated successfully!' : 'Leave requested successfully!')
-      setTimeout(() => {
-        window.location.reload()
-      }, 1000)
+      setIsManualLogModalOpen(false)
+      resetForm()
+      if (!editingLeaveId && targetMemberId === memberId) {
+        setMyLeaveFilter('all')
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -150,8 +268,8 @@ export default function LeaveDashboardClient({
     if (!confirmModal) return
     const { leaveId, status } = confirmModal
     
-    if (status === 'rejected' && !rejectionReason.trim()) {
-      toast.error('Please provide a reason for rejection')
+    if (!decisionNotes.trim()) {
+      toast.error(status === 'rejected' ? 'Please provide a reason for rejection' : 'Please add a comment for approval')
       return
     }
 
@@ -160,18 +278,23 @@ export default function LeaveDashboardClient({
       const res = await fetch(`/api/leaves/${leaveId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedById: memberId, status, approvalNotes: status === 'rejected' ? rejectionReason : '' })
+        body: JSON.stringify({ status, approvalNotes: decisionNotes.trim() })
       })
       
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update')
       
-      toast.success(`Leave ${status}!`)
+      // Update UI immediately — no full page reload
+      setPendingLeaves(prev => prev.filter(l => l.id !== leaveId))
+      setCompanyLeaves(prev =>
+        prev.map(l => (l.id === leaveId ? { ...l, status, approvalNotes: decisionNotes.trim() } : l))
+      )
+      setLeaves(prev =>
+        prev.map(l => (l.id === leaveId ? { ...l, status, approvalNotes: decisionNotes.trim() } : l))
+      )
+      toast.success(status === 'approved' ? 'Leave approved' : 'Leave rejected')
       setConfirmModal(null)
-      setRejectionReason('')
-      setTimeout(() => {
-        window.location.reload()
-      }, 1000)
+      setDecisionNotes('')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -180,15 +303,23 @@ export default function LeaveDashboardClient({
   }
 
   const formatLeaveType = (type: string, slot?: string) => {
-    let base = type.replace('_', ' ')
+    let base = type.replace(/_/g, ' ')
     if (slot) {
-      base += ` (${slot.replace('_', ' ')})`
+      base += ` (${slot.replace(/_/g, ' ')})`
     }
     return base
   }
 
+  function unpaidPillLabel(l: any) {
+    const paid = Number(l.paidDays || 0)
+    const unpaidDays = Number(l.unpaidDays || 0)
+    if (!l.unpaid && unpaidDays <= 0) return null
+    if (paid > 0 && unpaidDays > 0) return `Partial unpaid (${paid}+${unpaidDays})`
+    return 'Unpaid'
+  }
+
   // --- Calendar Helpers ---
-  const filteredLeavesForReports = (allLeaves || []).filter(l => reportEmployeeFilter === 'all' || l.memberId === reportEmployeeFilter)
+  const filteredLeavesForReports = companyLeaves.filter(l => reportEmployeeFilter === 'all' || l.memberId === reportEmployeeFilter)
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(monthStart)
@@ -210,19 +341,161 @@ export default function LeaveDashboardClient({
     })
   }
 
-  // Calculate pending days for the user
-  const pendingDays = myLeaves
-    .filter(l => l.status === 'pending')
+  // Pending paid days reserved (working-day aware; uses stored paidDays when present)
+  const pendingDays = leaves
+    .filter(
+      l =>
+        l.status === 'pending' &&
+        !['short_leave', 'birthday_leave', 'work_from_home'].includes(l.leaveType)
+    )
     .reduce((total, l) => {
-      let days = 1;
-      if (l.leaveType === 'short_leave') days = 0.25;
-      else if (l.leaveType === 'half_day') days = 0.5;
-      return total + days;
-    }, 0);
+      const paid = Number(l.paidDays)
+      if (!Number.isNaN(paid) && (paid > 0 || Number(l.unpaidDays || 0) > 0 || l.unpaid)) {
+        return total + paid
+      }
+      return (
+        total +
+        leaveRequestDayCost(l.leaveType, new Date(l.startDate), new Date(l.endDate))
+      )
+    }, 0)
+
+  const pendingShortLeaves = leaves.filter(
+    l => l.status === 'pending' && l.leaveType === 'short_leave'
+  ).length
+
+  const approvedThisMonth = companyLeaves.filter(l => {
+    if (l.status !== 'approved') return false
+    const d = new Date(l.startDate)
+    const now = new Date()
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }).length
+
+  const onLeaveToday = getLeavesForDay(new Date()).filter(l => l.status === 'approved').length
+
+  const myLeaveCounts = {
+    all: leaves.length,
+    pending: leaves.filter(l => l.status === 'pending').length,
+    approved: leaves.filter(l => l.status === 'approved').length,
+    rejected: leaves.filter(l => l.status === 'rejected' || l.status === 'cancelled').length,
+  }
+  const filteredMyLeaves =
+    myLeaveFilter === 'all'
+      ? leaves
+      : myLeaveFilter === 'rejected'
+        ? leaves.filter(l => l.status === 'rejected' || l.status === 'cancelled')
+        : leaves.filter(l => l.status === myLeaveFilter)
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <Toaster position="bottom-right" />
+
+      {/* Confirm Delete Modal */}
+      {deleteConfirmLeave && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-red-50/50">
+              <h2 className="text-lg font-bold text-gray-900">Delete leave request</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete this leave request? This cannot be undone.
+              </p>
+              <div className="rounded-xl bg-gray-50 ring-1 ring-gray-100 px-4 py-3 text-sm">
+                <p className="font-bold text-gray-900 capitalize">
+                  {formatLeaveType(deleteConfirmLeave.leaveType, deleteConfirmLeave.timeSlot)}
+                </p>
+                <p className="text-gray-600 mt-1">
+                  {formatLeaveDates(deleteConfirmLeave.startDate, deleteConfirmLeave.endDate)}
+                </p>
+                {deleteConfirmLeave.unpaid && (
+                  <p className="text-xs font-semibold text-orange-700 mt-2">
+                    {unpaidPillLabel(deleteConfirmLeave)}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setDeleteConfirmLeave(null)}
+                  className="w-full rounded-xl py-3 text-sm font-bold bg-gray-100 hover:bg-gray-200 transition-colors text-gray-900 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={confirmDeleteLeave}
+                  className="w-full rounded-xl py-3 text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Revoke Modal */}
+      {revokeConfirmLeave && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-amber-50/50">
+              <h2 className="text-lg font-bold text-gray-900">Revoke approved leave</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                This will cancel the leave and roll back any paid balance that was deducted.
+              </p>
+              <div className="rounded-xl bg-gray-50 ring-1 ring-gray-100 px-4 py-3 text-sm">
+                <p className="font-bold text-gray-900">
+                  {revokeConfirmLeave.member?.name || 'Employee'} ·{' '}
+                  <span className="capitalize">
+                    {formatLeaveType(revokeConfirmLeave.leaveType, revokeConfirmLeave.timeSlot)}
+                  </span>
+                </p>
+                <p className="text-gray-600 mt-1">
+                  {formatLeaveDates(revokeConfirmLeave.startDate, revokeConfirmLeave.endDate)}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Reason (required)
+                </label>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={revokeNotes}
+                  onChange={e => setRevokeNotes(e.target.value)}
+                  className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-amber-500 focus:ring-amber-500 px-3 py-2.5"
+                  placeholder="Why is this leave being revoked?"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  disabled={isRevoking}
+                  onClick={() => {
+                    setRevokeConfirmLeave(null)
+                    setRevokeNotes('')
+                  }}
+                  className="w-full rounded-xl py-3 text-sm font-bold bg-gray-100 hover:bg-gray-200 transition-colors text-gray-900 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isRevoking}
+                  onClick={confirmRevokeLeave}
+                  className="w-full rounded-xl py-3 text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {isRevoking ? 'Revoking…' : 'Revoke leave'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm Approve/Reject Modal */}
       {confirmModal && (
@@ -236,24 +509,32 @@ export default function LeaveDashboardClient({
             
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                Are you sure you want to <strong>{confirmModal.status}</strong> this leave request?
+                Are you sure you want to <strong>{confirmModal.status === 'approved' ? 'approve' : 'reject'}</strong> this leave request?
                 {confirmModal.status === 'approved' && " The employee will be notified and this leave will be recorded."}
               </p>
 
-              {confirmModal.status === 'rejected' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason for Rejection (Required)</label>
-                  <textarea 
-                    autoFocus
-                    required 
-                    value={rejectionReason} 
-                    onChange={e => setRejectionReason(e.target.value)} 
-                    rows={3} 
-                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 px-3 py-2.5" 
-                    placeholder="Please explain why this leave is being rejected..." 
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  {confirmModal.status === 'approved' ? 'Approval comment (Required)' : 'Reason for Rejection (Required)'}
+                </label>
+                <textarea 
+                  autoFocus
+                  required 
+                  value={decisionNotes} 
+                  onChange={e => setDecisionNotes(e.target.value)} 
+                  rows={3} 
+                  className={`w-full text-sm rounded-xl border-gray-200 shadow-sm px-3 py-2.5 ${
+                    confirmModal.status === 'approved'
+                      ? 'focus:border-green-500 focus:ring-green-500'
+                      : 'focus:border-red-500 focus:ring-red-500'
+                  }`}
+                  placeholder={
+                    confirmModal.status === 'approved'
+                      ? 'Add a comment for this approval...'
+                      : 'Please explain why this leave is being rejected...'
+                  } 
+                />
+              </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <button 
@@ -261,7 +542,7 @@ export default function LeaveDashboardClient({
                   disabled={isConfirming}
                   onClick={() => {
                     setConfirmModal(null)
-                    setRejectionReason('')
+                    setDecisionNotes('')
                   }} 
                   className="w-full rounded-xl py-3 text-sm font-bold bg-gray-100 hover:bg-gray-200 transition-colors text-gray-900 disabled:opacity-50"
                 >
@@ -270,7 +551,7 @@ export default function LeaveDashboardClient({
                 <button 
                   type="button" 
                   onClick={submitApproveReject}
-                  disabled={isConfirming || (confirmModal.status === 'rejected' && !rejectionReason.trim())} 
+                  disabled={isConfirming || !decisionNotes.trim()} 
                   className={`w-full rounded-xl py-3 text-sm font-bold text-white shadow-md transition-all border-none disabled:opacity-50
                     ${confirmModal.status === 'approved' 
                       ? 'bg-green-600 hover:bg-green-700 shadow-green-600/20 hover:shadow-green-600/30' 
@@ -298,6 +579,8 @@ export default function LeaveDashboardClient({
                   <option value="full_day">Full Day</option>
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
+                  <option value="birthday_leave">Birthday Leave</option>
+                  <option value="work_from_home">Work From Home</option>
                 </select>
               </div>
 
@@ -318,7 +601,6 @@ export default function LeaveDashboardClient({
                   <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
                     <option value="" disabled>Select a slot</option>
                     <option value="morning">Morning</option>
-                    <option value="in_between_the_day">In between the day</option>
                     <option value="evening">Evening</option>
                   </select>
                 </div>
@@ -367,17 +649,24 @@ export default function LeaveDashboardClient({
               
               {/* Leave Summary Card */}
               <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
-                <div className="flex justify-between items-start mb-3">
+                <div className="flex justify-between items-start mb-3 gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-gray-900">{selectedLeaveForModal.member?.name || 'Leave Request'}</h3>
                     <p className="text-xs text-gray-500 capitalize">{formatLeaveType(selectedLeaveForModal.leaveType, selectedLeaveForModal.timeSlot)}</p>
                   </div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ring-1 ring-inset
-                    ${selectedLeaveForModal.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-                      selectedLeaveForModal.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' : 
-                      'bg-red-50 text-red-700 ring-red-600/20'}`}>
-                    {selectedLeaveForModal.status}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ring-1 ring-inset
+                      ${selectedLeaveForModal.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
+                        selectedLeaveForModal.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' : 
+                        'bg-red-50 text-red-700 ring-red-600/20'}`}>
+                      {selectedLeaveForModal.status}
+                    </span>
+                    {selectedLeaveForModal.unpaid && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
+                        {unpaidPillLabel(selectedLeaveForModal)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
@@ -464,8 +753,14 @@ export default function LeaveDashboardClient({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Leave Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your time off, view balances, and track requests.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {tab === 'admin'
+              ? 'Review requests, update balances, and see who is out.'
+              : 'Check your balance, request time off, and track status.'}
+          </p>
         </div>
         
         {isAdmin && (
@@ -480,379 +775,612 @@ export default function LeaveDashboardClient({
               onClick={() => setTab('admin')}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'admin' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
             >
-              Admin Hub
+              Team admin
             </button>
           </div>
         )}
       </div>
 
       {tab === 'my_leaves' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-4 space-y-6">
-            {/* Balance Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-gray-900/5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                <svg className="w-24 h-24 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
-              </div>
-              <h2 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider">Your Balance</h2>
-              
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <div className="text-3xl font-bold text-gray-900">{Math.max(0, accrued - used)}</div>
-                  <div className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full inline-flex mt-1 ring-1 ring-green-600/10">Available Days</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
-                <div>
-                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Accrued</div>
-                  <div className="text-lg font-bold text-gray-700 mt-1">{accrued}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Used</div>
-                  <div className="text-lg font-bold text-red-600 mt-1">{used}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Pending</div>
-                  <div className="text-lg font-bold text-amber-600 mt-1">{pendingDays}</div>
-                </div>
-              </div>
+        <div className="space-y-6">
+          {/* Balance strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm col-span-2 lg:col-span-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Available</p>
+              <p className="text-4xl font-bold mt-1 tracking-tight">{Math.max(0, accrued - used)}</p>
+              <p className="text-xs text-slate-400 mt-1">days you can still take</p>
             </div>
-
-            {/* Apply Leave Form */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-gray-900/5">
-              <h2 className="text-base font-bold text-gray-900 mb-5">Apply for Leave</h2>
-              {error && <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">{error}</div>}
-              
-              <form onSubmit={handleApplyLeave} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
-                  <select value={leaveType} onChange={e => { setLeaveType(e.target.value); setTimeSlot(''); }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
-                    <option value="full_day">Full Day</option>
-                    <option value="half_day">Half Day</option>
-                    <option value="short_leave">Short Leave (2 hours)</option>
-                  </select>
-                </div>
-
-                {leaveType === 'half_day' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                    <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
-                      <option value="" disabled>Select a slot</option>
-                      <option value="before_lunch">Before Lunch</option>
-                      <option value="after_lunch">After Lunch</option>
-                    </select>
-                  </div>
-                )}
-
-                {leaveType === 'short_leave' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                    <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
-                      <option value="" disabled>Select a slot</option>
-                      <option value="morning">Morning</option>
-                      <option value="in_between_the_day">In between the day</option>
-                      <option value="evening">Evening</option>
-                    </select>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
-                    <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
-                    <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate || new Date().toISOString().split('T')[0]} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason</label>
-                  <textarea required value={reason} onChange={e => setReason(e.target.value)} rows={3} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" placeholder="e.g., Medical appointment" />
-                </div>
-
-                <button type="submit" disabled={isSubmitting} className="w-full btn btn-primary rounded-xl py-3 text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all bg-gray-900 border-none hover:bg-gray-800 text-white">
-                  {isSubmitting ? 'Submitting...' : 'Submit Request'}
-                </button>
-              </form>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Accrued</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{accrued}</p>
+              <p className="text-xs text-gray-500 mt-1">earned this year</p>
+            </div>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-red-500">Used</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{used}</p>
+              <p className="text-xs text-gray-500 mt-1">half / full days taken</p>
+            </div>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{shortLeaves}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {shortLeaves === 1 ? '1 short leave' : `${shortLeaves} short leaves`}
+                {pendingShortLeaves > 0 ? ` · ${pendingShortLeaves} pending` : ''}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Pending</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{pendingDays}</p>
+              <p className="text-xs text-gray-500 mt-1">days awaiting approval</p>
             </div>
           </div>
 
-          <div className="lg:col-span-8">
-            <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
-              <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/30">
-                <h2 className="text-base font-bold text-gray-900">My Leave History</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Apply */}
+            <div className="lg:col-span-5">
+              <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-gray-900/5 sticky top-4">
+                <div className="mb-5">
+                  <h2 className="text-lg font-bold text-gray-900">Request time off</h2>
+                  <p className="text-xs text-gray-500 mt-1">HR will review and notify you.</p>
+                </div>
+                {error && (
+                  <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleApplyLeave} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave type</label>
+                    <select
+                      value={leaveType}
+                      onChange={e => { setLeaveType(e.target.value); setTimeSlot('') }}
+                      className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                    >
+                      <option value="full_day">Full Day</option>
+                      <option value="half_day">Half Day</option>
+                      <option value="short_leave">Short Leave (2 hours)</option>
+                      <option value="birthday_leave">Birthday Leave</option>
+                      <option value="work_from_home">Work From Home</option>
+                    </select>
+                  </div>
+
+                  {leaveType === 'half_day' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time slot</label>
+                      <select
+                        required
+                        value={timeSlot}
+                        onChange={e => setTimeSlot(e.target.value)}
+                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-slate-50"
+                      >
+                        <option value="" disabled>Select a slot</option>
+                        <option value="before_lunch">Before Lunch</option>
+                        <option value="after_lunch">After Lunch</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {leaveType === 'short_leave' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time slot</label>
+                      <select
+                        required
+                        value={timeSlot}
+                        onChange={e => setTimeSlot(e.target.value)}
+                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-slate-50"
+                      >
+                        <option value="" disabled>Select a slot</option>
+                        <option value="morning">Morning</option>
+                        <option value="evening">Evening</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
+                      <input
+                        type="date"
+                        required
+                        value={startDate}
+                        onChange={e => setStartDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
+                      <input
+                        type="date"
+                        required
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        min={startDate || new Date().toISOString().split('T')[0]}
+                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason</label>
+                    <textarea
+                      required
+                      value={reason}
+                      onChange={e => setReason(e.target.value)}
+                      rows={3}
+                      className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                      placeholder="e.g., Medical appointment"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl py-3 text-sm font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Submitting…' : 'Submit request'}
+                  </button>
+                </form>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-100 text-sm">
-                  <thead className="bg-gray-50/50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    <tr>
-                      <th className="px-6 py-4 text-left">Type & Slot</th>
-                      <th className="px-6 py-4 text-left">Dates</th>
-                      <th className="px-6 py-4 text-left">Status</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {myLeaves.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 bg-gray-50/30">
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-3xl mb-3">🌴</span>
-                            <span className="font-medium text-gray-900">No leaves found</span>
-                            <span className="text-xs text-gray-400 mt-1">You haven't requested any time off yet.</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      myLeaves.map(l => (
-                        <tr key={l.id} className="hover:bg-gray-50/50 transition-colors group">
-                          <td className="px-6 py-4 capitalize text-gray-900 font-medium">
-                            {formatLeaveType(l.leaveType, l.timeSlot)}
-                          </td>
-                          <td className="px-6 py-4 text-gray-600">
-                            <span className="font-medium text-gray-900">{format(new Date(l.startDate), 'MMM d, yyyy')}</span>
-                            {l.startDate !== l.endDate && ` to ${format(new Date(l.endDate), 'MMM d, yyyy')}`}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize ring-1 ring-inset
-                              ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-                                l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' : 
-                                'bg-red-50 text-red-700 ring-red-600/20'}`}>
-                              {l.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                            <button onClick={() => viewHistory(l)} className="text-gray-500 hover:text-blue-600 font-bold text-[11px] uppercase tracking-wide bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1">
-                              Logs
-                            </button>
-                            {l.status === 'pending' && (
-                              <button onClick={() => openEditModal(l)} className="text-gray-700 font-bold text-[11px] uppercase tracking-wide bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">
-                                Edit
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            </div>
+
+            {/* History */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-1">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Your requests</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {filteredMyLeaves.length} shown
+                    {myLeaveFilter !== 'all' ? ` · ${myLeaveCounts.all} total` : ''}
+                  </p>
+                </div>
               </div>
+
+              <div className="flex flex-wrap gap-1.5 bg-white p-1 rounded-xl ring-1 ring-gray-200 shadow-sm">
+                {(
+                  [
+                    { key: 'all', label: 'All' },
+                    { key: 'pending', label: 'Pending' },
+                    { key: 'approved', label: 'Approved' },
+                    { key: 'rejected', label: 'Rejected' },
+                  ] as const
+                ).map(tabItem => {
+                  const active = myLeaveFilter === tabItem.key
+                  const count = myLeaveCounts[tabItem.key]
+                  return (
+                    <button
+                      key={tabItem.key}
+                      type="button"
+                      onClick={() => setMyLeaveFilter(tabItem.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                        active
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                      }`}
+                    >
+                      {tabItem.label}
+                      <span
+                        className={`min-w-[1.25rem] text-center text-[10px] font-bold px-1 py-0.5 rounded-md ${
+                          active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {filteredMyLeaves.length === 0 ? (
+                <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 px-6 py-16 text-center shadow-sm">
+                  <p className="text-base font-semibold text-gray-900">
+                    {myLeaveFilter === 'all'
+                      ? 'No leave requests yet'
+                      : `No ${myLeaveFilter} requests`}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {myLeaveFilter === 'all'
+                      ? 'Use the form to request time off.'
+                      : 'Try another tab or submit a new request.'}
+                  </p>
+                </div>
+              ) : (
+                filteredMyLeaves.map(l => (
+                  <div
+                    key={l.id}
+                    className="rounded-2xl bg-white ring-1 ring-gray-900/5 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-bold text-gray-900 capitalize">
+                          {formatLeaveType(l.leaveType, l.timeSlot)}
+                        </h3>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold capitalize ring-1 ring-inset
+                          ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' :
+                            l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
+                            'bg-red-50 text-red-700 ring-red-600/20'}`}>
+                          {l.status}
+                        </span>
+                        {l.unpaid && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
+                            {unpaidPillLabel(l)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-gray-800 mt-1.5">
+                        {formatLeaveDates(l.startDate, l.endDate)}
+                      </p>
+                      {l.reason && (
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{l.reason}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => viewHistory(l)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        Logs
+                      </button>
+                      {l.status === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(l)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmLeave(l)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       )}
 
       {tab === 'admin' && (
-        <div className="space-y-8">
-          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-base font-bold text-gray-900">Pending Approvals</h2>
-                <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full">{allPendingLeaves.length} Requests</span>
-              </div>
-              <button onClick={() => setIsManualLogModalOpen(true)} className="text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 px-4 py-2 rounded-xl shadow-sm transition-all flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Log Leave Manually
-              </button>
+        <div className="space-y-6">
+          {/* Summary + quick actions */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Needs review</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{pendingLeaves.length}</p>
+              <p className="text-xs text-gray-500 mt-1">Pending requests</p>
             </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-100 text-sm">
-                  <thead className="bg-gray-50/50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    <tr>
-                      <th className="px-6 py-4 text-left">Employee</th>
-                      <th className="px-6 py-4 text-left">Type & Slot</th>
-                      <th className="px-6 py-4 text-left">Dates</th>
-                      <th className="px-6 py-4 text-left">Reason</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {allPendingLeaves.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 bg-gray-50/30">
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-3xl mb-3">✅</span>
-                            <span className="font-medium text-gray-900">All caught up!</span>
-                            <span className="text-xs text-gray-400 mt-1">There are no pending leave requests.</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      allPendingLeaves.map(l => (
-                        <tr key={l.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-gray-900">{l.member.name}</div>
-                          </td>
-                          <td className="px-6 py-4 capitalize text-gray-600 font-medium">
-                            {formatLeaveType(l.leaveType, l.timeSlot)}
-                          </td>
-                          <td className="px-6 py-4 text-gray-700">
-                            <div className="font-semibold text-gray-900">{format(new Date(l.startDate), 'MMM d')}</div>
-                            {l.startDate !== l.endDate && <div className="text-xs text-gray-400 mt-0.5">to {format(new Date(l.endDate), 'MMM d')}</div>}
-                          </td>
-                          <td className="px-6 py-4 text-gray-500 text-xs max-w-[180px] truncate" title={l.reason}>{l.reason}</td>
-                          <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                            <button onClick={() => viewHistory(l)} className="text-gray-500 hover:text-blue-600 font-bold text-xs bg-gray-100 hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors mr-1">Logs</button>
-                            <button onClick={() => setConfirmModal({ leaveId: l.id, status: 'approved' })} className="text-green-700 font-bold text-xs bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg ring-1 ring-inset ring-green-600/20 transition-colors">Approve</button>
-                            <button onClick={() => setConfirmModal({ leaveId: l.id, status: 'rejected' })} className="text-red-700 font-bold text-xs bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg ring-1 ring-inset ring-red-600/20 transition-colors">Reject</button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">This month</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{approvedThisMonth}</p>
+              <p className="text-xs text-gray-500 mt-1">Approved leaves</p>
             </div>
-        </div>
-      )}
-
-      {tab === 'admin' && allLeaves && (
-        <div className="mt-8 bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-base font-bold text-gray-900">All Company Leaves</h2>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Filter:</label>
-                <select value={reportEmployeeFilter} onChange={e => setReportEmployeeFilter(e.target.value)} className="text-sm font-medium rounded-xl border-gray-200 py-1.5 pl-3 pr-8 focus:border-blue-500 focus:ring-blue-500 bg-white">
-                  <option value="all">All Employees</option>
-                  {allMembers.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex bg-gray-100 p-1 rounded-lg ring-1 ring-gray-200">
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Out today</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{onLeaveToday}</p>
+              <p className="text-xs text-gray-500 mt-1">On approved leave</p>
+            </div>
+            <div className="rounded-2xl bg-slate-900 text-white p-4 shadow-sm flex flex-col justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Quick actions</p>
+              <div className="flex flex-col gap-2">
+                {canManageBalances && (
+                  <>
+                    <Link
+                      href="/leaves/usage"
+                      className="text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-xl px-3 py-2 text-center transition-colors"
+                    >
+                      Leave usage
+                    </Link>
+                    <Link
+                      href="/leaves/balances"
+                      className="text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-xl px-3 py-2 text-center transition-colors"
+                    >
+                      Edit balances
+                    </Link>
+                  </>
+                )}
                 <button
-                  onClick={() => setReportView('list')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'list' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+                  type="button"
+                  onClick={() => setIsManualLogModalOpen(true)}
+                  className="text-sm font-semibold bg-white text-slate-900 hover:bg-slate-100 rounded-xl px-3 py-2 transition-colors"
                 >
-                  List
-                </button>
-                <button
-                  onClick={() => setReportView('calendar')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'calendar' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
-                >
-                  Calendar
+                  Log leave manually
                 </button>
               </div>
             </div>
           </div>
 
-          {reportView === 'list' ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100 text-sm">
-                <thead className="bg-gray-50/50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left">Employee</th>
-                    <th className="px-6 py-4 text-left">Type & Slot</th>
-                    <th className="px-6 py-4 text-left">Dates</th>
-                    <th className="px-6 py-4 text-left">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {filteredLeavesForReports.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500 bg-gray-50/30">
-                        <div className="flex flex-col items-center justify-center">
-                          <span className="text-3xl mb-3">📭</span>
-                          <span className="font-medium text-gray-900">No leaves found</span>
-                          <span className="text-xs text-gray-400 mt-1">Try changing your filters.</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredLeavesForReports.map(l => (
-                      <tr key={l.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-gray-900">{l.member.name}</div>
-                        </td>
-                        <td className="px-6 py-4 capitalize text-gray-700 font-medium">
-                          {formatLeaveType(l.leaveType, l.timeSlot)}
-                        </td>
-                        <td className="px-6 py-4 text-gray-700">
-                          <span className="font-semibold text-gray-900">{format(new Date(l.startDate), 'MMM d, yyyy')}</span>
-                          {l.startDate !== l.endDate && <span className="text-gray-500"> to {format(new Date(l.endDate), 'MMM d, yyyy')}</span>}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize ring-1 ring-inset
-                            ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-                              l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' : 
-                              'bg-red-50 text-red-700 ring-red-600/20'}`}>
-                            {l.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                           <button onClick={() => viewHistory(l)} className="text-gray-500 hover:text-blue-600 font-bold text-xs bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Logs</button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          {/* Section switcher */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex bg-white p-1 rounded-xl ring-1 ring-gray-200 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setAdminSection('approvals')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  adminSection === 'approvals'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Approvals
+                {pendingLeaves.length > 0 && (
+                  <span className={`ml-2 text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
+                    adminSection === 'approvals' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {pendingLeaves.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminSection('history')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  adminSection === 'history'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Team history
+              </button>
             </div>
-          ) : (
-            <div className="p-6">
-              {/* Calendar Controls */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">{format(currentMonth, 'MMMM yyyy')}</h3>
-                <div className="flex space-x-2">
-                  <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 ring-1 ring-gray-200 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-2 text-sm font-bold rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 ring-1 ring-gray-200 transition-colors">Today</button>
-                  <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 ring-1 ring-gray-200 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                  </button>
+          </div>
+
+          {adminSection === 'approvals' && (
+            <div className="space-y-4">
+              {pendingLeaves.length === 0 ? (
+                <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 px-6 py-16 text-center shadow-sm">
+                  <p className="text-lg font-semibold text-gray-900">Nothing to approve</p>
+                  <p className="text-sm text-gray-500 mt-1">New leave requests will show up here.</p>
+                </div>
+              ) : (
+                pendingLeaves.map(l => (
+                  <div
+                    key={l.id}
+                    className="rounded-2xl bg-white ring-1 ring-gray-900/5 shadow-sm overflow-hidden"
+                  >
+                    <div className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center gap-5">
+                      <div className="flex items-start gap-4 flex-1 min-w-0">
+                        <div className="h-11 w-11 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-sm font-bold shrink-0">
+                          {(l.member.name || '?').split(' ').map((p: string) => p[0]).slice(0, 2).join('').toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-bold text-gray-900">{l.member.name}</h3>
+                            <span className="text-[11px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 ring-1 ring-amber-600/15 px-2 py-0.5 rounded-full">
+                              Pending
+                            </span>
+                            {l.unpaid && (
+                              <span className="text-[11px] font-semibold uppercase tracking-wide bg-orange-50 text-orange-800 ring-1 ring-orange-600/15 px-2 py-0.5 rounded-full">
+                                {unpaidPillLabel(l)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1 capitalize">
+                            {formatLeaveType(l.leaveType, l.timeSlot)}
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 mt-2">
+                            {formatLeaveDates(l.startDate, l.endDate)}
+                          </p>
+                          {l.reason ? (
+                            <p className="text-sm text-gray-500 mt-2 line-clamp-2">
+                              <span className="font-semibold text-gray-700">Reason:</span> {l.reason}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-gray-400 mt-2 italic">No reason provided</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 lg:justify-end shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => viewHistory(l)}
+                          className="px-3 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                        >
+                          Logs
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmModal({ leaveId: l.id, status: 'rejected' })}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 ring-1 ring-inset ring-red-600/15 transition-colors"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmModal({ leaveId: l.id, status: 'approved' })}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {adminSection === 'history' && companyLeaves.length >= 0 && (
+            <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Team leave history</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Filter by person or switch to calendar view.</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    value={reportEmployeeFilter}
+                    onChange={e => setReportEmployeeFilter(e.target.value)}
+                    className="text-sm font-medium rounded-xl border-gray-200 py-2 pl-3 pr-8 focus:border-blue-500 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="all">All employees</option>
+                    {allMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+
+                  <div className="flex bg-gray-100 p-1 rounded-lg ring-1 ring-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setReportView('list')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'list' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportView('calendar')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'calendar' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                      Calendar
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden ring-1 ring-gray-200">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="bg-gray-50 py-2 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                    {day}
-                  </div>
-                ))}
-                
-                {calendarDays.map((day, dayIdx) => {
-                  const isCurrentMonth = isSameMonth(day, currentMonth)
-                  const isToday = isSameDay(day, new Date())
-                  const dayLeaves = getLeavesForDay(day)
-
-                  return (
-                    <div 
-                      key={day.toISOString()} 
-                      className={`min-h-[100px] bg-white p-2 flex flex-col ${!isCurrentMonth ? 'bg-gray-50/50 text-gray-400' : ''}`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-900'}`}>
-                          {format(day, 'd')}
-                        </span>
-                      </div>
-                      <div className="flex-1 space-y-1 overflow-y-auto max-h-[80px]">
-                        {dayLeaves.map(l => (
-                          <div 
-                            key={l.id}
-                            onClick={() => viewHistory(l)}
-                            className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all
-                              ${l.status === 'approved' ? 'bg-green-100 text-green-800' : 
-                                l.status === 'pending' ? 'bg-amber-100 text-amber-800' : 
-                                'bg-red-100 text-red-800'}`}
-                            title={`${l.member.name} - ${formatLeaveType(l.leaveType, l.timeSlot)}`}
-                          >
-                            {l.member.name.split(' ')[0]}
-                          </div>
-                        ))}
-                      </div>
+              {reportView === 'list' ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead className="bg-gray-50/80 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3.5 text-left">Employee</th>
+                        <th className="px-6 py-3.5 text-left">Type</th>
+                        <th className="px-6 py-3.5 text-left">Dates</th>
+                        <th className="px-6 py-3.5 text-left">Status</th>
+                        <th className="px-6 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {filteredLeavesForReports.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                            <span className="font-medium text-gray-900">No leaves found</span>
+                            <span className="block text-xs text-gray-400 mt-1">Try a different employee filter.</span>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredLeavesForReports.map(l => (
+                          <tr key={l.id} className="hover:bg-gray-50/60 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{l.member.name}</td>
+                            <td className="px-6 py-4 capitalize text-gray-600">
+                              {formatLeaveType(l.leaveType, l.timeSlot)}
+                            </td>
+                            <td className="px-6 py-4 text-gray-700">
+                              {formatLeaveDates(l.startDate, l.endDate)}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize ring-1 ring-inset
+                                  ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' :
+                                    l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
+                                    'bg-red-50 text-red-700 ring-red-600/20'}`}>
+                                  {l.status}
+                                </span>
+                                {l.unpaid && (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
+                                    {unpaidPillLabel(l)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="inline-flex items-center gap-2 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => viewHistory(l)}
+                                  className="text-gray-500 hover:text-blue-600 font-bold text-xs bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                                >
+                                  Logs
+                                </button>
+                                {l.status === 'approved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRevokeNotes('')
+                                      setRevokeConfirmLeave(l)
+                                    }}
+                                    className="text-amber-800 hover:text-amber-900 font-bold text-xs bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
+                                  >
+                                    Revoke
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">{format(currentMonth, 'MMMM yyyy')}</h3>
+                    <div className="flex space-x-2">
+                      <button type="button" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 ring-1 ring-gray-200 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <button type="button" onClick={() => setCurrentMonth(new Date())} className="px-3 py-2 text-sm font-bold rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 ring-1 ring-gray-200 transition-colors">Today</button>
+                      <button type="button" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 ring-1 ring-gray-200 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </button>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden ring-1 ring-gray-200">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div key={day} className="bg-gray-50 py-2 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                        {day}
+                      </div>
+                    ))}
+
+                    {calendarDays.map(day => {
+                      const isCurrentMonth = isSameMonth(day, currentMonth)
+                      const isToday = isSameDay(day, new Date())
+                      const dayLeaves = getLeavesForDay(day)
+
+                      return (
+                        <div
+                          key={day.toISOString()}
+                          className={`min-h-[100px] bg-white p-2 flex flex-col ${!isCurrentMonth ? 'bg-gray-50/50 text-gray-400' : ''}`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-900'}`}>
+                              {format(day, 'd')}
+                            </span>
+                          </div>
+                          <div className="flex-1 space-y-1 overflow-y-auto max-h-[80px]">
+                            {dayLeaves.map(l => (
+                              <div
+                                key={l.id}
+                                onClick={() => viewHistory(l)}
+                                className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all
+                                  ${l.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    l.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                                    'bg-red-100 text-red-800'}`}
+                                title={`${l.member.name} - ${formatLeaveType(l.leaveType, l.timeSlot)}`}
+                              >
+                                {l.member.name.split(' ')[0]}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -888,6 +1416,8 @@ export default function LeaveDashboardClient({
                   <option value="full_day">Full Day</option>
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
+                  <option value="birthday_leave">Birthday Leave</option>
+                  <option value="work_from_home">Work From Home</option>
                 </select>
               </div>
               
@@ -908,7 +1438,6 @@ export default function LeaveDashboardClient({
                   <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
                     <option value="" disabled>Select a slot</option>
                     <option value="morning">Morning</option>
-                    <option value="in_between_the_day">In between the day</option>
                     <option value="evening">Evening</option>
                   </select>
                 </div>
@@ -926,8 +1455,8 @@ export default function LeaveDashboardClient({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason (Optional)</label>
-                <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" placeholder="e.g., Sick leave" />
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason (Required)</label>
+                <textarea required value={reason} onChange={e => setReason(e.target.value)} rows={2} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" placeholder="e.g., Sick leave" />
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

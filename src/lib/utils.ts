@@ -69,7 +69,26 @@ export function formatLossReason(reason: string) {
   return LOSS_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ')
 }
 export const FAULT_AREAS = ['BD', 'Estimation', 'Communication', 'Proposal_Quality', 'External'] as const
-export const PROJECT_STATUSES = ['scoping', 'active', 'qa', 'delivered', 'cancelled'] as const
+export const PROJECT_STATUSES = [
+  'scoping',
+  'active',
+  'qa',
+  'on_hold',
+  'maintenance',
+  'delivered',
+  'cancelled',
+] as const
+
+export const PROJECT_STATUS_LABELS: Record<string, string> = {
+  scoping: 'Scoping',
+  active: 'Active',
+  qa: 'QA',
+  on_hold: 'On Hold',
+  maintenance: 'Maintenance',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+}
+
 export const ROLES = ['BD', 'Dev', 'Both', 'Founder', 'Manager', 'QA', 'HR', 'SocialMedia'] as const
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -81,6 +100,8 @@ export const STATUS_COLORS: Record<string, string> = {
   scoping: 'bg-sky-100 text-sky-800',
   active: 'bg-blue-100 text-blue-800',
   qa: 'bg-violet-100 text-violet-800',
+  on_hold: 'bg-amber-100 text-amber-800',
+  maintenance: 'bg-cyan-100 text-cyan-800',
   delivered: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-100 text-gray-600',
   yes: 'bg-green-100 text-green-800',
