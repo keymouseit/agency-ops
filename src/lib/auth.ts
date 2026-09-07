@@ -8,12 +8,12 @@ import { NextResponse } from 'next/server'
 export const ROLE_ACCESS: Record<string, string[]> = {
   Founder: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
   Manager: ['/', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves'],
-  BD:      ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
+  BD:      ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
   HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
   SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
-  Both:         ['/me', '/account', '/pipeline', '/projects', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
+  Both:         ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/leaves'],
 }
 
 // ── Auth export (defined first so helpers can call auth()) ────────────────────
@@ -119,6 +119,11 @@ export async function requireRole(
     throw Object.assign(new Error('UNAUTHORIZED'), { status: 401 })
   }
 
+  const jwtRole = session.user.role
+  if (jwtRole && allowed.includes(jwtRole)) {
+    return { memberId: session.user.id, role: jwtRole }
+  }
+
   let member = await prisma.teamMember.findUnique({
     where: { id: session.user.id },
     select: { id: true, role: true, active: true },
@@ -140,6 +145,28 @@ export async function requireRole(
   }
 
   return { memberId: member.id, role: member.role }
+}
+
+/** Like checkRole but returns member info on success (for routes that need memberId). */
+export async function authorizeRole(
+  allowed: string[]
+): Promise<NextResponse | { memberId: string; role: string }> {
+  try {
+    return await requireRole(allowed)
+  } catch (e: unknown) {
+    const err = e as { message: string; status?: number }
+    if (err.message === 'STALE_SESSION') {
+      return NextResponse.json(
+        { error: 'Your session is out of date. Please sign out and sign in again.' },
+        { status: 401 }
+      )
+    }
+    const isUnauthed = err.message === 'UNAUTHORIZED'
+    return NextResponse.json(
+      { error: isUnauthed ? 'Sign in required.' : 'You do not have permission for this action.' },
+      { status: isUnauthed ? 401 : 403 }
+    )
+  }
 }
 
 /**

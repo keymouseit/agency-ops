@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
-import { checkRole, auth } from '@/lib/auth'
+import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-// GET /api/notifications — fetch recent notifications for the logged-in user
 export async function GET() {
   const startTime = Date.now()
 
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
-  if (deny) return deny
-
-  const session = await auth()
-  const memberId = session!.user.id
+  const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
+  if (authResult instanceof NextResponse) return authResult
+  const { memberId } = authResult
 
   logger.logApiRequest('GET', '/api/notifications', memberId)
 
@@ -29,15 +26,12 @@ export async function GET() {
   return NextResponse.json({ notifications, unread })
 }
 
-// PATCH /api/notifications — mark all as read for the logged-in user
 export async function PATCH() {
   const startTime = Date.now()
 
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
-  if (deny) return deny
-
-  const session = await auth()
-  const memberId = session!.user.id
+  const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia', 'Manager'])
+  if (authResult instanceof NextResponse) return authResult
+  const { memberId } = authResult
 
   logger.logApiRequest('PATCH', '/api/notifications', memberId)
 

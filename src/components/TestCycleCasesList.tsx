@@ -32,6 +32,7 @@ export default function TestCycleCasesList({
   const router = useRouter()
   const [fixingId, setFixingId] = useState<string | null>(null)
   const [retestingId, setRetestingId] = useState<string | null>(null)
+  const [retestStatus, setRetestStatus] = useState<'fail' | 'blocked'>('fail')
   const [fixNotes, setFixNotes] = useState('')
   const [retestNotes, setRetestNotes] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
@@ -39,7 +40,6 @@ export default function TestCycleCasesList({
   if (cases.length === 0) return null
 
   const passed = cases.filter(c => c.status === 'pass' || c.status === 'skipped').length
-  const failed = cases.filter(c => c.status === 'fail' || c.status === 'blocked').length
   const summary = testCycleCaseSummary(cases)
 
   async function submitFix(caseId: string) {
@@ -90,7 +90,8 @@ export default function TestCycleCasesList({
         <div className="text-xs text-gray-400 uppercase tracking-wide">Test cases</div>
         <div className="text-xs text-gray-500">
           {passed}/{cases.length} passed
-          {failed > 0 && <span className="text-red-600 ml-1">· {failed} failed/blocked</span>}
+          {summary.failed > 0 && <span className="text-red-600 ml-1">· {summary.failed} failed</span>}
+          {summary.blocked > 0 && <span className="text-orange-600 ml-1">· {summary.blocked} blocked</span>}
         </div>
       </div>
 
@@ -216,10 +217,22 @@ export default function TestCycleCasesList({
                     className="btn-secondary text-xs py-1 px-2 border-red-200 text-red-700 hover:bg-red-50"
                     onClick={() => {
                       setRetestingId(tc.id)
+                      setRetestStatus('fail')
                       setRetestNotes('')
                     }}
                   >
                     Still failing
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs py-1 px-2 border-orange-200 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      setRetestingId(tc.id)
+                      setRetestStatus('blocked')
+                      setRetestNotes('')
+                    }}
+                  >
+                    Still blocked
                   </button>
                 </div>
               )}
@@ -228,19 +241,31 @@ export default function TestCycleCasesList({
                 <div className="mt-2 space-y-2">
                   <textarea
                     rows={2}
-                    className="input text-xs border-red-200"
+                    className={`input text-xs ${retestStatus === 'blocked' ? 'border-orange-200' : 'border-red-200'}`}
                     value={retestNotes}
                     onChange={e => setRetestNotes(e.target.value)}
-                    placeholder="What is still broken? (required)"
+                    placeholder={
+                      retestStatus === 'blocked'
+                        ? 'What is still blocking this test case? (required)'
+                        : 'What is still broken? (required)'
+                    }
                   />
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
-                      className="btn-primary text-xs py-1 px-2 bg-red-600 hover:bg-red-700"
+                      className={`btn-primary text-xs py-1 px-2 ${
+                        retestStatus === 'blocked'
+                          ? 'bg-orange-600 hover:bg-orange-700'
+                          : 'bg-red-600 hover:bg-red-700'
+                      }`}
                       disabled={loading === tc.id || !retestNotes.trim()}
-                      onClick={() => submitRetest(tc.id, 'fail')}
+                      onClick={() => submitRetest(tc.id, retestStatus)}
                     >
-                      {loading === tc.id ? 'Saving...' : 'Reopen for dev'}
+                      {loading === tc.id
+                        ? 'Saving...'
+                        : retestStatus === 'blocked'
+                        ? 'Mark still blocked'
+                        : 'Reopen for dev'}
                     </button>
                     <button
                       type="button"

@@ -4,6 +4,7 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logProjectQAActivity } from '@/lib/qa-audit'
+import { isBlockingCycleResult } from '@/lib/qa'
 import {
   buildTestCycleFields,
   parseTestCycleCases,
@@ -90,7 +91,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         environment: fields.environment || 'staging',
         passedCount,
         totalCases: testCases.length,
-        hasBlockers: fields.result === 'fail' && !!fields.blockerNote,
+        hasBlockers: isBlockingCycleResult(fields.result) && !!fields.blockerNote,
       },
       req,
     )
@@ -100,11 +101,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (project) {
     logger.debug('Sending QA test cycle notifications', { projectId: params.id, projectName: project.name, result: fields.result, developerId: project.developerId })
 
-    if (fields.result === 'fail') {
-      // Notify the dev project owner: their project is blocked in QA
-      logger.info('Sending test_cycle_fail notification to project owner', { projectId: params.id, developerId: project.developerId })
+    if (isBlockingCycleResult(fields.result)) {
+      const label = fields.result === 'blocked' ? 'blocked' : 'failed'
+      logger.info(`Sending test_cycle_fail notification to project owner (${label})`, { projectId: params.id, developerId: project.developerId })
       await notify('test_cycle_fail', [project.developerId],
-        `QA: ${project.name} is blocked — ${(fields.blockerNote ?? 'see test report').slice(0, 80)}`,
+        `QA: ${project.name} ${label} — ${(fields.blockerNote ?? 'see test report').slice(0, 80)}`,
         `/projects/${params.id}#qa`)
       logger.info('test_cycle_fail notification sent', { projectId: params.id, developerId: project.developerId })
     } else if (fields.result === 'pass' || fields.result === 'conditional') {

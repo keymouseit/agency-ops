@@ -115,8 +115,26 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
+
+    function pollIfVisible() {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications()
+      }
+    }
+
+    const interval = setInterval(pollIfVisible, 60000)
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [fetchNotifications])
 
   useEffect(() => {
@@ -145,7 +163,6 @@ export default function NotificationBell() {
     setOpen(false)
     if (n.linkTo) {
       router.push(n.linkTo)
-      router.refresh()
     }
   }
 

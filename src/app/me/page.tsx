@@ -8,9 +8,9 @@ import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 import MeDayHeader from './MeDayHeader'
 import MeSection from './MeSection'
-import { canEditEod, findPendingPastEodLog, formatDailyLogDate } from '@/lib/daily'
+import { canEditEod, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
-import { testCycleCaseSummary } from '@/lib/qa'
+import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,7 +65,7 @@ export default async function MePage() {
       },
     }),
 
-    findPendingPastEodLog(memberId),
+    findPendingPastEodLogSummary(memberId),
 
     // My projects — Dev and Both only
     // BD and QA do not own projects
@@ -667,11 +667,13 @@ export default async function MePage() {
                 stateLabel = '✓ Signed off'; stateCls = 'bg-green-100 text-green-700'; action = null
               } else if (!cycle) {
                 stateLabel = 'No test cycle'; stateCls = 'bg-gray-100 text-gray-500'; action = 'Start test cycle →'
-              } else if (cycle.result === 'fail') {
+              } else if (isBlockingCycleResult(cycle.result)) {
                 if (cycleFixSummary?.allFailuresFixed) {
                   stateLabel = 'Re-test needed'; stateCls = 'bg-teal-100 text-teal-800'; action = 'Re-test fixes →'
+                } else if (cycle.result === 'blocked') {
+                  stateLabel = 'Blocked'; stateCls = 'bg-orange-100 text-orange-800'; action = 'View blocker →'
                 } else {
-                  stateLabel = 'Blocked'; stateCls = 'bg-red-100 text-red-700'; action = 'View blocker →'
+                  stateLabel = 'Failed'; stateCls = 'bg-red-100 text-red-700'; action = 'View failures →'
                 }
               } else if (cycle.result === 'pass' || cycle.result === 'conditional') {
                 stateLabel = 'Ready to sign off'; stateCls = 'bg-amber-100 text-amber-800'; action = 'Submit sign-off →'
@@ -712,6 +714,9 @@ export default async function MePage() {
                                   {milestoneProgress.failedCases > 0 && (
                                     <span className="text-red-600"> · {milestoneProgress.failedCases} failed</span>
                                   )}
+                                  {milestoneProgress.blockedCases > 0 && (
+                                    <span className="text-orange-600"> · {milestoneProgress.blockedCases} blocked</span>
+                                  )}
                                 </span>
                               )}
                             </div>
@@ -726,8 +731,11 @@ export default async function MePage() {
                             </div>
                             <div className="text-[10px] text-gray-500">
                               {cycleProgress.passed}/{cycleProgress.total} cases passed
-                              {cycleProgress.failing > 0 && (
-                                <span className="text-red-600"> · {cycleProgress.failing} failing</span>
+                              {cycleProgress.failed > 0 && (
+                                <span className="text-red-600"> · {cycleProgress.failed} failed</span>
+                              )}
+                              {cycleProgress.blocked > 0 && (
+                                <span className="text-orange-600"> · {cycleProgress.blocked} blocked</span>
                               )}
                               {cycleProgress.awaitingRetest > 0 && (
                                 <span className="text-amber-600"> · {cycleProgress.awaitingRetest} to re-test</span>

@@ -3,7 +3,7 @@ import { auth, checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
 import { serializeTestCycleCase } from '@/lib/project-queries'
-import { deriveCycleResultFromCases, testCycleCaseSummary } from '@/lib/qa'
+import { deriveCycleResultFromCases, isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 
 const VALID_STATUSES = ['pass', 'fail', 'blocked', 'skipped']
@@ -50,7 +50,7 @@ async function syncCycleResult(cycleId: string, previousResult: string) {
     where: { id: cycleId },
     data: {
       result: newResult,
-      ...(newResult !== 'fail' ? { blockerNote: null } : {}),
+      ...(isBlockingCycleResult(newResult) || newResult === 'conditional' ? {} : { blockerNote: null }),
     },
   })
   return { newResult, cases }

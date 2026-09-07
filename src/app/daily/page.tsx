@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { findPendingPastEodLog } from '@/lib/daily'
+import { findPendingPastEodLogSummary } from '@/lib/daily'
 import { format, startOfDay, subDays } from 'date-fns'
 import { redirect } from 'next/navigation'
 import DailyHeader from './DailyHeader'
@@ -43,7 +43,7 @@ export default async function DailyPage({
         tasks: { include: { project: { select: { name: true } } }, orderBy: { priority: 'asc' } },
       },
     }),
-    showTeamView ? Promise.resolve(null) : findPendingPastEodLog(session.user.id),
+    showTeamView ? Promise.resolve(null) : findPendingPastEodLogSummary(session.user.id),
   ])
 
   const isToday = targetDate.toDateString() === new Date().toDateString()

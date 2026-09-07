@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 import { notify } from '@/lib/notify'
+import { isBlockingCycleResult } from '@/lib/qa'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
@@ -30,11 +31,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     )
   }
 
-  if (cycle.result === 'fail') {
-    return NextResponse.json(
-      { error: 'Cannot sign off on a failed test cycle. The blocker must be resolved and a new cycle run first.' },
-      { status: 422 }
-    )
+  if (isBlockingCycleResult(cycle.result)) {
+    const message = cycle.result === 'blocked'
+      ? 'Cannot sign off while the test cycle is blocked. Resolve the blocker and re-test first.'
+      : 'Cannot sign off on a failed test cycle. Fix the failures and re-test first.'
+    return NextResponse.json({ error: message }, { status: 422 })
   }
 
   if (cycle.result === 'pending') {

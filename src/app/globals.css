@@ -64,3 +64,8 @@ textarea.input {
   margin-left: auto;
   margin-right: auto;
 }
+
+@keyframes nav-progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}

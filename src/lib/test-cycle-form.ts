@@ -1,4 +1,4 @@
-import { deriveCycleResult, hasFailingTestCases, isNonExecutableCycleResult, cycleSupportsBlockerNote } from '@/lib/qa'
+import { deriveCycleResult, hasBlockedTestCases, hasFailedTestCases, hasFailingTestCases, isNonExecutableCycleResult, cycleSupportsBlockerNote } from '@/lib/qa'
 
 export type ParsedTestCycleCase = {
   title: string
@@ -32,9 +32,16 @@ export function resolveCycleBlockerNote(
   const trimmed = manualBlocker.trim()
   if (trimmed) return trimmed
 
-  if (result === 'fail' && hasFailingTestCases(testCases)) {
+  if (result === 'fail' && hasFailedTestCases(testCases)) {
     return `Failed test cases: ${testCases
-      .filter(tc => tc.status === 'fail' || tc.status === 'blocked')
+      .filter(tc => tc.status === 'fail')
+      .map(tc => tc.title)
+      .join(', ')}`
+  }
+
+  if (result === 'blocked' && hasBlockedTestCases(testCases)) {
+    return `Blocked test cases: ${testCases
+      .filter(tc => tc.status === 'blocked')
       .map(tc => tc.title)
       .join(', ')}`
   }
@@ -75,8 +82,14 @@ export function validateTestCyclePayload(
   if (!fields.conductedById) errors.push('Tested by is required')
   if (testCases.length === 0) errors.push('At least one test case with a name is required')
   if (options?.requireBlockerOnFail !== false) {
-    if ((fields.result === 'fail' || fields.result === 'conditional') && !fields.blockerNote) {
-      errors.push(fields.result === 'fail' ? 'Blocker description is required' : 'Conditional issue description is required')
+    if ((fields.result === 'fail' || fields.result === 'blocked' || fields.result === 'conditional') && !fields.blockerNote) {
+      errors.push(
+        fields.result === 'fail'
+          ? 'Failure description is required'
+          : fields.result === 'blocked'
+          ? 'Blocker description is required'
+          : 'Conditional issue description is required',
+      )
     }
     if (isNonExecutableCycleResult(fields.result) && !fields.summary && !fields.blockerNote) {
       errors.push('Please add notes explaining why this cycle could not be fully executed')

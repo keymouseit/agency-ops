@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { fetchProjectForQAPage, serializeMilestoneBug, serializeMilestoneTestCase } from '@/lib/project-queries'
-import { testCycleCaseSummary } from '@/lib/qa'
-import { notFound } from 'next/navigation'
+import { testCycleCaseSummary, QA_CYCLE_RESULT_CONFIG, isBlockingCycleResult } from '@/lib/qa'
+import { canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
+import { auth } from '@/lib/auth'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { fmtDate } from '@/lib/utils'
 import QAProjectActions from './QAProjectActions'
@@ -11,12 +13,7 @@ import TestCyclesPanel from './TestCyclesPanel'
 
 export const dynamic = 'force-dynamic'
 
-const RESULT_CONFIG = {
-  pass:        { label: 'Pass ✓',         cls: 'bg-green-100 text-green-800',  border: 'border-green-200' },
-  fail:        { label: 'Fail — blocked', cls: 'bg-red-100 text-red-800',      border: 'border-red-200' },
-  conditional: { label: 'Conditional',   cls: 'bg-amber-100 text-amber-800',   border: 'border-amber-200' },
-  pending:     { label: 'In progress',   cls: 'bg-blue-100 text-blue-800',     border: 'border-blue-100' },
-}
+const RESULT_CONFIG = QA_CYCLE_RESULT_CONFIG
 
 const SEVERITY_CLS: Record<string, string> = {
   critical: 'bg-red-100 text-red-800',
@@ -26,6 +23,11 @@ const SEVERITY_CLS: Record<string, string> = {
 }
 
 export default async function QAProjectPage({ params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!canViewQATestCycles(session?.user?.role)) redirect('/')
+
+  const canManageQA = canManageQATestCycles(session?.user?.role)
+
   const [project, members] = await Promise.all([
     fetchProjectForQAPage(params.id),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -40,7 +42,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
   const latestCycleFixSummary = latestCycle?.cases?.length
     ? testCycleCaseSummary(latestCycle.cases)
     : null
-  const devFixesReadyForRetest = latestCycle?.result === 'fail'
+  const devFixesReadyForRetest = isBlockingCycleResult(latestCycle?.result ?? '')
     && latestCycleFixSummary?.allFailuresFixed
 
   return (
@@ -63,6 +65,12 @@ export default async function QAProjectPage({ params }: { params: { id: string }
           </div>
         </div>
       </div>
+
+      {!canManageQA && (
+        <div className="mb-6 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">
+          View-only access — you can review QA test cycles and milestone progress logged by the QA team.
+        </div>
+      )}
 
       {/* QA Handoff Information */}
       {project.qaModulesDelivered && (
@@ -125,9 +133,17 @@ export default async function QAProjectPage({ params }: { params: { id: string }
             </Link>
           </div>
         </div>
-      ) : latestCycle?.result === 'fail' ? (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <div className="text-sm font-semibold text-red-800">⛔ Release blocked</div>
+      ) : isBlockingCycleResult(latestCycle?.result ?? '') ? (
+        <div className={`mb-6 p-4 rounded-xl border ${
+          latestCycle.result === 'blocked'
+            ? 'bg-orange-50 border-orange-200'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className={`text-sm font-semibold ${
+            latestCycle.result === 'blocked' ? 'text-orange-800' : 'text-red-800'
+          }`}>
+            {latestCycle.result === 'blocked' ? '⊘ Testing or release blocked' : '✕ Test cycle failed'}
+          </div>
           {latestCycle.blockerNote && (
             <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">{latestCycle.blockerNote}</p>
           )}
@@ -166,6 +182,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
             bugs: m.bugs.map(serializeMilestoneBug),
           }))}
           projectId={project.id}
+          readOnly={!canManageQA}
         />
       </div>
 
@@ -201,7 +218,8 @@ export default async function QAProjectPage({ params }: { params: { id: string }
           cases: c.cases,
         }))}
         hasSignOff={hasSignOff}
-        canSignOff={canSignOff}
+        canSignOff={canSignOff && canManageQA}
+        canManage={canManageQA}
         latestCycleId={latestCycle?.id}
       />
 
@@ -243,7 +261,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
               Issues the client reported after delivery. Not a bug tracker — log the ones we missed.
             </p>
           </div>
-          {hasSignOff && (
+          {hasSignOff && canManageQA && (
             <QAProjectActions
               project={{ id: project.id, name: project.name, status: project.status }}
               members={members}

@@ -145,7 +145,6 @@ export default function MorningPlanForm({
 
       setLoading(false)
       router.replace(isEdit ? '/daily' : '/daily?saved=1')
-      router.refresh()
     } catch (err) {
       setLoading(false)
       if (err instanceof TypeError) {

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestCaseEditor from './MilestoneTestCaseEditor'
 import MilestoneBugEditor from './MilestoneBugEditor'
+import MilestoneTestProgress from '@/components/MilestoneTestProgress'
 import { openBugCount } from '@/lib/milestone-qa'
 
 type TestCase = {
@@ -41,10 +42,12 @@ type Milestone = {
 
 export default function MilestoneApproval({
   milestones,
-  projectId
+  projectId,
+  readOnly = false,
 }: {
   milestones: Milestone[]
   projectId: string
+  readOnly?: boolean
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
@@ -157,21 +160,29 @@ export default function MilestoneApproval({
               }`}
             >
               <div className="flex items-center gap-3 p-3">
-                <input
-                  type="checkbox"
-                  data-testid="milestone-checkbox"
-                  checked={m.status === 'done'}
-                  onChange={() => toggleMilestone(m.id, m.status)}
-                  disabled={loading === m.id || isPending || !canToggleApproval}
-                  className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
-                  title={
-                    isPending
-                      ? 'Waiting for developer to mark as ready for QA'
-                      : !canToggleApproval
-                      ? 'Start testing before approving'
-                      : 'Toggle QA approval'
-                  }
-                />
+                {!readOnly ? (
+                  <input
+                    type="checkbox"
+                    data-testid="milestone-checkbox"
+                    checked={m.status === 'done'}
+                    onChange={() => toggleMilestone(m.id, m.status)}
+                    disabled={loading === m.id || isPending || !canToggleApproval}
+                    className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
+                    title={
+                      isPending
+                        ? 'Waiting for developer to mark as ready for QA'
+                        : !canToggleApproval
+                        ? 'Start testing before approving'
+                        : 'Toggle QA approval'
+                    }
+                  />
+                ) : (
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                    m.status === 'done' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-gray-200 text-transparent'
+                  }`}>
+                    ✓
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className={`text-sm font-medium ${
                     m.status === 'done' ? 'text-gray-500 line-through' : 'text-gray-900'
@@ -216,16 +227,28 @@ export default function MilestoneApproval({
 
               {isExpanded && (
                 <div className="px-3 pb-3">
-                  <MilestoneTestCaseEditor
-                    milestoneId={m.id}
-                    milestoneStatus={m.status}
-                    testCases={m.testCases}
-                  />
-                  <MilestoneBugEditor
-                    milestoneId={m.id}
-                    milestoneStatus={m.status}
-                    bugs={m.bugs}
-                  />
+                  {readOnly ? (
+                    <MilestoneTestProgress
+                      milestoneTitle={m.title}
+                      milestoneStatus={m.status}
+                      qaStartedAt={m.qaStartedAt?.toISOString() ?? null}
+                      testCases={m.testCases}
+                      bugs={m.bugs}
+                    />
+                  ) : (
+                    <>
+                      <MilestoneTestCaseEditor
+                        milestoneId={m.id}
+                        milestoneStatus={m.status}
+                        testCases={m.testCases}
+                      />
+                      <MilestoneBugEditor
+                        milestoneId={m.id}
+                        milestoneStatus={m.status}
+                        bugs={m.bugs}
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -234,7 +257,9 @@ export default function MilestoneApproval({
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        Start testing on ready milestones, log test cases and bugs, then approve when complete. Failed test cases auto-create bugs for the developer.
+        {readOnly
+          ? 'Expand a milestone to review test cases and bugs logged by QA.'
+          : 'Start testing on ready milestones, log test cases and bugs, then approve when complete. Failed test cases auto-create bugs for the developer.'}
       </p>
     </div>
   )

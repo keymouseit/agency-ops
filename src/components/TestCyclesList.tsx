@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { fmtDate } from '@/lib/utils'
-import { QA_CYCLE_RESULT_CONFIG, hasFailingTestCases } from '@/lib/qa'
+import { QA_CYCLE_RESULT_CONFIG, hasFailingTestCases, isBlockingCycleResult } from '@/lib/qa'
 import TestCycleDetailModal, { type TestCycleDetail } from '@/components/TestCycleDetailModal'
 
 type Props = {
@@ -40,7 +40,8 @@ export default function TestCyclesList({
             ?? QA_CYCLE_RESULT_CONFIG.pending
           const isLatest = i === 0
           const passed = cycle.cases.filter(c => c.status === 'pass' || c.status === 'skipped').length
-          const failed = cycle.cases.filter(c => c.status === 'fail' || c.status === 'blocked').length
+          const failed = cycle.cases.filter(c => c.status === 'fail').length
+          const blocked = cycle.cases.filter(c => c.status === 'blocked').length
           const checkedCount = [
             cycle.testedAuth,
             cycle.testedCoreFlows,
@@ -79,6 +80,7 @@ export default function TestCyclesList({
                       <span>
                         {passed}/{cycle.cases.length} test cases passed
                         {failed > 0 && <span className="text-red-600"> · {failed} failed</span>}
+                        {blocked > 0 && <span className="text-orange-600"> · {blocked} blocked</span>}
                       </span>
                     )}
                     {checkedCount > 0 && <span>{checkedCount} areas tested</span>}
@@ -119,7 +121,7 @@ export default function TestCyclesList({
           allowDevFix={
             allowDevFix
             && viewingIndex === 0
-            && (viewingCycle.result === 'fail' || hasFailingTestCases(viewingCycle.cases))
+            && (isBlockingCycleResult(viewingCycle.result) || hasFailingTestCases(viewingCycle.cases))
           }
           allowQARetest={!hasSignOff && viewingIndex === 0}
           headerActions={manageButtons?.(viewingCycle, viewingIndex === 0, () => setViewingCycleId(null))}

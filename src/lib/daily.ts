@@ -72,6 +72,8 @@ export const DAILY_TASK_TYPE_GROUPS = [
     types: [
       { value: 'meeting', label: 'Meeting' },
       { value: 'admin', label: 'Admin' },
+      { value: 'rnd', label: 'Research and development' },
+      { value: 'discussion', label: 'Discussion' },
     ],
   },
 ] as const
@@ -190,16 +192,26 @@ export function isPastDailyLogDate(logDate: Date | string, today = startOfDay(ne
   return startOfDay(new Date(logDate)) < today
 }
 
+const pendingPastEodWhere = (memberId: string, today = startOfDay(new Date())) => ({
+  memberId,
+  planSubmittedAt: { not: null } as const,
+  eodSubmittedAt: null,
+  date: { lt: today },
+})
+
+/** Lightweight check for banners/gates — no task graph. */
+export async function findPendingPastEodLogSummary(memberId: string) {
+  return prisma.dailyLog.findFirst({
+    where: pendingPastEodWhere(memberId),
+    select: { id: true, date: true },
+    orderBy: { date: 'asc' },
+  })
+}
+
 /** Oldest open EOD from before today (e.g. Friday still open on Monday). */
 export async function findPendingPastEodLog(memberId: string) {
-  const today = startOfDay(new Date())
   return prisma.dailyLog.findFirst({
-    where: {
-      memberId,
-      planSubmittedAt: { not: null },
-      eodSubmittedAt: null,
-      date: { lt: today },
-    },
+    where: pendingPastEodWhere(memberId),
     include: openLogInclude,
     orderBy: { date: 'asc' },
   })
@@ -223,12 +235,13 @@ export function isEodReadOnly(eodSubmittedAt: Date | string | null | undefined):
 
 /** Today's log with EOD submitted today — available for same-day edits. */
 export function findTodayEditableEodLog(memberId: string) {
+  const today = startOfDay(new Date())
   return prisma.dailyLog.findFirst({
     where: {
       memberId,
+      date: today,
       eodSubmittedAt: { not: null },
     },
     include: openLogInclude,
-    orderBy: { eodSubmittedAt: 'desc' },
   }).then(log => (log && canEditEod(log.eodSubmittedAt) ? log : null))
 }
