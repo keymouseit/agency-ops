@@ -377,7 +377,7 @@ model DailyLog {
   id            String     @id @default(cuid())
   memberId      String
   member        TeamMember @relation(fields: [memberId], references: [id])
-  date          DateTime   // date only — store as midnight UTC
+  date          DateTime   // business calendar day — midnight Asia/Kolkata (stored as prior-day 18:30 UTC)
 
   // Phase 1: Morning plan (required by 9:30am)
   planSubmittedAt  DateTime?
