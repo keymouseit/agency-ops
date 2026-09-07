@@ -50,6 +50,8 @@ export default async function ProjectsPage() {
   ])
 
   const active = projects.filter(p => ['active', 'qa', 'scoping'].includes(p.status))
+  const onHold = projects.filter(p => p.status === 'on_hold')
+  const maintenance = projects.filter(p => p.status === 'maintenance')
   const delivered = projects.filter(p => p.status === 'delivered')
   const unsignedCount = projects.reduce(
     (n, p) => n + p.scopeChanges.filter(s => !s.changeOrderSigned).length,
@@ -147,6 +149,34 @@ export default async function ProjectsPage() {
           )}
         </div>
       </section>
+
+      {onHold.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-900">On Hold</h2>
+            <span className="badge bg-amber-100 text-amber-800 text-[11px]">{onHold.length}</span>
+          </div>
+          <div className="space-y-3">
+            {onHold.map(p => (
+              <ProjectListCard key={p.id} project={p} showValue={!!isBD} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {maintenance.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-900">Maintenance</h2>
+            <span className="badge bg-cyan-100 text-cyan-800 text-[11px]">{maintenance.length}</span>
+          </div>
+          <div className="space-y-3">
+            {maintenance.map(p => (
+              <ProjectListCard key={p.id} project={p} showValue={!!isBD} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {delivered.length > 0 && (
         <section>
