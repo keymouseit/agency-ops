@@ -2,6 +2,7 @@ import { notifyProjectAssigned } from '@/lib/notify'
 import { NextResponse } from 'next/server'
 import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 export async function POST(req: Request) {
   const deny = await checkRole(['BD', 'Dev', 'Both', 'Founder', 'Manager'])
@@ -54,5 +55,6 @@ export async function POST(req: Request) {
     `/projects/${project.id}`
   )
 
+  invalidateProjectsListCache()
   return NextResponse.json(project)
 }

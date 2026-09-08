@@ -1,9 +1,29 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { getSession, signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import type { Branding } from '@/lib/branding'
+
+function homeForRole(role: string | undefined) {
+  return role === 'Founder' || role === 'Manager' ? '/' : '/me'
+}
+
+function resolvePostLoginUrl(rawCallback: string | null, role: string | undefined) {
+  const home = homeForRole(role)
+  const callback =
+    rawCallback?.startsWith('/') && !rawCallback.startsWith('//') && rawCallback !== '/login'
+      ? rawCallback
+      : null
+
+  // Founders/Managers briefly hitting /me → server redirect('/') causes a client React
+  // hooks flash on production. Send them home (or keep a non-/me callback).
+  if (role === 'Founder' || role === 'Manager') {
+    if (!callback || callback === '/me' || callback.startsWith('/me/')) return home
+  }
+
+  return callback ?? home
+}
 
 export default function LoginForm({ branding }: { branding: Branding }) {
   const [email, setEmail] = useState('')
@@ -11,7 +31,7 @@ export default function LoginForm({ branding }: { branding: Branding }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/me'
+  const rawCallback = searchParams.get('callbackUrl')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -28,7 +48,8 @@ export default function LoginForm({ branding }: { branding: Branding }) {
       setLoading(false)
       setError('Incorrect email or password. Check your credentials and try again.')
     } else {
-      window.location.href = callbackUrl
+      const session = await getSession()
+      window.location.href = resolvePostLoginUrl(rawCallback, session?.user?.role)
     }
   }
 

@@ -3,10 +3,22 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import NotificationBell from './NotificationBell'
 import { useNavigationPending } from './NavigationProvider'
 import type { Branding } from '@/lib/branding'
+
+/** Warm these on idle so the first intentional click is already cached. */
+const PRIMARY_PREFETCH: Record<string, string[]> = {
+  Founder: ['/', '/projects', '/daily', '/leaves', '/team'],
+  Manager: ['/', '/projects', '/daily', '/leaves', '/team'],
+  Dev: ['/me', '/projects', '/daily', '/leaves', '/checkin'],
+  BD: ['/me', '/pipeline', '/projects', '/daily', '/leaves'],
+  Both: ['/me', '/projects', '/pipeline', '/daily', '/leaves'],
+  QA: ['/me', '/qa', '/daily', '/leaves', '/checkin'],
+  HR: ['/me', '/team', '/daily', '/leaves'],
+  SocialMedia: ['/me', '/daily', '/leaves', '/checkin'],
+}
 
 const NAV_STRUCTURE = {
   Founder: [
@@ -165,20 +177,6 @@ function navLinkClass(active: boolean) {
   }`
 }
 
-type NavEntry = (typeof NAV_STRUCTURE)[keyof typeof NAV_STRUCTURE][number]
-
-function collectNavHrefs(items: NavEntry[]): string[] {
-  const hrefs: string[] = []
-  for (const item of items) {
-    if ('items' in item && item.items) {
-      hrefs.push(...item.items.map(sub => sub.href))
-    } else if ('href' in item) {
-      hrefs.push(item.href)
-    }
-  }
-  return hrefs
-}
-
 function NavLink({
   href,
   children,
@@ -195,9 +193,10 @@ function NavLink({
   return (
     <Link
       href={href}
-      prefetch
+      prefetch={false}
       onMouseEnter={() => onPrefetch(href)}
       onFocus={() => onPrefetch(href)}
+      onPointerDown={() => onPrefetch(href)}
       onClick={onNavigate}
       className={navLinkClass(active)}
     >
@@ -244,7 +243,10 @@ function NavDropdown({
     <div
       ref={rootRef}
       className="relative"
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => {
+        setOpen(true)
+        items.forEach(item => onPrefetch(item.href))
+      }}
       onMouseLeave={() => setOpen(false)}
     >
       <button
@@ -274,9 +276,10 @@ function NavDropdown({
                 <Link
                   key={item.href}
                   href={item.href}
-                  prefetch
+                  prefetch={false}
                   onMouseEnter={() => onPrefetch(item.href)}
                   onFocus={() => onPrefetch(item.href)}
+                  onPointerDown={() => onPrefetch(item.href)}
                   onClick={() => {
                     onNavigate()
                     setOpen(false)
@@ -358,6 +361,7 @@ function UserMenuDropdown({
         <div className="p-1.5">
           <Link
             href="/account"
+            prefetch={false}
             onClick={onClose}
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
@@ -424,17 +428,43 @@ export default function Nav({ branding }: { branding: Branding }) {
   const navItems = NAV_STRUCTURE[role as keyof typeof NAV_STRUCTURE] || []
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
   const roleLabel = role === 'SocialMedia' ? 'Social' : role
-  const navHrefs = useMemo(() => collectNavHrefs(navItems), [navItems])
-
-  useEffect(() => {
-    for (const href of navHrefs) {
-      router.prefetch(href)
-    }
-  }, [router, navHrefs])
+  const prefetched = useRef(new Set<string>())
 
   function prefetchHref(href: string) {
+    if (prefetched.current.has(href)) return
+    prefetched.current.add(href)
     router.prefetch(href)
   }
+
+  // After login / first paint, warm primary routes in the background (staggered)
+  useEffect(() => {
+    if (!role) return
+    const hrefs = PRIMARY_PREFETCH[role] ?? [homeHref]
+    let cancelled = false
+    const timers: ReturnType<typeof setTimeout>[] = []
+
+    const run = () => {
+      hrefs.forEach((href, i) => {
+        timers.push(
+          setTimeout(() => {
+            if (!cancelled) prefetchHref(href)
+          }, 400 + i * 350),
+        )
+      })
+    }
+
+    const ric = window.requestIdleCallback?.(run, { timeout: 2000 })
+    if (ric == null) {
+      timers.push(setTimeout(run, 600))
+    }
+
+    return () => {
+      cancelled = true
+      timers.forEach(clearTimeout)
+      if (ric != null) window.cancelIdleCallback?.(ric)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- warm once per role session
+  }, [role, homeHref, router])
 
   function handleNavigate() {
     startNavigation()
@@ -454,8 +484,9 @@ export default function Nav({ branding }: { branding: Branding }) {
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 overflow-visible">
             <Link
               href={homeHref}
-              prefetch
+              prefetch={false}
               onMouseEnter={() => prefetchHref(homeHref)}
+              onPointerDown={() => prefetchHref(homeHref)}
               onClick={handleNavigate}
               className="flex items-center gap-2 shrink-0"
             >

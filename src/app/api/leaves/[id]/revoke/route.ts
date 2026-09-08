@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { leavePaidDeduction } from '@/lib/leave-balance'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
+import { invalidateLeaveTodayCache } from '@/lib/cache-tags'
 
 const ALLOWED = ['Founder', 'HR', 'Manager']
 
@@ -109,6 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       'leave-revoke-side-effects'
     )
 
+    invalidateLeaveTodayCache()
     return NextResponse.json(updated)
   } catch (error: unknown) {
     console.error('Error revoking leave:', error)

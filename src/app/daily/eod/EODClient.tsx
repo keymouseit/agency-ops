@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { canEditEod } from '@/lib/daily'
 import EODHeader from './EODHeader'
 
@@ -187,6 +187,7 @@ export default function EODClient({
   const [error, setError] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [justUpdated, setJustUpdated] = useState(false)
+  const router = useRouter()
 
   function updateTask(id: string, field: keyof TaskUpdate, value: string) {
     setTaskUpdates(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
@@ -196,6 +197,11 @@ export default function EODClient({
   const totalEst = log.tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
   const doneCount = Object.values(taskUpdates).filter(t => t.status === 'done').length
   const blockedCount = Object.values(taskUpdates).filter(t => t.status === 'blocked').length
+
+  function go(href: string) {
+    router.push(href)
+    router.refresh()
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -210,6 +216,9 @@ export default function EODClient({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to submit EOD')
+
+      // Clear stale /me and /daily client cache so “Submit EOD” disappears
+      router.refresh()
 
       if (isEditMode) {
         setJustUpdated(true)
@@ -262,16 +271,19 @@ export default function EODClient({
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             {canEditAgain && (
-              <Link href={`/daily/eod?logId=${log.id}`} className="btn-secondary text-sm">
+              <button type="button" onClick={() => go(`/daily/eod?logId=${log.id}`)} className="btn-secondary text-sm">
                 Edit EOD
-              </Link>
+              </button>
             )}
-            <Link href="/daily/plan" className="btn-primary text-sm">
+            <button type="button" onClick={() => go('/daily/plan')} className="btn-primary text-sm">
               Start new plan →
-            </Link>
-            <Link href="/daily" className="btn-secondary text-sm">
+            </button>
+            <button type="button" onClick={() => go('/me')} className="btn-secondary text-sm">
+              Back to My Day
+            </button>
+            <button type="button" onClick={() => go('/daily')} className="btn-secondary text-sm">
               Back to daily view
-            </Link>
+            </button>
           </div>
         </div>
       </div>

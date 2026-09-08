@@ -1,5 +1,7 @@
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { businessDayKey, businessDayStart } from '@/lib/daily'
+import { CACHE_TAGS } from '@/lib/cache-tags'
 
 export type OnLeaveTodayPerson = {
   leaveId: string
@@ -28,14 +30,12 @@ function leaveTypeLabel(leaveType: string, timeSlot: string | null): string {
 function nextBusinessDayStart(from = new Date()): Date {
   const key = businessDayKey(from)
   const [y, m, d] = key.split('-').map(Number)
-  // Construct noon IST on that day, then +1 calendar day → next business midnight
-  const noonIst = new Date(Date.UTC(y, m - 1, d, 6, 30)) // 12:00 IST = 06:30 UTC
+  const noonIst = new Date(Date.UTC(y, m - 1, d, 6, 30))
   noonIst.setUTCDate(noonIst.getUTCDate() + 1)
   return businessDayStart(noonIst)
 }
 
-/** Approved leaves that cover today's business day (Asia/Kolkata). */
-export async function getApprovedOnLeaveToday(): Promise<OnLeaveTodayPerson[]> {
+async function fetchApprovedOnLeaveToday(): Promise<OnLeaveTodayPerson[]> {
   const todayStart = businessDayStart()
   const dayAfterStart = nextBusinessDayStart()
 
@@ -62,4 +62,14 @@ export async function getApprovedOnLeaveToday(): Promise<OnLeaveTodayPerson[]> {
       timeSlot: l.timeSlot,
       label: leaveTypeLabel(l.leaveType, l.timeSlot),
     }))
+}
+
+/** Approved leaves for today's business day — cached ~60s per calendar day. */
+export function getApprovedOnLeaveToday(): Promise<OnLeaveTodayPerson[]> {
+  const dayKey = businessDayKey()
+  return unstable_cache(
+    fetchApprovedOnLeaveToday,
+    ['leave-today-v1', dayKey],
+    { revalidate: 60, tags: [CACHE_TAGS.leaveToday] },
+  )()
 }

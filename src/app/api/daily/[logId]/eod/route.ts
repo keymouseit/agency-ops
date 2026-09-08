@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canEditEod } from '@/lib/daily'
@@ -127,6 +128,13 @@ export async function POST(
 
     return updatedLog
   })
+
+  // Drop stale RSC payloads so /me and /daily stop showing “Submit EOD”
+  revalidatePath('/me')
+  revalidatePath('/daily')
+  revalidatePath('/daily/plan')
+  revalidatePath('/daily/eod')
+  revalidatePath('/')
 
   return NextResponse.json(log)
 }

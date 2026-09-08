@@ -4,8 +4,11 @@ import Link from 'next/link'
 import AddProjectForm from './AddProjectForm'
 import ProjectListCard from './ProjectListCard'
 import { auth } from '@/lib/auth'
+import { getActiveMembersCached } from '@/lib/active-members'
+import { getProjectListCached } from '@/lib/project-list'
 
-export const dynamic = 'force-dynamic'
+/** Auth pages are dynamic; list data is short-cached (30s) via getProjectListCached. */
+export const revalidate = 30
 
 export default async function ProjectsPage() {
   const session = await auth()
@@ -15,37 +18,8 @@ export default async function ProjectsPage() {
   const isDev = userRole === 'Dev'
 
   const [projects, members, leads] = await Promise.all([
-    prisma.project.findMany({
-      where: isDev ? { developerId: userId } : undefined,
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        contractValue: true,
-        currency: true,
-        estimatedEnd: true,
-        actualHours: true,
-        estimatedHours: true,
-        onTime: true,
-        clientScore: true,
-        developer: { select: { name: true } },
-        bdMember: { select: { name: true } },
-        checkIns: {
-          orderBy: { weekOf: 'desc' },
-          take: 1,
-          select: { onTrack: true, blockers: true, progressPct: true },
-        },
-        scopeChanges: { select: { changeOrderSigned: true } },
-        milestones: { select: { status: true } },
-        releaseSignOff: { select: { id: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.teamMember.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, role: true },
-    }),
+    getProjectListCached(isDev ? userId : undefined),
+    getActiveMembersCached(),
     prisma.lead.findMany({ where: { status: 'won', project: null }, select: { id: true, clientName: true } }),
   ])
 

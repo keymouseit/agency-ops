@@ -15,8 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth()
-  const branding = await getBranding()
+  const [session, branding] = await Promise.all([auth(), getBranding()])
 
   return (
     <html lang="en">

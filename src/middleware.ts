@@ -38,10 +38,16 @@ export default auth((req) => {
   }
 
   // Personal pages — every authenticated user
-  if (
-    pathname === '/me' || pathname.startsWith('/me/') ||
-    pathname === '/account' || pathname.startsWith('/account/')
-  ) {
+  // Founders/Managers belong on the team dashboard; bounce /me here (not in the page)
+  // so we avoid a Server Component redirect() that can flash a client React error.
+  if (pathname === '/me' || pathname.startsWith('/me/')) {
+    const role = session.user.role as string
+    if (role === 'Founder' || role === 'Manager') {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
+    return NextResponse.next()
+  }
+  if (pathname === '/account' || pathname.startsWith('/account/')) {
     return NextResponse.next()
   }
 

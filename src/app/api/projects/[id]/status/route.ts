@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logProjectChange, getClientIP } from '@/lib/audit'
 import { PROJECT_STATUSES } from '@/lib/utils'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
@@ -137,6 +138,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     logger.logApiResponse('POST', `/api/projects/${params.id}/status`, 200, Date.now() - startTime)
+    invalidateProjectsListCache()
     return NextResponse.json(p)
   } catch (error) {
     logger.error('Error updating project status', error as Error, { projectId: params.id })

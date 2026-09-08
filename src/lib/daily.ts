@@ -287,6 +287,7 @@ export type CarryOverMovedTask = {
   title: string
   taskType: string
   priority: string
+  status: string
   projectId: string | null
   estimatedHours: number | null
   project: { id: string; name: string } | null
@@ -296,21 +297,33 @@ export type CarryOverMovedResult = {
   sourceDate: Date
   sourceLogId: string
   carryOverNotes: string | null
-  /** Same-day EOD (moved to tomorrow) vs previous day (ready to plan). */
+  /** Same-day EOD (carried to tomorrow) vs previous day (ready to plan). */
   sameDay: boolean
   tasks: CarryOverMovedTask[]
 }
 
+const CARRY_OVER_STATUSES = ['moved', 'partial'] as const
+
 /**
- * Tasks marked "moved" on the latest EOD that still need to land in a future morning plan.
- * - After today's EOD: show today's moved tasks (sameDay=true).
- * - Next morning before planning: show previous EOD's moved tasks for prefilling.
+ * Tasks marked "moved" or "partial" on the latest EOD that still need to land in a future morning plan.
+ * - After today's EOD: show today's carry-over tasks (sameDay=true).
+ * - Next morning before planning: show previous EOD's tasks for prefilling.
  * Once any later day has a submitted plan, carry-over is considered absorbed.
  */
 export async function findCarryOverMovedTasks(
   memberId: string,
 ): Promise<CarryOverMovedResult | null> {
   const today = businessDayStart()
+  const taskSelect = {
+    id: true,
+    title: true,
+    taskType: true,
+    priority: true,
+    status: true,
+    projectId: true,
+    estimatedHours: true,
+    project: { select: { id: true, name: true } },
+  } as const
 
   const todayLog = await prisma.dailyLog.findUnique({
     where: { memberId_date: { memberId, date: today } },
@@ -321,22 +334,14 @@ export async function findCarryOverMovedTasks(
       eodSubmittedAt: true,
       carryOver: true,
       tasks: {
-        where: { status: 'moved' },
-        select: {
-          id: true,
-          title: true,
-          taskType: true,
-          priority: true,
-          projectId: true,
-          estimatedHours: true,
-          project: { select: { id: true, name: true } },
-        },
+        where: { status: { in: [...CARRY_OVER_STATUSES] } },
+        select: taskSelect,
         orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
       },
     },
   })
 
-  // Same day: EOD done with moved tasks → show on dashboard until tomorrow's plan.
+  // Same day: EOD done with carry-over tasks → show on dashboard until tomorrow's plan.
   if (todayLog?.eodSubmittedAt && todayLog.tasks.length > 0) {
     return {
       sourceDate: todayLog.date,
@@ -355,7 +360,7 @@ export async function findCarryOverMovedTasks(
       memberId,
       date: { lt: today },
       eodSubmittedAt: { not: null },
-      tasks: { some: { status: 'moved' } },
+      tasks: { some: { status: { in: [...CARRY_OVER_STATUSES] } } },
     },
     orderBy: { date: 'desc' },
     select: {
@@ -363,16 +368,8 @@ export async function findCarryOverMovedTasks(
       date: true,
       carryOver: true,
       tasks: {
-        where: { status: 'moved' },
-        select: {
-          id: true,
-          title: true,
-          taskType: true,
-          priority: true,
-          projectId: true,
-          estimatedHours: true,
-          project: { select: { id: true, name: true } },
-        },
+        where: { status: { in: [...CARRY_OVER_STATUSES] } },
+        select: taskSelect,
         orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
       },
     },
@@ -399,7 +396,7 @@ export async function findCarryOverMovedTasks(
   }
 }
 
-/** Map moved tasks into morning-plan form rows. */
+/** Map carry-over tasks into morning-plan form rows. */
 export function carryOverTasksToPlanRows(tasks: CarryOverMovedTask[]) {
   return tasks.map(t => ({
     title: t.title,

@@ -3,8 +3,9 @@ import { fmtCurrency, fmtDate, STATUS_COLORS } from '@/lib/utils'
 import Link from 'next/link'
 import AddLeadForm from './AddLeadForm'
 import { startOfDay, differenceInDays } from 'date-fns'
+import { getActiveMembersCached } from '@/lib/active-members'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 30
 
 const STAGES = ['new', 'proposal_sent', 'interview', 'won', 'lost'] as const
 const STAGE_LABELS: Record<string, string> = {
@@ -18,7 +19,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: { s
       include: { owner: true, proposals: { orderBy: { sentAt: 'desc' }, take: 1 }, lossAnalysis: true },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    getActiveMembersCached(),
   ])
 
   const today = startOfDay(new Date())
