@@ -36,7 +36,7 @@ export default function LeaveBalancesClient({
     const accrued = Number(row.accruedInput)
     const used = Number(row.usedInput)
     if (!Number.isFinite(accrued) || accrued < 0) {
-      toast.error('Accrued must be a valid number ≥ 0')
+      toast.error('Total must be a valid number ≥ 0')
       return
     }
     if (!Number.isFinite(used) || used < 0) {
@@ -87,9 +87,9 @@ export default function LeaveBalancesClient({
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Employee Leave Balances</h1>
         <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-          Set Accrued and Used for {year}. People who joined mid-year should have a lower Accrued
+          Set Total and Used for {year}. People who joined mid-year should have a lower Total
           (not 1 day for every month of the year). Saved values are kept after refresh.
-          Available = Accrued − Used.
+          Available = Total − Used.
         </p>
       </div>
 
@@ -105,7 +105,7 @@ export default function LeaveBalancesClient({
               <tr className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
                 <th className="px-6 py-3">Employee</th>
                 <th className="px-6 py-3">Role</th>
-                <th className="px-6 py-3 w-32">Accrued</th>
+                <th className="px-6 py-3 w-32">Total</th>
                 <th className="px-6 py-3 w-32">Used</th>
                 <th className="px-6 py-3 w-28">Available</th>
                 <th className="px-6 py-3 text-right">Action</th>

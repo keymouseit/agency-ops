@@ -69,7 +69,7 @@ export async function PUT(req: Request) {
   const usedNum = Number(used)
 
   if (!Number.isFinite(accruedNum) || accruedNum < 0 || accruedNum > 24) {
-    return NextResponse.json({ error: 'Accrued must be a number between 0 and 24' }, { status: 400 })
+    return NextResponse.json({ error: 'Total must be a number between 0 and 24' }, { status: 400 })
   }
   if (!Number.isFinite(usedNum) || usedNum < 0 || usedNum > 24) {
     return NextResponse.json({ error: 'Used must be a number between 0 and 24' }, { status: 400 })
