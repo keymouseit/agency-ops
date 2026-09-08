@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import LeaveBalancesClient from './LeaveBalancesClient'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
+import { sortByEmployeeNo } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,16 +23,17 @@ export default async function LeaveBalancesPage() {
 
   const year = new Date().getFullYear()
 
-  const members = await prisma.teamMember.findMany({
-    where: { active: true },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-    orderBy: { name: 'asc' },
-  })
+  const members = sortByEmployeeNo(
+    await prisma.teamMember.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    })
+  )
 
   const rows: {
     memberId: string

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth, checkRole } from '@/lib/auth'
 import { logAudit, getClientIP } from '@/lib/audit'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
+import { sortByEmployeeNo } from '@/lib/employee-order'
 
 export async function GET() {
   const deny = await checkRole(['Founder', 'HR'])
@@ -10,16 +11,17 @@ export async function GET() {
 
   const year = new Date().getFullYear()
 
-  const members = await prisma.teamMember.findMany({
-    where: { active: true },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-    orderBy: { name: 'asc' },
-  })
+  const members = sortByEmployeeNo(
+    await prisma.teamMember.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    })
+  )
 
   const rows: {
     memberId: string

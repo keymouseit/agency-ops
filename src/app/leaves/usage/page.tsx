@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import LeaveUsageClient from './LeaveUsageClient'
+import { sortByEmployeeNo } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,11 +20,12 @@ export default async function LeaveUsagePage() {
     redirect('/leaves')
   }
 
-  const employees = await prisma.teamMember.findMany({
-    where: { active: true },
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { name: 'asc' },
-  })
+  const employees = sortByEmployeeNo(
+    await prisma.teamMember.findMany({
+      where: { active: true },
+      select: { id: true, name: true, email: true, role: true },
+    })
+  )
 
   return <LeaveUsageClient employees={employees} />
 }
