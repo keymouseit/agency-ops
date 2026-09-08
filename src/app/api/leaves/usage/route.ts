@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     lines.push('')
     lines.push(`Leave Balance (${balance.year})`)
     lines.push(
-      ['Accrued', 'Used', 'Available', 'Short Leaves']
+      ['Total', 'Used', 'Available', 'Short Leaves']
         .map(csvEscape)
         .join(',')
     )

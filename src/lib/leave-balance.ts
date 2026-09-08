@@ -20,7 +20,7 @@ export {
 
 /**
  * Accrue 1 leave day per calendar month so far this year when a balance row is first created.
- * Do not overwrite Accrued after that — HR may set a lower value for mid-year joiners.
+ * Do not overwrite Total after that — HR may set a lower value for mid-year joiners.
  */
 export async function ensureMonthlyAccrual(memberId: string, year = new Date().getFullYear()) {
   const existing = await prisma.leaveBalance.findUnique({

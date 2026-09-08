@@ -271,7 +271,7 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.available}</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Accrued</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Total</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.accrued}</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">

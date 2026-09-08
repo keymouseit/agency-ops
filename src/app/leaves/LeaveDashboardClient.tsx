@@ -909,9 +909,9 @@ export default function LeaveDashboardClient({
               <p className="text-xs text-slate-400 mt-1">days you can still take</p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Accrued</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{accrued}</p>
-              <p className="text-xs text-gray-500 mt-1">earned this year</p>
+              <p className="text-xs text-gray-500 mt-1">total this year</p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-red-500">Used</p>
