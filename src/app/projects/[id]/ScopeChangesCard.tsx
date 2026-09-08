@@ -33,6 +33,7 @@ const APPROVAL_STYLES: Record<string, string> = {
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
     day: 'numeric',
     month: 'short',
     year: 'numeric',

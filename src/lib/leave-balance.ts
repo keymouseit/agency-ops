@@ -19,7 +19,7 @@ export {
 } from '@/lib/leave-math'
 
 /**
- * Accrue 1 leave day per calendar month, prorated from join date.
+ * Accrue 1 leave day per calendar month so far this year (Sep → 9).
  * Catch-up on access so the 1st of each month is reflected without a cron.
  * Never reduces an HR-raised accrued value.
  */

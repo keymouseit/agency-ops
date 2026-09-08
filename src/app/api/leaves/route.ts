@@ -3,8 +3,9 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendLeaveAppliedEmail } from '@/lib/notifications'
 import { notify } from '@/lib/notify'
-import { format } from 'date-fns'
 import { runInBackground } from '@/lib/background'
+import { formatIstDate } from '@/lib/ist'
+import { revalidateLeavePages } from '@/lib/cache-tags'
 import {
   assertLeaveTypePolicy,
   assertNoOverlappingLeave,
@@ -12,6 +13,8 @@ import {
 } from '@/lib/leave-balance'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
@@ -42,7 +45,9 @@ export async function GET(request: Request) {
       orderBy: { startDate: 'desc' },
     })
 
-    return NextResponse.json(leaves)
+    return NextResponse.json(leaves, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error: unknown) {
     console.error('Error fetching leaves:', error)
     const msg = error instanceof Error ? error.message : 'Unknown error'
@@ -147,8 +152,8 @@ export async function POST(request: Request) {
           .filter(id => id !== leaveRequest.memberId)
         if (!reviewerIds.length) return
 
-        const startLabel = format(new Date(leaveRequest.startDate), 'MMM d, yyyy')
-        const endLabel = format(new Date(leaveRequest.endDate), 'MMM d, yyyy')
+        const startLabel = formatIstDate(leaveRequest.startDate)
+        const endLabel = formatIstDate(leaveRequest.endDate)
         const typeLabel = leaveRequest.leaveType.replace(/_/g, ' ')
         let unpaidLabel = ''
         if (leaveRequest.unpaidDays > 0 && leaveRequest.paidDays > 0) {
@@ -166,6 +171,7 @@ export async function POST(request: Request) {
       'leave-applied-side-effects'
     )
 
+    revalidateLeavePages()
     return NextResponse.json(leaveRequest, { status: 201 })
   } catch (error: unknown) {
     console.error('Error creating leave request:', error)

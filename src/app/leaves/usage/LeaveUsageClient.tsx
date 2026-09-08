@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { startOfMonth, endOfMonth } from 'date-fns'
+import { formatIstDate, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
 import toast, { Toaster } from 'react-hot-toast'
 
 type Employee = { id: string; name: string; email: string; role: string }
@@ -46,7 +47,7 @@ type UsagePayload = {
 }
 
 function toInputDate(d: Date) {
-  return format(d, 'yyyy-MM-dd')
+  return istDateInputValue(d)
 }
 
 function formatLeaveType(type: string, slot?: string | null) {
@@ -56,11 +57,7 @@ function formatLeaveType(type: string, slot?: string | null) {
 }
 
 function formatDates(start: string, end: string) {
-  const s = new Date(start)
-  const e = new Date(end)
-  const a = format(s, 'MMM d, yyyy')
-  const b = format(e, 'MMM d, yyyy')
-  return a === b ? a : `${a} – ${b}`
+  return formatIstLeaveRange(start, end)
 }
 
 export default function LeaveUsageClient({ employees }: { employees: Employee[] }) {
@@ -254,7 +251,7 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
           <p className="text-xs text-gray-500">
             Showing approved leaves for <span className="font-semibold text-gray-700">{selected.name}</span>
             {' '}
-            from {format(new Date(from), 'MMM d, yyyy')} to {format(new Date(to), 'MMM d, yyyy')}
+            from {formatIstDate(from)} to {formatIstDate(to)}
           </p>
         )}
       </div>

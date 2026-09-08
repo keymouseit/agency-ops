@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { formatIst, formatIstDate, istDateInputValue } from '@/lib/ist'
 import toast, { Toaster } from 'react-hot-toast'
 import {
   ResponsiveContainer,
@@ -20,11 +21,13 @@ type Employee = { id: string; name: string; email: string; role: string }
 type RangeMode = 'week' | 'month' | 'custom'
 
 function toInputDate(d: Date) {
-  return format(d, 'yyyy-MM-dd')
+  return istDateInputValue(d)
 }
 
 function fmtDate(iso: string, pattern = 'MMM d') {
-  return format(new Date(iso), pattern)
+  if (pattern === 'EEE d') return formatIst(iso, { weekday: 'short', day: 'numeric' }, 'en-US')
+  if (pattern === 'MMM d, yyyy') return formatIstDate(iso)
+  return formatIst(iso, { month: 'short', day: 'numeric' })
 }
 
 function hrs(n: number | null | undefined) {

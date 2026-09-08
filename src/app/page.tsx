@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
 import { auth } from '@/lib/auth'
 import { timeGreeting } from '@/lib/utils'
-import { format } from 'date-fns'
 import { businessDayStart } from '@/lib/daily'
+import { formatIstWeekdayLong, formatIstWeekdayShort } from '@/lib/ist'
 import { getApprovedOnLeaveToday } from '@/lib/leave-today'
 import OnLeaveTodayCard from '@/components/OnLeaveTodayCard'
 import { DashboardKpiFallback, CardSectionFallback } from '@/components/SectionFallbacks'
@@ -15,7 +15,7 @@ async function DashboardLeave() {
   return (
     <OnLeaveTodayCard
       people={people}
-      dateLabel={format(businessDayStart(), 'EEEE d MMM')}
+      dateLabel={formatIstWeekdayShort(businessDayStart())}
     />
   )
 }
@@ -36,11 +36,7 @@ export default async function Dashboard() {
           </p>
         </div>
         <div className="text-xs text-gray-400">
-          {new Date().toLocaleDateString('en-GB', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          })}
+          {formatIstWeekdayLong(new Date())}
         </div>
       </div>
 

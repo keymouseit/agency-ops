@@ -2,7 +2,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
-import { startOfWeek, isWeekend } from 'date-fns'
+import { startOfWeek } from 'date-fns'
+import { isIstWeekend } from '@/lib/ist'
 import Link from 'next/link'
 import { fmtDate, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
@@ -31,7 +32,7 @@ export default async function MePage() {
   const role     = session.user.role as string
   const today    = businessDayStart()
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
-  const isWeekday = !isWeekend(new Date())
+  const isWeekday = !isIstWeekend()
 
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
@@ -171,7 +172,7 @@ export default async function MePage() {
       <div className="xl:grid xl:grid-cols-12 xl:gap-5 xl:items-start">
         <div className="xl:col-span-7 min-w-0">
       <Suspense fallback={<MeLeaveSectionFallback />}>
-        <MeLeaveSection />
+        <MeLeaveSection showPending={role === 'HR'} />
       </Suspense>
 
       {carryOverMoved && carryOverMoved.tasks.length > 0 && (

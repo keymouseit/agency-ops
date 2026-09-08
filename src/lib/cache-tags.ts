@@ -1,4 +1,4 @@
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 /** Shared Next.js cache tags for short-lived server reads. */
 export const CACHE_TAGS = {
@@ -11,6 +11,14 @@ export const CACHE_TAGS = {
 
 export function invalidateLeaveTodayCache() {
   revalidateTag(CACHE_TAGS.leaveToday)
+}
+
+/** Bust leave pages so HR/admin lists update without a manual refresh. */
+export function revalidateLeavePages() {
+  invalidateLeaveTodayCache()
+  revalidatePath('/leaves')
+  revalidatePath('/me')
+  revalidatePath('/')
 }
 
 export function invalidateActiveMembersCache() {

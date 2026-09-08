@@ -13,7 +13,7 @@ export type OnLeaveTodayPerson = {
   label: string
 }
 
-function leaveTypeLabel(leaveType: string, timeSlot: string | null): string {
+export function leaveTypeLabel(leaveType: string, timeSlot: string | null): string {
   if (leaveType === 'short_leave') {
     const slot = timeSlot ? timeSlot.replace(/_/g, ' ') : ''
     return slot ? `Short leave · ${slot}` : 'Short leave'

@@ -1,16 +1,29 @@
 import { getApprovedOnLeaveToday } from '@/lib/leave-today'
+import { getPendingLeaveRequests } from '@/lib/leave-pending'
 import OnLeaveTodayCard from '@/components/OnLeaveTodayCard'
+import PendingLeaveRequestsCard from '@/components/PendingLeaveRequestsCard'
 import { businessDayStart } from '@/lib/daily'
-import { format } from 'date-fns'
+import { formatIstWeekdayShort } from '@/lib/ist'
 
 /** Streamed leave card — uses short-lived server cache. */
-export default async function MeLeaveSection() {
-  const people = await getApprovedOnLeaveToday().catch(() => [])
+export default async function MeLeaveSection({
+  showPending = false,
+}: {
+  showPending?: boolean
+}) {
+  const [people, pending] = await Promise.all([
+    getApprovedOnLeaveToday().catch(() => []),
+    showPending ? getPendingLeaveRequests().catch(() => []) : Promise.resolve([]),
+  ])
+
   return (
-    <OnLeaveTodayCard
-      people={people}
-      dateLabel={format(businessDayStart(), 'EEEE d MMM')}
-    />
+    <>
+      {showPending ? <PendingLeaveRequestsCard initialRequests={pending} /> : null}
+      <OnLeaveTodayCard
+        people={people}
+        dateLabel={formatIstWeekdayShort(businessDayStart())}
+      />
+    </>
   )
 }
 

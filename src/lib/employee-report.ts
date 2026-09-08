@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
-import { differenceInCalendarDays, format } from 'date-fns'
+import { differenceInCalendarDays } from 'date-fns'
+import { formatIstDate, formatIst } from '@/lib/ist'
 
 const DAY_TARGET = MAX_DAILY_PLAN_HOURS // 8h → 40h / week
 
@@ -577,7 +578,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
           rows.push({
             kind: 'deadline',
             title: `Missed project deadline: ${p.name}`,
-            detail: `Due ${format(p.estimatedEnd, 'MMM d, yyyy')} · ${days} day${days === 1 ? '' : 's'} late`,
+            detail: `Due ${formatIstDate(p.estimatedEnd)} · ${days} day${days === 1 ? '' : 's'} late`,
             date: p.estimatedEnd.toISOString(),
             href: `/projects/${p.id}`,
           })
@@ -589,7 +590,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
         rows.push({
           kind: 'deadline',
           title: `Missed milestone: ${m.title}`,
-          detail: `${m.project.name} · due ${format(m.dueDate, 'MMM d')} · ${days}d late`,
+          detail: `${m.project.name} · due ${formatIst(m.dueDate, { month: 'short', day: 'numeric' })} · ${days}d late`,
           date: m.dueDate.toISOString(),
           href: `/projects/${m.project.id}`,
         })
@@ -601,7 +602,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
           title: s.founderScore
             ? 'Founder flagged a repeated mistake'
             : 'Repeated mistake on weekly check-in',
-          detail: s.selfNotes?.trim() || `Week of ${format(s.weekOf, 'MMM d')}`,
+          detail: s.selfNotes?.trim() || `Week of ${formatIst(s.weekOf, { month: 'short', day: 'numeric' })}`,
           date: s.weekOf.toISOString(),
           href: '/team',
         })
@@ -617,7 +618,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
               : `At risk: ${c.project.name}`,
           detail:
             c.blockers?.trim() ||
-            `Check-in week of ${format(c.weekOf, 'MMM d')} · ${c.progressPct}%`,
+            `Check-in week of ${formatIst(c.weekOf, { month: 'short', day: 'numeric' })} · ${c.progressPct}%`,
           date: c.weekOf.toISOString(),
           href: `/projects/${c.project.id}`,
         })

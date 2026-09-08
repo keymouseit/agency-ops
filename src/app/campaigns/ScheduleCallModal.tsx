@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { format } from 'date-fns'
+import { istDateInputValue } from '@/lib/ist'
 import {
   isValidEmail,
   isValidPhone,
@@ -38,7 +38,7 @@ export default function ScheduleCallModal({ campaignId, campaignName, channel = 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const router = useRouter()
 
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today = istDateInputValue()
 
   useEffect(() => {
     if (!open) return

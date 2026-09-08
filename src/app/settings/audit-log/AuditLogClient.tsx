@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
+import { formatIst, istDateInputValue } from '@/lib/ist'
 import Link from 'next/link'
 
 type AuditLog = {
@@ -173,7 +173,7 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
       // Convert to CSV
       const headers = ['Timestamp', 'User', 'Email', 'Action', 'Entity Type', 'Entity Name', 'Entity ID', 'Changes', 'IP Address']
       const rows = data.logs.map((log: AuditLog) => [
-        format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+        `${istDateInputValue(log.timestamp)} ${formatIst(log.timestamp, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}`,
         log.userName || 'System',
         log.userEmail || '',
         log.action,
@@ -194,7 +194,7 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `audit-log-${format(new Date(), 'yyyy-MM-dd')}.csv`
+      a.download = `audit-log-${istDateInputValue()}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
@@ -346,7 +346,7 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
                   {logs.map(log => (
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {format(new Date(log.timestamp), 'MMM d, yyyy HH:mm')}
+                        {formatIst(log.timestamp, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
                       </td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-gray-900">
@@ -430,7 +430,7 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
               {/* Timestamp */}
               <div>
                 <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Timestamp</div>
-                <div className="text-gray-900">{format(new Date(selectedLog.timestamp), 'EEEE, MMMM d, yyyy · HH:mm:ss')}</div>
+                <div className="text-gray-900">{formatIst(selectedLog.timestamp, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}</div>
               </div>
 
               {/* User */}

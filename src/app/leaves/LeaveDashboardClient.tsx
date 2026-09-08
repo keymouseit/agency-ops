@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   format, 
   startOfMonth, 
@@ -19,6 +20,10 @@ import {
 } from 'date-fns'
 import toast, { Toaster } from 'react-hot-toast'
 import { leaveRequestDayCost } from '@/lib/leave-math'
+import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
+import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
+import NavCountBadge from '@/components/NavCountBadge'
+import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
 
 export default function LeaveDashboardClient({
   memberId,
@@ -43,22 +48,74 @@ export default function LeaveDashboardClient({
   allMembers: any[]
   allLeaves?: any[]
 }) {
-  const [tab, setTab] = useState<'my_leaves' | 'admin'>('my_leaves')
+  const router = useRouter()
+  const [tab, setTab] = useState<'my_leaves' | 'admin'>(
+    isAdmin && allPendingLeaves.length > 0 ? 'admin' : 'my_leaves'
+  )
   const [leaves, setLeaves] = useState(myLeaves)
   const [pendingLeaves, setPendingLeaves] = useState(allPendingLeaves)
   const [companyLeaves, setCompanyLeaves] = useState(allLeaves || [])
+  const decidedPendingIds = useRef(new Set<string>())
 
   useEffect(() => {
     setLeaves(myLeaves)
   }, [myLeaves])
 
   useEffect(() => {
-    setPendingLeaves(allPendingLeaves)
+    setPendingLeaves(
+      allPendingLeaves.filter(l => l.status === 'pending' && !decidedPendingIds.current.has(l.id))
+    )
   }, [allPendingLeaves])
 
   useEffect(() => {
     setCompanyLeaves(allLeaves || [])
   }, [allLeaves])
+
+  const refetchLeaveLists = useCallback(async () => {
+    try {
+      const pendingRes = await fetch('/api/leaves?status=pending', { cache: 'no-store' })
+      if (pendingRes.ok) {
+        const rows = await pendingRes.json()
+        if (Array.isArray(rows)) {
+          setPendingLeaves(
+            rows.filter((l: { id: string; status?: string }) =>
+              l.status === 'pending' && !decidedPendingIds.current.has(l.id)
+            )
+          )
+        }
+      }
+
+      if (isAdmin) {
+        const allRes = await fetch('/api/leaves', { cache: 'no-store' })
+        if (allRes.ok) {
+          const all = await allRes.json()
+          if (Array.isArray(all)) {
+            setCompanyLeaves(all)
+            setLeaves(all.filter((l: { memberId?: string }) => l.memberId === memberId))
+          }
+        }
+      } else {
+        const mineRes = await fetch('/api/leaves', { cache: 'no-store' })
+        if (mineRes.ok) {
+          const mine = await mineRes.json()
+          if (Array.isArray(mine)) setLeaves(mine)
+        }
+      }
+    } finally {
+      notifyLeavesPendingChanged()
+      router.refresh()
+    }
+  }, [isAdmin, memberId, router])
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        void refetchLeaveLists()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refetchLeaveLists])
   
   // Apply/Edit Leave Form State
   const [leaveType, setLeaveType] = useState('full_day')
@@ -93,9 +150,8 @@ export default function LeaveDashboardClient({
 
   // Report Filter & View State
   const [reportEmployeeFilter, setReportEmployeeFilter] = useState('all')
-  const [reportView, setReportView] = useState<'list' | 'calendar'>('list')
   const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [adminSection, setAdminSection] = useState<'approvals' | 'history'>('approvals')
+  const [adminSection, setAdminSection] = useState<'approvals' | 'history' | 'calendar'>('approvals')
   const [myLeaveFilter, setMyLeaveFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
 
   const isSameDayLeave = leaveType === 'half_day' || leaveType === 'short_leave'
@@ -108,10 +164,7 @@ export default function LeaveDashboardClient({
   }, [isSameDayLeave, startDate])
 
   function formatLeaveDates(start: string | Date, end: string | Date) {
-    const s = new Date(start)
-    const e = new Date(end)
-    if (isSameDay(s, e)) return format(s, 'MMM d, yyyy')
-    return `${format(s, 'MMM d, yyyy')} – ${format(e, 'MMM d, yyyy')}`
+    return formatIstLeaveRange(start, end)
   }
 
   // Reset form to defaults
@@ -129,8 +182,8 @@ export default function LeaveDashboardClient({
   const openEditModal = (leave: any) => {
     setLeaveType(leave.leaveType)
     setTimeSlot(leave.timeSlot || '')
-    setStartDate(new Date(leave.startDate).toISOString().split('T')[0])
-    setEndDate(new Date(leave.endDate).toISOString().split('T')[0])
+    setStartDate(istDateInputValue(leave.startDate))
+    setEndDate(istDateInputValue(leave.endDate))
     setReason(leave.reason || '')
     setEditingLeaveId(leave.id)
   }
@@ -148,10 +201,12 @@ export default function LeaveDashboardClient({
       setLeaves(prev => prev.filter(l => l.id !== leave.id))
       setPendingLeaves(prev => prev.filter(l => l.id !== leave.id))
       setCompanyLeaves(prev => prev.filter(l => l.id !== leave.id))
+      decidedPendingIds.current.add(leave.id)
       if (editingLeaveId === leave.id) resetForm()
       if (selectedLeaveForModal?.id === leave.id) setSelectedLeaveForModal(null)
       setDeleteConfirmLeave(null)
       toast.success('Leave request deleted')
+      void refetchLeaveLists()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete')
     } finally {
@@ -185,6 +240,7 @@ export default function LeaveDashboardClient({
       setRevokeConfirmLeave(null)
       setRevokeNotes('')
       toast.success('Leave revoked and balance updated')
+      void refetchLeaveLists()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to revoke')
     } finally {
@@ -267,6 +323,7 @@ export default function LeaveDashboardClient({
       if (!editingLeaveId && targetMemberId === memberId) {
         setMyLeaveFilter('all')
       }
+      void refetchLeaveLists()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -293,18 +350,19 @@ export default function LeaveDashboardClient({
       
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update')
-      
-      // Update UI immediately — no full page reload
+
+      decidedPendingIds.current.add(leaveId)
       setPendingLeaves(prev => prev.filter(l => l.id !== leaveId))
       setCompanyLeaves(prev =>
-        prev.map(l => (l.id === leaveId ? { ...l, status, approvalNotes: decisionNotes.trim() } : l))
+        prev.map(l => (l.id === leaveId ? { ...l, ...data, status, approvalNotes: decisionNotes.trim() } : l))
       )
       setLeaves(prev =>
-        prev.map(l => (l.id === leaveId ? { ...l, status, approvalNotes: decisionNotes.trim() } : l))
+        prev.map(l => (l.id === leaveId ? { ...l, ...data, status, approvalNotes: decisionNotes.trim() } : l))
       )
       toast.success(status === 'approved' ? 'Leave approved' : 'Leave rejected')
       setConfirmModal(null)
       setDecisionNotes('')
+      void refetchLeaveLists()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -330,6 +388,9 @@ export default function LeaveDashboardClient({
 
   // --- Calendar Helpers ---
   const filteredLeavesForReports = companyLeaves.filter(l => reportEmployeeFilter === 'all' || l.memberId === reportEmployeeFilter)
+  const calendarLeaves = filteredLeavesForReports.filter(
+    l => l.status === 'approved' || l.status === 'pending'
+  )
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(monthStart)
@@ -338,11 +399,10 @@ export default function LeaveDashboardClient({
   
   const calendarDays = eachDayOfInterval({ start: startDateCalendar, end: endDateCalendar })
 
-  const getLeavesForDay = (day: Date) => {
-    return filteredLeavesForReports.filter(l => {
+  const getLeavesForDay = (day: Date, source = filteredLeavesForReports) => {
+    return source.filter(l => {
       const s = new Date(l.startDate)
       const e = new Date(l.endDate)
-      // Normalize to midnight for accurate comparison
       s.setHours(0,0,0,0)
       e.setHours(0,0,0,0)
       const current = new Date(day)
@@ -599,6 +659,15 @@ export default function LeaveDashboardClient({
                   <option value="birthday_leave">Birthday Leave</option>
                   <option value="work_from_home">Work From Home</option>
                 </select>
+                {leaveType === 'half_day' ? (
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    You must work at least 4.5 hours on this day for it to count as a half day.
+                  </p>
+                ) : leaveType === 'short_leave' ? (
+                  <p className="text-xs text-sky-700 mt-1.5">
+                    You must work at least 7 hours on this day for it to count as a short leave.
+                  </p>
+                ) : null}
               </div>
 
               {leaveType === 'half_day' && (
@@ -635,7 +704,7 @@ export default function LeaveDashboardClient({
                       setStartDate(next)
                       if (isSameDayLeave) setEndDate(next)
                     }}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={istDateInputValue()}
                     className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                   />
                 </div>
@@ -646,7 +715,7 @@ export default function LeaveDashboardClient({
                     required
                     value={endDate}
                     onChange={e => setEndDate(e.target.value)}
-                    min={startDate || new Date().toISOString().split('T')[0]}
+                    min={startDate || istDateInputValue()}
                     disabled={isSameDayLeave}
                     className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
@@ -711,8 +780,8 @@ export default function LeaveDashboardClient({
                   <div className="flex gap-2 text-sm">
                     <span className="font-semibold text-gray-600 w-16">Dates:</span>
                     <span className="text-gray-900">
-                      {format(new Date(selectedLeaveForModal.startDate), 'MMM d, yyyy')}
-                      {selectedLeaveForModal.startDate !== selectedLeaveForModal.endDate && ` to ${format(new Date(selectedLeaveForModal.endDate), 'MMM d, yyyy')}`}
+                      {formatIstDate(selectedLeaveForModal.startDate)}
+                      {selectedLeaveForModal.startDate !== selectedLeaveForModal.endDate && ` to ${formatIstDate(selectedLeaveForModal.endDate)}`}
                     </span>
                   </div>
                   {selectedLeaveForModal.reason && (
@@ -756,7 +825,7 @@ export default function LeaveDashboardClient({
                           {log.action === 'status_changed' && 'Status Changed'}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5 mb-2">
-                          By <span className="font-medium text-gray-700">{log.user?.name || 'Unknown'}</span> on {format(new Date(log.timestamp), 'MMM d, yyyy h:mm a')}
+                          By <span className="font-medium text-gray-700">{log.user?.name || 'Unknown'}</span> on {formatIstDateTimeShort(log.timestamp)}
                         </div>
                         
                         {log.changes && (
@@ -789,20 +858,23 @@ export default function LeaveDashboardClient({
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {tab === 'admin'
-              ? 'Review requests, update balances, and see who is out.'
-              : 'Check your balance, request time off, and track status.'}
-          </p>
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="shrink-0">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {tab === 'admin'
+                ? 'Review requests, update balances, and see who is out.'
+                : 'Check your balance, request time off, and track status.'}
+            </p>
+          </div>
+          <LeaveHourPolicyCard />
         </div>
         
         {isAdmin && (
-          <div className="flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50">
+          <div className="inline-flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50 mt-4">
             <button
               onClick={() => setTab('my_leaves')}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'my_leaves' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
@@ -811,9 +883,10 @@ export default function LeaveDashboardClient({
             </button>
             <button
               onClick={() => setTab('admin')}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'admin' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
+              className={`inline-flex items-center px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'admin' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
             >
               Team admin
+              <NavCountBadge count={pendingLeaves.length} />
             </button>
           </div>
         )}
@@ -888,6 +961,15 @@ export default function LeaveDashboardClient({
                       <option value="birthday_leave">Birthday Leave</option>
                       <option value="work_from_home">Work From Home</option>
                     </select>
+                    {leaveType === 'half_day' ? (
+                      <p className="text-xs text-amber-700 mt-1.5">
+                        You must work at least 4.5 hours on this day for it to count as a half day.
+                      </p>
+                    ) : leaveType === 'short_leave' ? (
+                      <p className="text-xs text-sky-700 mt-1.5">
+                        You must work at least 7 hours on this day for it to count as a short leave.
+                      </p>
+                    ) : null}
                   </div>
 
                   {leaveType === 'half_day' && (
@@ -934,7 +1016,7 @@ export default function LeaveDashboardClient({
                           setStartDate(next)
                           if (isSameDayLeave) setEndDate(next)
                         }}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={istDateInputValue()}
                         className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       />
                     </div>
@@ -945,7 +1027,7 @@ export default function LeaveDashboardClient({
                         required
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
-                        min={startDate || new Date().toISOString().split('T')[0]}
+                        min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
                         className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                           isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
@@ -1183,6 +1265,17 @@ export default function LeaveDashboardClient({
               >
                 Team history
               </button>
+              <button
+                type="button"
+                onClick={() => setAdminSection('calendar')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  adminSection === 'calendar'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Calendar
+              </button>
             </div>
           </div>
 
@@ -1267,7 +1360,7 @@ export default function LeaveDashboardClient({
               <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-base font-bold text-gray-900">Team leave history</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Filter by person or switch to calendar view.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Filter by person. All statuses are listed here.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -1281,28 +1374,10 @@ export default function LeaveDashboardClient({
                       <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                   </select>
-
-                  <div className="flex bg-gray-100 p-1 rounded-lg ring-1 ring-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => setReportView('list')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'list' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
-                    >
-                      List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReportView('calendar')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${reportView === 'calendar' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
-                    >
-                      Calendar
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              {reportView === 'list' ? (
-                <div className="overflow-x-auto">
+              <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50/80 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                       <tr>
@@ -1375,8 +1450,41 @@ export default function LeaveDashboardClient({
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div className="p-6">
+            </div>
+          )}
+
+          {adminSection === 'calendar' && (
+            <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Leave calendar</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Approved and applied leaves only.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-3 text-[11px] font-semibold text-gray-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-green-100 ring-1 ring-green-200" />
+                      Approved
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-amber-200" />
+                      Applied
+                    </span>
+                  </div>
+                  <select
+                    value={reportEmployeeFilter}
+                    onChange={e => setReportEmployeeFilter(e.target.value)}
+                    className="text-sm font-medium rounded-xl border-gray-200 py-2 pl-3 pr-8 focus:border-blue-500 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="all">All employees</option>
+                    {allMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-gray-900">{format(currentMonth, 'MMMM yyyy')}</h3>
                     <div className="flex space-x-2">
@@ -1400,7 +1508,7 @@ export default function LeaveDashboardClient({
                     {calendarDays.map(day => {
                       const isCurrentMonth = isSameMonth(day, currentMonth)
                       const isToday = isSameDay(day, new Date())
-                      const dayLeaves = getLeavesForDay(day)
+                      const dayLeaves = getLeavesForDay(day, calendarLeaves)
 
                       return (
                         <div
@@ -1418,10 +1526,8 @@ export default function LeaveDashboardClient({
                                 key={l.id}
                                 onClick={() => viewHistory(l)}
                                 className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all
-                                  ${l.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                    l.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                    'bg-red-100 text-red-800'}`}
-                                title={`${l.member.name} - ${formatLeaveType(l.leaveType, l.timeSlot)}`}
+                                  ${l.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}
+                                title={`${l.member.name} · ${formatLeaveType(l.leaveType, l.timeSlot)} · ${l.status === 'pending' ? 'Applied' : 'Approved'}`}
                               >
                                 {l.member.name.split(' ')[0]}
                               </div>
@@ -1431,8 +1537,7 @@ export default function LeaveDashboardClient({
                       )
                     })}
                   </div>
-                </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -1456,7 +1561,7 @@ export default function LeaveDashboardClient({
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
-                <select value={adminMemberId} onChange={e => setAdminMemberId(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-gray-50">
+                <select value={adminMemberId} onChange={e => setAdminMemberId(e.target.value)} className="w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-white">
                   {allMembers.map(m => (
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}

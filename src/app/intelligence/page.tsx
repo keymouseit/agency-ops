@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { avg, fmtCurrency, fmtDate, formatLossReason } from '@/lib/utils'
 import { calcHealth, healthColor, healthBg, compareProjectHealth, burnPct, marginSignal } from '@/lib/project-health'
-import { startOfDay, subDays, startOfWeek, differenceInDays, format } from 'date-fns'
+import { startOfDay, subDays, startOfWeek, differenceInDays } from 'date-fns'
+import { formatIst } from '@/lib/ist'
 import Link from 'next/link'
 import BlockerActions from './BlockerActions'
 
@@ -210,7 +211,7 @@ export default async function IntelligencePage() {
           <h1 className="text-2xl font-semibold text-gray-900">Founder Intelligence</h1>
           <p className="text-sm text-gray-500 mt-0.5">Everything you need to see the real state of the business. Refresh at any time.</p>
         </div>
-        <div className="text-xs text-gray-400">{format(new Date(), "EEEE, d MMM yyyy · HH:mm")}</div>
+        <div className="text-xs text-gray-400">{formatIst(new Date(), { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</div>
       </div>
 
       {/* ── SECTION 1: PROJECT HEALTH ──────────────────────────────────────── */}
