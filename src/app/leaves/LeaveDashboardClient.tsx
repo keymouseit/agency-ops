@@ -858,23 +858,23 @@ export default function LeaveDashboardClient({
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          <div className="shrink-0">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+        <div>
+          <div className="flex items-center gap-2.5">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
               {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {tab === 'admin'
-                ? 'Review requests, update balances, and see who is out.'
-                : 'Check your balance, request time off, and track status.'}
-            </p>
+            <LeaveHourPolicyCard />
           </div>
-          <LeaveHourPolicyCard />
+          <p className="text-sm text-gray-500 mt-1">
+            {tab === 'admin'
+              ? 'Review requests, update balances, and see who is out.'
+              : 'Check your balance, request time off, and track status.'}
+          </p>
         </div>
         
         {isAdmin && (
-          <div className="inline-flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50 mt-4">
+          <div className="flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50">
             <button
               onClick={() => setTab('my_leaves')}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'my_leaves' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
