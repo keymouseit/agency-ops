@@ -8,9 +8,10 @@ import { fmtDate, avg, isSameWeek, timeGreeting } from '@/lib/utils'
 import MePlanWidget from './MePlanWidget'
 import MeDayHeader from './MeDayHeader'
 import MeSection from './MeSection'
-import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
+import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate, findCarryOverMovedTasks } from '@/lib/daily'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
+import MovedTasksCard from './MovedTasksCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,7 @@ export default async function MePage() {
     thisWeekScore,
     recentScores,
     qaProjects,
+    carryOverMoved,
   ] = await Promise.all([
 
     prisma.teamMember.findUnique({ where: { id: memberId } }),
@@ -192,6 +194,8 @@ export default async function MePage() {
           orderBy: { updatedAt: 'desc' },
         })
       : Promise.resolve([]),
+
+    findCarryOverMovedTasks(memberId),
   ])
 
   if (!member) redirect('/api/auth/signout?callbackUrl=/login')
@@ -273,6 +277,10 @@ export default async function MePage() {
         </div>
       )}
 
+      {carryOverMoved && carryOverMoved.tasks.length > 0 && (
+        <MovedTasksCard carryOver={carryOverMoved} />
+      )}
+
       {isWeekday && (
         <MeSection
           title="Today"
@@ -320,7 +328,7 @@ export default async function MePage() {
                 </div>
               </div>
             ) : (
-              <MePlanWidget />
+              <MePlanWidget movedCount={carryOverMoved && !carryOverMoved.sameDay ? carryOverMoved.tasks.length : 0} />
             )
           ) : hasEOD ? (
             <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
