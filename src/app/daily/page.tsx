@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { businessDayKey, businessDayStart, findPendingPastEodLogSummary } from '@/lib/daily'
+import { businessDayKey, businessDayStart, findPendingPastEodLogSummary, requiresDailyCadence } from '@/lib/daily'
 import { redirect } from 'next/navigation'
 import DailyHeader from './DailyHeader'
 import DailyStats from './DailyStats'
@@ -60,9 +60,12 @@ export default async function DailyPage({
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
   const canNewPlan = isToday && !!myLog?.eodSubmittedAt
 
+  const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const membersWithLog = new Set(logs.map(l => l.memberId))
-  const noPlan = members.filter(m => !membersWithLog.has(m.id))
-  const noEOD = logs.filter(l => l.planSubmittedAt && !l.eodSubmittedAt)
+  const noPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id))
+  const noEOD = logs.filter(
+    l => requiresDailyCadence(l.member.role) && l.planSubmittedAt && !l.eodSubmittedAt
+  )
   const hasBlockers = logs.filter(l => l.blockers && l.blockers.trim())
 
   const allTasks = logs.flatMap(l => l.tasks)
@@ -81,10 +84,10 @@ export default async function DailyPage({
       ? [
           {
             label: 'Plans submitted',
-            value: `${logs.length}/${members.length}`,
+            value: `${logs.filter(l => requiresDailyCadence(l.member.role)).length}/${cadenceMembers.length}`,
             icon: '📋',
-            good: logs.length === members.length,
-            bad: logs.length < members.length && isToday,
+            good: logs.filter(l => requiresDailyCadence(l.member.role)).length === cadenceMembers.length,
+            bad: logs.filter(l => requiresDailyCadence(l.member.role)).length < cadenceMembers.length && isToday,
           },
         ]
       : []),

@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { fmtCurrency, scoreColor, avg } from '@/lib/utils'
 import Link from 'next/link'
 import { startOfWeek, subWeeks, format } from 'date-fns'
-import { businessDayStart } from '@/lib/daily'
+import { businessDayStart, requiresDailyCadence } from '@/lib/daily'
 import { getActiveMembersCached } from '@/lib/active-members'
 
 /** Heavy dashboard panels — streamed under Suspense. */
@@ -140,9 +140,11 @@ export default async function DashboardBody() {
         const today = new Date()
         const isWeekday = today.getDay() !== 0 && today.getDay() !== 6
         if (!isWeekday) return null
-        const submitted = dailyLogs.filter(l => l.planSubmittedAt).length
-        const eodDone = dailyLogs.filter(l => l.eodSubmittedAt).length
-        const noPlan = members.filter(m => !dailyLogs.find(l => l.memberId === m.id && l.planSubmittedAt))
+        const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
+        const cadenceIds = new Set(cadenceMembers.map(m => m.id))
+        const submitted = dailyLogs.filter(l => l.planSubmittedAt && cadenceIds.has(l.memberId)).length
+        const eodDone = dailyLogs.filter(l => l.eodSubmittedAt && cadenceIds.has(l.memberId)).length
+        const noPlan = cadenceMembers.filter(m => !dailyLogs.find(l => l.memberId === m.id && l.planSubmittedAt))
         const blockers = dailyLogs.filter(l => l.blockers && l.blockers.trim())
         const allTasks = dailyLogs.flatMap(l => l.tasks)
         const doneTasks = allTasks.filter(t => t.status === 'done').length
@@ -151,7 +153,7 @@ export default async function DashboardBody() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-900">Today — {format(today, 'EEEE d MMM')}</span>
-                <span className="badge bg-blue-100 text-blue-800 text-xs">{submitted}/{members.length} planned · {eodDone} EOD done</span>
+                <span className="badge bg-blue-100 text-blue-800 text-xs">{submitted}/{cadenceMembers.length} planned · {eodDone} EOD done</span>
               </div>
               <Link href="/daily" className="text-xs text-blue-600 hover:underline">Full daily view →</Link>
             </div>
@@ -176,7 +178,7 @@ export default async function DashboardBody() {
                   <div className="text-gray-700 text-sm">{blockers.map(l => l.member.name.split(' ')[0]).join(', ')}</div>
                 </div>
               )}
-              {submitted === members.length && noPlan.length === 0 && (
+              {submitted === cadenceMembers.length && noPlan.length === 0 && (
                 <div className="text-green-700 text-sm font-medium">✓ Full team planned</div>
               )}
             </div>

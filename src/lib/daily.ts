@@ -34,6 +34,11 @@ export function isSameBusinessDay(a: Date | string, b: Date | string = new Date(
 
 export const MAX_DAILY_PLAN_HOURS = 8
 
+/** Founder is not required to submit a morning plan / EOD. */
+export function requiresDailyCadence(role: string) {
+  return role !== 'Founder'
+}
+
 export const DAILY_TASK_TYPE_GROUPS = [
   {
     label: 'Development',
