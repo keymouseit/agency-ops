@@ -23,6 +23,7 @@ import { leaveRequestDayCost } from '@/lib/leave-math'
 import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
 import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
+import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
 
 export default function LeaveDashboardClient({
   memberId,
@@ -658,6 +659,15 @@ export default function LeaveDashboardClient({
                   <option value="birthday_leave">Birthday Leave</option>
                   <option value="work_from_home">Work From Home</option>
                 </select>
+                {leaveType === 'half_day' ? (
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    You must work at least 4.5 hours on this day for it to count as a half day.
+                  </p>
+                ) : leaveType === 'short_leave' ? (
+                  <p className="text-xs text-sky-700 mt-1.5">
+                    You must work at least 7 hours on this day for it to count as a short leave.
+                  </p>
+                ) : null}
               </div>
 
               {leaveType === 'half_day' && (
@@ -848,20 +858,23 @@ export default function LeaveDashboardClient({
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {tab === 'admin'
-              ? 'Review requests, update balances, and see who is out.'
-              : 'Check your balance, request time off, and track status.'}
-          </p>
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="shrink-0">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {tab === 'admin'
+                ? 'Review requests, update balances, and see who is out.'
+                : 'Check your balance, request time off, and track status.'}
+            </p>
+          </div>
+          <LeaveHourPolicyCard />
         </div>
         
         {isAdmin && (
-          <div className="flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50">
+          <div className="inline-flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50 mt-4">
             <button
               onClick={() => setTab('my_leaves')}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'my_leaves' ? 'bg-white shadow-sm ring-1 ring-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
@@ -948,6 +961,15 @@ export default function LeaveDashboardClient({
                       <option value="birthday_leave">Birthday Leave</option>
                       <option value="work_from_home">Work From Home</option>
                     </select>
+                    {leaveType === 'half_day' ? (
+                      <p className="text-xs text-amber-700 mt-1.5">
+                        You must work at least 4.5 hours on this day for it to count as a half day.
+                      </p>
+                    ) : leaveType === 'short_leave' ? (
+                      <p className="text-xs text-sky-700 mt-1.5">
+                        You must work at least 7 hours on this day for it to count as a short leave.
+                      </p>
+                    ) : null}
                   </div>
 
                   {leaveType === 'half_day' && (
