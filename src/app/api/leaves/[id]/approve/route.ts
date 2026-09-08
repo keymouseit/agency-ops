@@ -6,7 +6,7 @@ import { runInBackground } from '@/lib/background'
 import { leavePaidDeduction } from '@/lib/leave-balance'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { invalidateLeaveTodayCache } from '@/lib/cache-tags'
+import { revalidateLeavePages } from '@/lib/cache-tags'
 
 const ALLOWED = ['Founder', 'HR', 'Manager']
 
@@ -130,7 +130,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       `leave-${status}-side-effects`
     )
 
-    invalidateLeaveTodayCache()
+    revalidateLeavePages()
     return NextResponse.json(updatedLeave)
   } catch (error: unknown) {
     console.error('Error updating leave status:', error)

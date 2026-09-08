@@ -6,7 +6,7 @@ import {
   assertNoOverlappingLeave,
   computeLeaveBalanceSplit,
 } from '@/lib/leave-balance'
-import { invalidateLeaveTodayCache } from '@/lib/cache-tags'
+import { revalidateLeavePages } from '@/lib/cache-tags'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -111,6 +111,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       })
     }
 
+    revalidateLeavePages()
     return NextResponse.json(updatedLeave, { status: 200 })
   } catch (error: unknown) {
     console.error('Error updating leave request:', error)
@@ -167,7 +168,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
     await prisma.leaveRequest.delete({ where: { id } })
 
-    invalidateLeaveTodayCache()
+    revalidateLeavePages()
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
     console.error('Error deleting leave request:', error)

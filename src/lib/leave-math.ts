@@ -1,4 +1,5 @@
 import { isSameDay } from 'date-fns'
+import { istYearAndMonth } from '@/lib/ist'
 
 export const SHORT_LEAVE_MONTHLY_CAP = 2
 export const BIRTHDAY_LEAVE_YEARLY_CAP = 1
@@ -56,31 +57,18 @@ export function splitPaidUnpaid(dayCost: number, available: number) {
 }
 
 /**
- * Months of accrual earned for a year, prorated from join date (TeamMember.createdAt).
- * 1 day per calendar month from join month through current month (or Dec for past years).
+ * Months of accrual earned for a year: 1 day per calendar month so far.
+ * September → 9, December → 12. Full 12 for past years.
  */
 export function accrualMonthsForYear(
-  joinedAt: Date,
+  _joinedAt: Date,
   year: number,
   asOf = new Date()
 ): number {
-  const joinYear = joinedAt.getFullYear()
-  const joinMonth = joinedAt.getMonth() + 1 // 1–12
-  const asOfYear = asOf.getFullYear()
-  const asOfMonth = asOf.getMonth() + 1
-
-  if (year < joinYear) return 0
+  const { year: asOfYear, month: asOfMonth } = istYearAndMonth(asOf)
   if (year > asOfYear) return 0
-
-  if (year < asOfYear) {
-    if (year > joinYear) return 12
-    return Math.max(0, 12 - joinMonth + 1)
-  }
-
-  if (joinYear < year) {
-    return asOfMonth
-  }
-  return Math.max(0, asOfMonth - joinMonth + 1)
+  if (year < asOfYear) return 12
+  return asOfMonth
 }
 
 /** Paid days actually deducted on approval (supports legacy rows). */

@@ -87,7 +87,7 @@ export default function LeaveBalancesClient({
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Employee Leave Balances</h1>
         <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-          Set accrued and used days for {year}. Available = Accrued − Used.
+          Set used days for {year}. Accrued is 1 day per month so far this year (September = 9). Available = Accrued − Used.
         </p>
       </div>
 

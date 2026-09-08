@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { avg, fmtCurrency, formatLossReason } from '@/lib/utils'
 import { startOfWeek, subWeeks } from 'date-fns'
+import { formatIst } from '@/lib/ist'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,7 +166,7 @@ export default async function AnalyticsPage() {
               <tr className="text-xs text-gray-400">
                 <th className="text-left pb-2 font-medium">Week</th>
                 {weeklyAvgs.map((w, i) => (
-                  <th key={i} className="text-center pb-2 font-medium">{w.week.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</th>
+                  <th key={i} className="text-center pb-2 font-medium">{formatIst(w.week, { day: 'numeric', month: 'short' })}</th>
                 ))}
               </tr>
             </thead>

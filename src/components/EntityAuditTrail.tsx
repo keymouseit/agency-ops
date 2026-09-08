@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
+import { formatIst } from '@/lib/ist'
 import { formatQAActivitySummary } from '@/lib/qa-audit-format'
 
 type AuditLog = {
@@ -165,7 +165,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
 
               {/* Timestamp */}
               <div className="text-xs text-gray-400">
-                {format(new Date(log.timestamp), 'MMM d, yyyy · HH:mm')}
+                {formatIst(log.timestamp, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
               </div>
             </div>
 
@@ -214,7 +214,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
               {/* Timestamp */}
               <div>
                 <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Timestamp</div>
-                <div className="text-gray-900">{format(new Date(selectedLog.timestamp), 'EEEE, MMMM d, yyyy · HH:mm:ss')}</div>
+                <div className="text-gray-900">{formatIst(selectedLog.timestamp, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}</div>
               </div>
 
               {/* User */}

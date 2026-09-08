@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { avg, scoreColor, scoreBg } from '@/lib/utils'
-import { startOfWeek, subWeeks, format } from 'date-fns'
+import { startOfWeek, subWeeks } from 'date-fns'
+import { formatIst } from '@/lib/ist'
 import SubmitScoreForm from './SubmitScoreForm'
 
 export const dynamic = 'force-dynamic'
@@ -84,7 +85,7 @@ export default async function TeamPage() {
 
       {/* This week's scores */}
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        This week — {format(thisWeek, 'd MMM yyyy')}
+        This week — {formatIst(thisWeek, { day: 'numeric', month: 'short', year: 'numeric' })}
       </h2>
       <div className="card overflow-hidden mb-8">
         <table className="w-full text-sm">
@@ -156,7 +157,7 @@ export default async function TeamPage() {
                   <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
                     <span className="text-xs text-gray-400">{v ?? ''}</span>
                     <div className={`w-full rounded-sm ${color}`} style={{ height: `${Math.max(h, 4)}%` }} />
-                    <span className="text-xs text-gray-300">{format(weeks[i], 'M/d')}</span>
+                    <span className="text-xs text-gray-300">{formatIst(weeks[i], { month: 'numeric', day: 'numeric' })}</span>
                   </div>
                 )
               })}

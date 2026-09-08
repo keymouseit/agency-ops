@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, scoreColor, avg } from '@/lib/utils'
 import Link from 'next/link'
-import { startOfWeek, subWeeks, format } from 'date-fns'
+import { startOfWeek, subWeeks } from 'date-fns'
 import { businessDayStart, requiresDailyCadence } from '@/lib/daily'
+import { formatIstWeekdayShort } from '@/lib/ist'
 import { getActiveMembersCached } from '@/lib/active-members'
 
 /** Heavy dashboard panels — streamed under Suspense. */
@@ -152,7 +153,7 @@ export default async function DashboardBody() {
           <div className="card p-4 mb-6 border-l-4 border-blue-400">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-900">Today — {format(today, 'EEEE d MMM')}</span>
+                <span className="text-sm font-semibold text-gray-900">Today — {formatIstWeekdayShort(today)}</span>
                 <span className="badge bg-blue-100 text-blue-800 text-xs">{submitted}/{cadenceMembers.length} planned · {eodDone} EOD done</span>
               </div>
               <Link href="/daily" className="text-xs text-blue-600 hover:underline">Full daily view →</Link>

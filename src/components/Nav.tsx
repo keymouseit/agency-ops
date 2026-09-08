@@ -5,7 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import NotificationBell from './NotificationBell'
+import NavCountBadge from './NavCountBadge'
 import { useNavigationPending } from './NavigationProvider'
+import { usePendingLeaveCount } from '@/hooks/usePendingLeaveCount'
 import type { Branding } from '@/lib/branding'
 
 /** Warm these on idle so the first intentional click is already cached. */
@@ -185,12 +187,14 @@ function NavLink({
   active,
   onNavigate,
   onPrefetch,
+  badgeCount = 0,
 }: {
   href: string
   children: ReactNode
   active: boolean
   onNavigate: () => void
   onPrefetch: (href: string) => void
+  badgeCount?: number
 }) {
   return (
     <Link
@@ -200,9 +204,10 @@ function NavLink({
       onFocus={() => onPrefetch(href)}
       onPointerDown={() => onPrefetch(href)}
       onClick={onNavigate}
-      className={navLinkClass(active)}
+      className={`${navLinkClass(active)} inline-flex items-center`}
     >
       {children}
+      <NavCountBadge count={badgeCount} active={active} />
     </Link>
   )
 }
@@ -213,16 +218,20 @@ function NavDropdown({
   currentPath,
   onNavigate,
   onPrefetch,
+  leaveBadgeCount = 0,
 }: {
   label: string
   items: { href: string; label: string }[]
   currentPath: string
   onNavigate: () => void
   onPrefetch: (href: string) => void
+  leaveBadgeCount?: number
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const isActive = items.some(item => isLinkActive(currentPath, item.href))
+  const hasLeaveItem = items.some(item => item.href === '/leaves' || item.href.startsWith('/leaves/'))
+  const triggerBadge = hasLeaveItem ? leaveBadgeCount : 0
 
   useEffect(() => {
     if (!open) return
@@ -256,7 +265,7 @@ function NavDropdown({
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen(!open)}
-        className={`${navLinkClass(isActive)} flex items-center gap-1`}
+        className={`${navLinkClass(isActive)} inline-flex items-center gap-1`}
       >
         {label}
         <svg
@@ -267,6 +276,7 @@ function NavDropdown({
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
+        <NavCountBadge count={triggerBadge} active={isActive} />
       </button>
 
       {open && (
@@ -286,11 +296,14 @@ function NavDropdown({
                     onNavigate()
                     setOpen(false)
                   }}
-                  className={`block px-3 py-2 text-sm ${
+                  className={`flex items-center px-3 py-2 text-sm ${
                     active ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {item.label}
+                  {(item.href === '/leaves' || item.href.startsWith('/leaves/')) ? (
+                    <NavCountBadge count={leaveBadgeCount} />
+                  ) : null}
                 </Link>
               )
             })}
@@ -431,6 +444,8 @@ export default function Nav({ branding }: { branding: Branding }) {
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
   const roleLabel = role === 'SocialMedia' ? 'Social' : role
   const prefetched = useRef(new Set<string>())
+  const canReviewLeaves = role === 'HR' || role === 'Founder' || role === 'Manager'
+  const pendingLeaveCount = usePendingLeaveCount(canReviewLeaves)
 
   function prefetchHref(href: string) {
     if (prefetched.current.has(href)) return
@@ -510,6 +525,7 @@ export default function Nav({ branding }: { branding: Branding }) {
                     currentPath={path}
                     onNavigate={handleNavigate}
                     onPrefetch={prefetchHref}
+                    leaveBadgeCount={pendingLeaveCount}
                   />
                 ) : 'href' in item ? (
                   <NavLink
@@ -518,6 +534,7 @@ export default function Nav({ branding }: { branding: Branding }) {
                     active={isLinkActive(path, item.href)}
                     onNavigate={handleNavigate}
                     onPrefetch={prefetchHref}
+                    badgeCount={item.href === '/leaves' ? pendingLeaveCount : 0}
                   >
                     {item.label}
                   </NavLink>

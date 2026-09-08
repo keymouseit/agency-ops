@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { IST_TIMEZONE, formatIstWeekdayLong } from '@/lib/ist'
 
 /** Company operates in India — all DailyLog "days" use this timezone. */
-export const BUSINESS_TIMEZONE = 'Asia/Kolkata'
+export const BUSINESS_TIMEZONE = IST_TIMEZONE
 
 /**
  * Calendar day key (YYYY-MM-DD) in Asia/Kolkata.
@@ -254,12 +255,7 @@ export async function findPendingPastEodLog(memberId: string) {
 }
 
 export function formatDailyLogDate(date: Date | string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: BUSINESS_TIMEZONE,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date(date))
+  return formatIstWeekdayLong(date)
 }
 
 export const dailyLogWithTasksInclude = openLogInclude

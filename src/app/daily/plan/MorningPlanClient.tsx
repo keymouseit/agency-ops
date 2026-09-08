@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
+import { formatIstWeekdayLong } from '@/lib/ist'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -98,7 +99,7 @@ export default function MorningPlanClient({
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Morning plan</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {formatIstWeekdayLong(new Date())}
             {' · '}Due by 9:30am
           </p>
         </div>

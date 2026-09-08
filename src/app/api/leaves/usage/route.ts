@@ -3,7 +3,8 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
 import { getAvailableLeaveDays } from '@/lib/leave-balance'
-import { endOfDay, format, parseISO, startOfDay, isValid } from 'date-fns'
+import { endOfDay, parseISO, startOfDay, isValid } from 'date-fns'
+import { formatIst, istDateInputValue } from '@/lib/ist'
 
 function csvEscape(value: string | number | boolean | null | undefined) {
   const s = value == null ? '' : String(value)
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
   if (formatParam === 'csv') {
     const lines: string[] = []
     lines.push('Employee Leave Usage Report')
-    lines.push(`Generated,${csvEscape(format(new Date(), 'yyyy-MM-dd HH:mm'))}`)
+    lines.push(`Generated,${csvEscape(`${istDateInputValue()} ${formatIst(new Date(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`)}`)
     lines.push('')
     lines.push('Employee')
     lines.push(['Name', 'Email', 'Role'].map(csvEscape).join(','))
@@ -132,8 +133,8 @@ export async function GET(request: Request) {
         [
           leaveTypeLabel(l.leaveType),
           l.timeSlot ? l.timeSlot.replace(/_/g, ' ') : '',
-          format(new Date(l.startDate), 'yyyy-MM-dd'),
-          format(new Date(l.endDate), 'yyyy-MM-dd'),
+          istDateInputValue(l.startDate),
+          istDateInputValue(l.endDate),
           l.days,
           l.paidDays,
           l.unpaidDays,

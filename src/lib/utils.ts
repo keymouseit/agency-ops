@@ -1,4 +1,5 @@
 import { startOfWeek } from 'date-fns'
+import { formatIstDate, formatIstDateTime, istHour } from '@/lib/ist'
 
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
 export const MOM_MEETING_TYPES = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal Discussion'] as const
@@ -127,7 +128,7 @@ export function avg(nums: number[]) {
 }
 
 export function timeGreeting(date = new Date()) {
-  const hour = date.getHours()
+  const hour = istHour(date)
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
@@ -150,14 +151,12 @@ export function fmtCurrency(v: number | null | undefined, currency = 'USD') {
 
 export function fmtDate(d: Date | string | null) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatIstDate(d)
 }
 
 export function fmtDateTime(d: Date | string | null) {
   if (!d) return '—'
-  const date = new Date(d)
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
-    ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return formatIstDateTime(d)
 }
 
 /** Monday 00:00 — canonical week boundary for check-ins and scores */

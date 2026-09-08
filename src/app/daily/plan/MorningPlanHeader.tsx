@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { format } from 'date-fns'
 import { ROLE_COLORS } from '@/lib/utils'
+import { formatIstWeekdayCompact } from '@/lib/ist'
 
 type Props = {
   memberName: string
@@ -48,7 +48,7 @@ export default function MorningPlanHeader({
               )}
             </div>
             <p className="text-xs text-gray-500">
-              {format(new Date(), 'EEE, d MMM yyyy')} · {subtitle} · {memberName}
+              {formatIstWeekdayCompact(new Date())} · {subtitle} · {memberName}
             </p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { format } from 'date-fns'
 import { ROLE_COLORS } from '@/lib/utils'
+import { formatIst, formatIstWeekdayCompact } from '@/lib/ist'
 
 type Props = {
   memberName: string
@@ -20,12 +20,12 @@ export default function EODHeader({
   eodSubmittedAt,
 }: Props) {
   const roleCls = ROLE_COLORS[memberRole] ?? 'bg-gray-100 text-gray-700'
-  const dateLabel = format(new Date(date), 'EEE, d MMM yyyy')
+  const dateLabel = formatIstWeekdayCompact(date)
 
   const title = readOnly ? 'EOD report' : isEditMode ? 'Edit EOD report' : 'EOD report'
   const subtitle = readOnly
     ? eodSubmittedAt
-      ? `Submitted ${format(new Date(eodSubmittedAt), 'd MMM')} · Read-only`
+      ? `Submitted ${formatIst(eodSubmittedAt, { day: 'numeric', month: 'short' })} · Read-only`
       : 'Read-only'
     : isEditMode
       ? 'Editable until end of today'
