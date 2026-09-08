@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import LeaveDashboardClient from './LeaveDashboardClient'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
+import { sortByEmployeeNo } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,10 +41,12 @@ export default async function LeavesPage() {
       include: { member: { select: { name: true, id: true } } },
       orderBy: { appliedAt: 'asc' },
     })
-    allMembers = await prisma.teamMember.findMany({
-      where: { active: true },
-      select: { id: true, name: true, role: true },
-    })
+    allMembers = sortByEmployeeNo(
+      await prisma.teamMember.findMany({
+        where: { active: true },
+        select: { id: true, name: true, role: true },
+      })
+    )
     allLeaves = await prisma.leaveRequest.findMany({
       include: { member: { select: { name: true } } },
       orderBy: { startDate: 'desc' },

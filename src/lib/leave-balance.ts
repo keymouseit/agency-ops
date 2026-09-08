@@ -19,11 +19,15 @@ export {
 } from '@/lib/leave-math'
 
 /**
- * Accrue 1 leave day per calendar month so far this year (Sep → 9).
- * Catch-up on access so the 1st of each month is reflected without a cron.
- * Never reduces an HR-raised accrued value.
+ * Accrue 1 leave day per calendar month so far this year when a balance row is first created.
+ * Do not overwrite Accrued after that — HR may set a lower value for mid-year joiners.
  */
 export async function ensureMonthlyAccrual(memberId: string, year = new Date().getFullYear()) {
+  const existing = await prisma.leaveBalance.findUnique({
+    where: { memberId_year: { memberId, year } },
+  })
+  if (existing) return existing
+
   const member = await prisma.teamMember.findUnique({
     where: { id: memberId },
     select: { createdAt: true },
@@ -31,24 +35,9 @@ export async function ensureMonthlyAccrual(memberId: string, year = new Date().g
   const joinedAt = member?.createdAt ?? new Date()
   const monthTarget = accrualMonthsForYear(joinedAt, year)
 
-  const existing = await prisma.leaveBalance.findUnique({
-    where: { memberId_year: { memberId, year } },
+  return prisma.leaveBalance.create({
+    data: { memberId, year, accrued: monthTarget, used: 0, shortLeaves: 0 },
   })
-
-  if (!existing) {
-    return prisma.leaveBalance.create({
-      data: { memberId, year, accrued: monthTarget, used: 0, shortLeaves: 0 },
-    })
-  }
-
-  if (existing.accrued < monthTarget) {
-    return prisma.leaveBalance.update({
-      where: { id: existing.id },
-      data: { accrued: monthTarget },
-    })
-  }
-
-  return existing
 }
 
 /**
