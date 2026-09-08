@@ -767,7 +767,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                           <td className="px-3 py-1.5">
                             <span
                               className={`text-[10px] font-bold ${
-                                short || flag === 'no_plan'
+                                short || flag === 'no_plan' || flag === 'no_eod' || flag === 'under_logged'
                                   ? 'text-red-700'
                                   : flag === 'upcoming'
                                     ? 'text-gray-400'

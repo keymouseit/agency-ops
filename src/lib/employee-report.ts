@@ -1,9 +1,30 @@
 import { prisma } from '@/lib/prisma'
-import { businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
+import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
-import { differenceInCalendarDays, eachDayOfInterval, format, isWeekend } from 'date-fns'
+import { differenceInCalendarDays, format } from 'date-fns'
 
 const DAY_TARGET = MAX_DAILY_PLAN_HOURS // 8h → 40h / week
+
+function istWeekdayShort(date: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+  }).format(date)
+}
+
+/** Weekday YYYY-MM-DD keys in IST (not the server's local timezone). */
+function eachWeekdayKeys(from: Date, to: Date) {
+  const keys: string[] = []
+  let key = businessDayKey(from)
+  const end = businessDayKey(to)
+  while (key <= end) {
+    const start = businessDayStart(key)
+    const wd = istWeekdayShort(start)
+    if (wd !== 'Sat' && wd !== 'Sun') keys.push(key)
+    key = businessDayKey(new Date(start.getTime() + 36 * 60 * 60 * 1000))
+  }
+  return keys
+}
 
 export type EmployeeReportRange = {
   from: Date
@@ -25,9 +46,9 @@ function scoreOverall(s: {
   return Math.round(((s.delivery + s.process + s.communication + s.growth + s.culture) / 5) * 10) / 10
 }
 
-/** Count weekdays in inclusive date range (approx business days). */
+/** Count weekdays in inclusive date range (IST business days). */
 function countWeekdays(from: Date, to: Date) {
-  return eachDayOfInterval({ start: from, end: to }).filter(d => !isWeekend(d)).length
+  return eachWeekdayKeys(from, to).length
 }
 
 export async function getEmployeeReport(memberId: string, range: EmployeeReportRange) {
@@ -208,9 +229,14 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
 
   const expectedBusinessDays = countWeekdays(from, toEnd)
   const plannedDays = dailyLogs.filter(l => l.planSubmittedAt).length
-  const eodDays = dailyLogs.filter(l => l.eodSubmittedAt).length
+  const eodDays = dailyLogs.filter(
+    l => l.eodSubmittedAt || l.tasks.some(t => t.status !== 'planned')
+  ).length
   const planMissed = dailyLogs.filter(l => l.planMissed || (!l.planSubmittedAt && l.date < businessDayStart())).length
-  const eodMissed = dailyLogs.filter(l => l.eodMissed || (l.planSubmittedAt && !l.eodSubmittedAt && l.date < businessDayStart())).length
+  const eodMissed = dailyLogs.filter(l => {
+    const done = l.eodSubmittedAt || l.tasks.some(t => t.status !== 'planned')
+    return l.eodMissed || (l.planSubmittedAt && !done && l.date < businessDayStart())
+  }).length
 
   const allTasks = dailyLogs.flatMap(l => l.tasks)
   const hoursLogged = allTasks.reduce((s, t) => s + (t.actualHours ?? 0), 0)
@@ -235,12 +261,10 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
   const rangeDays = Math.max(1, differenceInCalendarDays(toEnd, from) + 1)
 
   const logsByDate = new Map(
-    dailyLogs.map(l => [format(l.date, 'yyyy-MM-dd'), l])
+    dailyLogs.map(l => [businessDayKey(l.date), l])
   )
 
-  const weekdayKeys = eachDayOfInterval({ start: from, end: toEnd })
-    .filter(d => !isWeekend(d))
-    .map(d => format(d, 'yyyy-MM-dd'))
+  const weekdayKeys = eachWeekdayKeys(from, toEnd)
 
   const hoursByDay = weekdayKeys.map(dateKey => {
     const log = logsByDate.get(dateKey)
@@ -266,7 +290,9 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       ? Math.round(log.tasks.reduce((s, t) => s + (t.actualHours ?? 0), 0) * 10) / 10
       : 0
     const hasPlan = Boolean(log?.planSubmittedAt)
-    const hasEod = Boolean(log?.eodSubmittedAt)
+    const hasEod =
+      Boolean(log?.eodSubmittedAt) ||
+      Boolean(log && log.tasks.some(t => t.status !== 'planned'))
 
     const phase: 'past' | 'today' | 'future' = isToday ? 'today' : isPast ? 'past' : 'future'
 
