@@ -111,8 +111,8 @@ export default function NotificationBell() {
       const res = await fetch('/api/notifications', { cache: 'no-store', credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
-      setNotifications(data.notifications)
-      setUnread(data.unread)
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
+      setUnread(typeof data.unread === 'number' ? data.unread : 0)
     } catch {}
   }, [])
 

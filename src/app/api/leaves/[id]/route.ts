@@ -6,6 +6,7 @@ import {
   assertNoOverlappingLeave,
   computeLeaveBalanceSplit,
 } from '@/lib/leave-balance'
+import { invalidateLeaveTodayCache } from '@/lib/cache-tags'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -166,6 +167,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
     await prisma.leaveRequest.delete({ where: { id } })
 
+    invalidateLeaveTodayCache()
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
     console.error('Error deleting leave request:', error)

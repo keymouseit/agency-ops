@@ -1,4 +1,7 @@
+import { unstable_cache, revalidateTag } from 'next/cache'
+import { cache } from 'react'
 import { prisma } from '@/lib/prisma'
+import { CACHE_TAGS } from '@/lib/cache-tags'
 
 export type Branding = {
   name: string
@@ -19,8 +22,8 @@ export function deriveInitials(name: string) {
   return 'KI'
 }
 
-export async function getBranding(): Promise<Branding> {
-  try {
+const fetchBrandingCached = unstable_cache(
+  async (): Promise<Branding> => {
     const row = await prisma.companyBranding.findUnique({ where: { id: 'default' } })
     if (row) {
       return {
@@ -29,16 +32,27 @@ export async function getBranding(): Promise<Branding> {
         tagline: row.tagline,
       }
     }
+    return DEFAULT_BRANDING
+  },
+  ['company-branding-v1'],
+  { revalidate: 300, tags: [CACHE_TAGS.branding] },
+)
+
+/** Request-deduped + cross-request cached branding (5 min TTL). */
+export const getBranding = cache(async (): Promise<Branding> => {
+  try {
+    return await fetchBrandingCached()
   } catch {
-    // Table may not exist until db push
+    return DEFAULT_BRANDING
   }
-  return DEFAULT_BRANDING
-}
+})
 
 export async function upsertBranding(data: Branding) {
-  return prisma.companyBranding.upsert({
+  const row = await prisma.companyBranding.upsert({
     where: { id: 'default' },
     create: { id: 'default', ...data },
     update: data,
   })
+  revalidateTag(CACHE_TAGS.branding)
+  return row
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { businessDayStart } from '@/lib/daily'
@@ -85,6 +86,11 @@ export async function POST(req: Request) {
 
     return upserted
   })
+
+  revalidatePath('/me')
+  revalidatePath('/daily')
+  revalidatePath('/daily/plan')
+  revalidatePath('/daily/eod')
 
   return NextResponse.json(log)
 }
