@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { eachDayOfInterval, subDays } from 'date-fns'
-import { businessDayKey, businessDayStart } from '@/lib/daily'
+import { businessDayKey, businessDayStart, requiresDailyCadence } from '@/lib/daily'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DatePicker from './DatePicker'
@@ -51,10 +51,13 @@ export default async function DailyAnalyticsPage({
     }),
   ])
 
+  const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const submittedIds = new Set(dayLogs.filter(l => l.planSubmittedAt).map(l => l.memberId))
-  const submitted = members.filter(m => submittedIds.has(m.id))
-  const missing = members.filter(m => !submittedIds.has(m.id))
-  const eodPending = dayLogs.filter(l => l.planSubmittedAt && !l.eodSubmittedAt)
+  const submitted = cadenceMembers.filter(m => submittedIds.has(m.id))
+  const missing = cadenceMembers.filter(m => !submittedIds.has(m.id))
+  const eodPending = dayLogs.filter(
+    l => requiresDailyCadence(l.member.role) && l.planSubmittedAt && !l.eodSubmittedAt
+  )
   const dayTasks = dayLogs.flatMap(l => l.tasks)
   const dayDone = dayTasks.filter(t => t.status === 'done').length
 

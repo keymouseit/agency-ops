@@ -98,7 +98,7 @@ export default function DailyHeader({
               Daily report
             </Link>
           )}
-          {isToday && (
+          {isToday && (!isFounder || pendingEodLogId) && (
             <Link href={planHref} className={pendingEodLogId ? 'btn-secondary text-xs border-red-200 text-red-700 hover:bg-red-50' : 'btn-primary text-xs'}>
               {planButtonLabel}
             </Link>
