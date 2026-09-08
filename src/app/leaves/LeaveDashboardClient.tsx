@@ -19,8 +19,8 @@ import {
   parseISO
 } from 'date-fns'
 import toast, { Toaster } from 'react-hot-toast'
-import { leaveRequestDayCost } from '@/lib/leave-math'
-import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
+import { leaveRequestDayCost, SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
+import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
 import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
@@ -432,6 +432,13 @@ export default function LeaveDashboardClient({
   const pendingShortLeaves = leaves.filter(
     l => l.status === 'pending' && l.leaveType === 'short_leave'
   ).length
+
+  const { year: istYearNow, month: istMonthNow } = istYearAndMonth()
+  const shortLeavesThisMonth = leaves.filter(l => {
+    if (l.leaveType !== 'short_leave' || l.status !== 'approved') return false
+    const ym = istYearAndMonth(new Date(l.startDate))
+    return ym.year === istYearNow && ym.month === istMonthNow
+  }).length
 
   const approvedThisMonth = companyLeaves.filter(l => {
     if (l.status !== 'approved') return false
@@ -913,9 +920,11 @@ export default function LeaveDashboardClient({
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{shortLeaves}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                {shortLeavesThisMonth}/{SHORT_LEAVE_MONTHLY_CAP}
+              </p>
               <p className="text-xs text-gray-500 mt-1">
-                {shortLeaves === 1 ? '1 short leave' : `${shortLeaves} short leaves`}
+                taken this month
                 {pendingShortLeaves > 0 ? ` · ${pendingShortLeaves} pending` : ''}
               </p>
             </div>
