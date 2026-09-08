@@ -26,8 +26,6 @@ function eachWeekdayKeys(from: Date, to: Date) {
   return keys
 }
 
-const DAY_TARGET = MAX_DAILY_PLAN_HOURS // 8h → 40h / week
-
 export type EmployeeReportRange = {
   from: Date
   to: Date
