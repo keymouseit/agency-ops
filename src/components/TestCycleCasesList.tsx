@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { fmtDate } from '@/lib/utils'
-import { TEST_CYCLE_CASE_STATUS_CONFIG, testCycleCaseSummary } from '@/lib/qa'
+import {
+  TEST_CYCLE_CASE_STATUSES,
+  TEST_CYCLE_CASE_STATUS_CONFIG,
+  testCycleCaseSummary,
+} from '@/lib/qa'
 
 type Case = {
   id: string
@@ -23,11 +27,13 @@ export default function TestCycleCasesList({
   compact = false,
   allowDevFix = false,
   allowQARetest = false,
+  allowQAStatusEdit = false,
 }: {
   cases: Case[]
   compact?: boolean
   allowDevFix?: boolean
   allowQARetest?: boolean
+  allowQAStatusEdit?: boolean
 }) {
   const router = useRouter()
   const [fixingId, setFixingId] = useState<string | null>(null)
@@ -84,6 +90,24 @@ export default function TestCycleCasesList({
     }
   }
 
+  async function updateStatus(caseId: string, status: string) {
+    setLoading(caseId)
+    try {
+      const res = await fetch(`/api/qa/cycle-cases/${caseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'qa_update_status', status }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update status')
+      router.refresh()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update status')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   return (
     <div className={compact ? 'mb-2' : 'mb-3'}>
       <div className="flex items-center justify-between mb-2">
@@ -120,6 +144,7 @@ export default function TestCycleCasesList({
           const awaitingRetest = isFailing && !!tc.devFixedAt
           const canDevFix = allowDevFix && isFailing && !tc.devFixedAt
           const canQARetest = allowQARetest && awaitingRetest
+          const canEditStatus = allowQAStatusEdit && !awaitingRetest
           const isFixing = fixingId === tc.id
           const isRetesting = retestingId === tc.id
 
@@ -137,9 +162,25 @@ export default function TestCycleCasesList({
               }`}
             >
               <div className="flex items-start gap-2">
-                <span className={`badge shrink-0 ${cfg.cls}`}>
-                  {awaitingRetest ? 'Awaiting re-test' : cfg.label}
-                </span>
+                {canEditStatus ? (
+                  <select
+                    value={tc.status}
+                    disabled={loading === tc.id}
+                    onChange={e => updateStatus(tc.id, e.target.value)}
+                    className={`badge shrink-0 border-0 cursor-pointer ${cfg.cls}`}
+                    aria-label={`Status for ${tc.title}`}
+                  >
+                    {TEST_CYCLE_CASE_STATUSES.map(s => (
+                      <option key={s} value={s}>
+                        {TEST_CYCLE_CASE_STATUS_CONFIG[s].label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={`badge shrink-0 ${cfg.cls}`}>
+                    {awaitingRetest ? 'Awaiting re-test' : cfg.label}
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-800">{tc.title}</div>
                   {tc.notes && (

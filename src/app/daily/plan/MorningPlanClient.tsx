@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { insertNewlineOnEnter } from '@/lib/multiline-input'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -164,10 +165,11 @@ export default function MorningPlanClient({
                       <textarea
                         value={task.title}
                         onChange={e => updateTask(i, 'title', e.target.value)}
+                        onKeyDown={e => insertNewlineOnEnter(e, next => updateTask(i, 'title', next))}
                         required
                         rows={3}
                         className="input min-h-[80px]"
-                        placeholder='Be specific — e.g. "Build appointment booking API endpoint" not "work on project"'
+                        placeholder={'Be specific — use Enter for new lines\ne.g. Fix booking API\nAdd unit tests'}
                       />
                     </div>
 

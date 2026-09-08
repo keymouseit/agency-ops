@@ -4,11 +4,21 @@ import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canEditEod } from '@/lib/daily'
 
+const ALLOWED_TASK_STATUSES = new Set(['done', 'partial', 'blocked', 'moved', 'skipped'])
+
 type TaskUpdatePayload = {
   status: string
   actualHours: string
   eodNotes: string
   blockedReason: string
+}
+
+type NewTaskPayload = {
+  title: string
+  projectId?: string
+  actualHours?: string
+  eodNotes?: string
+  status?: string
 }
 
 function projectHourDelta(
@@ -49,7 +59,24 @@ export async function POST(
   }
 
   const data = await req.json()
-  const taskUpdates = data.taskUpdates as Record<string, TaskUpdatePayload>
+  const taskUpdates = (data.taskUpdates ?? {}) as Record<string, TaskUpdatePayload>
+  const newTasksRaw = Array.isArray(data.newTasks) ? (data.newTasks as NewTaskPayload[]) : []
+
+  const newTasks = newTasksRaw
+    .map(t => ({
+      title: typeof t.title === 'string' ? t.title.trim() : '',
+      projectId: typeof t.projectId === 'string' && t.projectId ? t.projectId : null,
+      actualHours: t.actualHours ? parseFloat(t.actualHours) : null,
+      eodNotes: typeof t.eodNotes === 'string' ? t.eodNotes.trim() || null : null,
+      status: ALLOWED_TASK_STATUSES.has(t.status ?? '') ? (t.status as string) : 'done',
+    }))
+    .filter(t => t.title.length > 0)
+
+  for (const update of Object.values(taskUpdates)) {
+    if (!ALLOWED_TASK_STATUSES.has(update.status)) {
+      return NextResponse.json({ error: `Invalid task status: ${update.status}` }, { status: 400 })
+    }
+  }
 
   const existingTasks = await prisma.dailyTask.findMany({
     where: { dailyLogId: params.logId },
@@ -63,42 +90,69 @@ export async function POST(
     const prev = existingById.get(taskId)
     if (!prev) continue
 
-    const newHours = update.actualHours ? parseFloat(update.actualHours) : null
+    const newHours =
+      update.status === 'skipped'
+        ? null
+        : update.actualHours
+          ? parseFloat(update.actualHours)
+          : null
     projectHourDelta(projectDeltas, prev.projectId, -(prev.actualHours ?? 0))
     projectHourDelta(projectDeltas, prev.projectId, newHours ?? 0)
   }
 
+  for (const task of newTasks) {
+    const hours = task.status === 'skipped' ? null : task.actualHours
+    projectHourDelta(projectDeltas, task.projectId, hours ?? 0)
+  }
+
   const log = await prisma.$transaction(async tx => {
     await Promise.all(
-      Object.entries(taskUpdates).map(([taskId, update]) =>
-        tx.dailyTask.update({
+      Object.entries(taskUpdates).map(([taskId, update]) => {
+        if (!existingById.has(taskId)) return Promise.resolve()
+        const isSkipped = update.status === 'skipped'
+        return tx.dailyTask.update({
           where: { id: taskId },
           data: {
             status: update.status,
-            actualHours: update.actualHours ? parseFloat(update.actualHours) : null,
+            actualHours: isSkipped
+              ? null
+              : update.actualHours
+                ? parseFloat(update.actualHours)
+                : null,
             eodNotes: update.eodNotes || null,
-            blockedReason: update.blockedReason || null,
+            blockedReason: update.status === 'blocked' ? update.blockedReason || null : null,
           },
         })
-      )
+      })
     )
 
-    const tasks = existingTasks.map(task => {
-      const update = taskUpdates[task.id]
-      if (!update) return task
-      return {
-        ...task,
-        status: update.status,
-        actualHours: update.actualHours ? parseFloat(update.actualHours) : null,
-      }
+    if (newTasks.length > 0) {
+      await tx.dailyTask.createMany({
+        data: newTasks.map(t => ({
+          dailyLogId: params.logId,
+          title: t.title,
+          projectId: t.projectId,
+          taskType: 'feature',
+          priority: 'medium',
+          estimatedHours: t.actualHours && t.actualHours > 0 ? t.actualHours : null,
+          status: t.status,
+          actualHours: t.status === 'skipped' ? null : t.actualHours,
+          eodNotes: t.eodNotes,
+        })),
+      })
+    }
+
+    const allTasks = await tx.dailyTask.findMany({
+      where: { dailyLogId: params.logId },
+      select: { status: true, estimatedHours: true, actualHours: true },
     })
 
-    const completionRate = tasks.length > 0
-      ? tasks.filter(t => t.status === 'done').length / tasks.length
+    const completionRate = allTasks.length > 0
+      ? allTasks.filter(t => t.status === 'done').length / allTasks.length
       : null
 
-    const tasksWithBothHours = tasks.filter(
-      t => t.estimatedHours && t.actualHours && t.estimatedHours > 0
+    const tasksWithBothHours = allTasks.filter(
+      t => t.estimatedHours && t.actualHours && t.estimatedHours > 0 && t.status !== 'skipped'
     )
     const estimationScore = tasksWithBothHours.length > 0
       ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) / tasksWithBothHours.length
@@ -129,7 +183,6 @@ export async function POST(
     return updatedLog
   })
 
-  // Drop stale RSC payloads so /me and /daily stop showing “Submit EOD”
   revalidatePath('/me')
   revalidatePath('/daily')
   revalidatePath('/daily/plan')

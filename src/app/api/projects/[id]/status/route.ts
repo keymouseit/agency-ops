@@ -10,7 +10,7 @@ import { invalidateProjectsListCache } from '@/lib/cache-tags'
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const startTime = Date.now()
   try {
-    const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager', "BD"])
+    const deny = await checkRole(['Dev', 'Both', 'Founder', 'Manager', 'BD', 'QA'])
     if (deny) return deny
 
     const { status, qaHandoff } = await req.json()
@@ -26,12 +26,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Get current project data for audit trail
     const oldProject = await prisma.project.findUnique({
       where: { id: params.id },
-      select: { name: true, status: true },
+      select: { name: true, status: true, developerId: true },
     })
 
     if (!oldProject) {
       logger.warn('Project not found for status update', { projectId: params.id })
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    // QA can only send a project back from QA → Active (or On Hold)
+    if (userRole === 'QA') {
+      if (oldProject.status !== 'qa') {
+        return NextResponse.json(
+          { error: 'QA can only change status while the project is in QA.' },
+          { status: 403 }
+        )
+      }
+      if (!['active', 'on_hold'].includes(status)) {
+        return NextResponse.json(
+          { error: 'QA can move a project back to Active or On Hold only.' },
+          { status: 403 }
+        )
+      }
     }
 
     // Validate QA handoff data when moving to QA status
@@ -135,6 +151,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           `${p.name} has moved to QA${handoffSummary}`,
           `/qa/${p.id}`)
       }
+    }
+
+    // Notify developer when QA sends the project back to Active / On Hold
+    if (oldProject.status === 'qa' && (status === 'active' || status === 'on_hold') && oldProject.developerId) {
+      const label = status === 'active' ? 'Active' : 'On Hold'
+      await notify(
+        'project_assigned',
+        [oldProject.developerId],
+        `QA moved ${p.name} back to ${label}`,
+        `/projects/${p.id}`,
+      )
     }
 
     logger.logApiResponse('POST', `/api/projects/${params.id}/status`, 200, Date.now() - startTime)

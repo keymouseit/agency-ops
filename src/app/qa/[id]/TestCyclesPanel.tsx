@@ -91,6 +91,7 @@ export default function TestCyclesPanel({
       <TestCyclesList
         testCycles={testCycles}
         hasSignOff={hasSignOff}
+        allowQAManage={canManage && !hasSignOff}
         manageButtons={canManage ? (cycle, _isLatest, closeModal) =>
           !hasSignOff && editingCycleId !== cycle.id ? (
             <TestCycleManageButtons

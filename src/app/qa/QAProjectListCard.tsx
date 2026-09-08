@@ -40,7 +40,13 @@ function progressColor(pct: number) {
   return 'bg-gray-400'
 }
 
-export default function QAProjectListCard({ project }: { project: Project }) {
+export default function QAProjectListCard({
+  project,
+  canManage = false,
+}: {
+  project: Project
+  canManage?: boolean
+}) {
   const latestCycle = project.testCycles[0]
   const hasSignOff = !!project.releaseSignOff
   const milestoneProgress = projectMilestoneProgress(project.milestones)
@@ -136,9 +142,16 @@ export default function QAProjectListCard({ project }: { project: Project }) {
               )}
             </div>
           </div>
-          <Link href={`/qa/${project.id}`} className="btn-secondary text-xs px-3 py-1.5 shrink-0">
-            Details →
-          </Link>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {canManage && !hasSignOff && (
+              <Link href={`/qa/${project.id}`} className="btn-primary text-xs px-3 py-1.5">
+                + Log test cycle
+              </Link>
+            )}
+            <Link href={`/qa/${project.id}`} className="btn-secondary text-xs px-3 py-1.5">
+              Details →
+            </Link>
+          </div>
         </div>
       </div>
 

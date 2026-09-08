@@ -3,6 +3,7 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
 import { logProjectQAActivity } from '@/lib/qa-audit'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['Dev', 'QA', 'Both', 'Founder'])
@@ -103,5 +104,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  invalidateProjectsListCache()
   return NextResponse.json(milestone)
 }

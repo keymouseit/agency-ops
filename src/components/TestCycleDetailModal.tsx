@@ -37,6 +37,7 @@ type Props = {
   isLatest?: boolean
   allowDevFix?: boolean
   allowQARetest?: boolean
+  allowQAStatusEdit?: boolean
   headerActions?: React.ReactNode
   onClose: () => void
 }
@@ -46,6 +47,7 @@ export default function TestCycleDetailModal({
   isLatest,
   allowDevFix,
   allowQARetest,
+  allowQAStatusEdit,
   headerActions,
   onClose,
 }: Props) {
@@ -122,6 +124,7 @@ export default function TestCycleDetailModal({
               cases={cycle.cases}
               allowDevFix={allowDevFix}
               allowQARetest={allowQARetest}
+              allowQAStatusEdit={allowQAStatusEdit}
             />
           )}
 

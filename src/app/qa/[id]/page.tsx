@@ -10,6 +10,7 @@ import QAProjectActions from './QAProjectActions'
 import MilestoneApproval from './MilestoneApproval'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 import TestCyclesPanel from './TestCyclesPanel'
+import QAReturnToDev from './QAReturnToDev'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +54,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
@@ -64,6 +65,9 @@ export default async function QAProjectPage({ params }: { params: { id: string }
             </span>
           </div>
         </div>
+        {canManageQA && (
+          <QAReturnToDev projectId={project.id} projectStatus={project.status} />
+        )}
       </div>
 
       {!canManageQA && (

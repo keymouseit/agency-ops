@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import MorningPlanHeader from './MorningPlanHeader'
 
 type Member = { id: string; name: string; role: string }
@@ -237,11 +238,13 @@ export default function MorningPlanForm({
                     <textarea
                       value={task.title}
                       onChange={e => updateTask(i, 'title', e.target.value)}
+                      onKeyDown={e => insertNewlineOnEnter(e, next => updateTask(i, 'title', next))}
                       required
                       rows={3}
                       className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
-                      placeholder='Be specific — e.g. "Fix date picker bug on mobile Safari"'
+                      placeholder={'Be specific — use Enter for new lines\ne.g. 1. Fix DOB picker\n2. Test dark mode'}
                     />
+                    <p className="text-[11px] text-gray-400 mt-1">Enter = new line</p>
                   </div>
 
                   <div>
@@ -351,6 +354,7 @@ export default function MorningPlanForm({
           <textarea
             value={planNotes}
             onChange={e => setPlanNotes(e.target.value)}
+            onKeyDown={e => insertNewlineOnEnter(e, setPlanNotes)}
             rows={3}
             className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
             placeholder="Waiting on client response, need staging access, etc."

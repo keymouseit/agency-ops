@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { canViewQATestCycles } from '@/lib/qa-access'
 import DeveloperMilestones from './DeveloperMilestones'
@@ -318,29 +317,20 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
       )}
 
       {activeTab === 'qa' && (
-        <>
-          {showQADetailLink && (
-            <div className="mb-4 flex justify-end">
-              <Link href={`/qa/${projectId}`} className="text-sm font-medium text-teal-700 hover:text-teal-900">
-                Open full QA workspace →
-              </Link>
-            </div>
-          )}
-          <QAActivityFeed
-            qaModulesDelivered={project.qaModulesDelivered}
-            qaSuggestedTestType={project.qaSuggestedTestType}
-            qaTestingNotes={project.qaTestingNotes}
-            qaAreasChanged={project.qaAreasChanged}
-            qaHandoffAt={project.qaHandoffAt ? new Date(project.qaHandoffAt) : null}
-            testCycles={project.testCycles}
-            releaseSignOff={project.releaseSignOff}
-            postDeliveryIssues={project.postDeliveryIssues}
-            milestones={project.milestones}
-            projectStatus={project.status}
-            allowDevFix={userRole === 'Dev' || userRole === 'Both' || userRole === 'Founder'}
-            qaDetailHref={showQADetailLink ? `/qa/${projectId}` : undefined}
-          />
-        </>
+        <QAActivityFeed
+          qaModulesDelivered={project.qaModulesDelivered}
+          qaSuggestedTestType={project.qaSuggestedTestType}
+          qaTestingNotes={project.qaTestingNotes}
+          qaAreasChanged={project.qaAreasChanged}
+          qaHandoffAt={project.qaHandoffAt ? new Date(project.qaHandoffAt) : null}
+          testCycles={project.testCycles}
+          releaseSignOff={project.releaseSignOff}
+          postDeliveryIssues={project.postDeliveryIssues}
+          milestones={project.milestones}
+          projectStatus={project.status}
+          allowDevFix={userRole === 'Dev' || userRole === 'Both' || userRole === 'Founder'}
+          qaDetailHref={showQADetailLink ? `/qa/${projectId}` : undefined}
+        />
       )}
 
       {activeTab === 'scope' && (

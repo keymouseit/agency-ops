@@ -422,7 +422,7 @@ model DailyTask {
   estimatedHours Float?
 
   // EOD update fields
-  status       String    @default("planned") // "planned" | "done" | "partial" | "blocked" | "moved"
+  status       String    @default("planned") // "planned" | "done" | "partial" | "blocked" | "moved" | "skipped"
   actualHours  Float?
   eodNotes     String?   // what happened with this task
   blockedReason String?  // if status = blocked, why

@@ -46,7 +46,7 @@ export default async function MorningPlanPage() {
     findPendingPastEodLogSummary(memberId),
 
     prisma.project.findMany({
-      where: { status: { in: ['active', 'qa', 'scoping'] } },
+      where: { status: { in: ['active', 'qa', 'scoping', 'maintenance'] } },
       select: { id: true, name: true, clientName: true },
       orderBy: { name: 'asc' },
     }),

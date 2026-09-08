@@ -43,6 +43,7 @@ const NAV_STRUCTURE = {
         { href: '/daily', label: 'Daily' },
         { href: '/leaves', label: 'Leaves' },
         { href: '/goals', label: 'Goals' },
+        { href: '/reports/employee', label: 'Employee report' },
       ],
     },
     {
@@ -76,6 +77,7 @@ const NAV_STRUCTURE = {
         { href: '/daily', label: 'Daily' },
         { href: '/leaves', label: 'Leaves' },
         { href: '/goals', label: 'Goals' },
+        { href: '/reports/employee', label: 'Employee report' },
       ],
     },
     {

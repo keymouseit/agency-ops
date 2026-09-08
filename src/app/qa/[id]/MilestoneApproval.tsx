@@ -238,6 +238,7 @@ export default function MilestoneApproval({
                   ) : (
                     <>
                       <MilestoneTestCaseEditor
+                        key={`${m.id}-${m.status}`}
                         milestoneId={m.id}
                         milestoneStatus={m.status}
                         testCases={m.testCases}

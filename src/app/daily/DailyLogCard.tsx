@@ -13,6 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
   partial: 'bg-amber-100 text-amber-800',
   blocked: 'bg-red-100 text-red-800',
   moved: 'bg-gray-100 text-gray-500',
+  skipped: 'bg-slate-100 text-slate-600',
 }
 
 type Task = {
@@ -150,20 +151,24 @@ export default function DailyLogCard({ log, isToday, currentUserId }: Props) {
         {log.tasks.map(task => (
           <div
             key={task.id}
-            className={`px-5 py-3.5 flex items-start gap-3 ${task.status === 'done' ? 'bg-gray-50/30' : ''}`}
+            className={`px-5 py-3.5 flex items-start gap-3 ${
+              task.status === 'done' || task.status === 'skipped' ? 'bg-gray-50/30' : ''
+            }`}
           >
             <div
               className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`}
             />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className={`text-sm whitespace-pre-line ${
-                    task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-800 font-medium'
-                  }`}
-                >
-                  {task.title}
-                </span>
+              <p
+                className={`text-sm whitespace-pre-wrap break-words ${
+                  task.status === 'done' || task.status === 'skipped'
+                    ? 'line-through text-gray-400'
+                    : 'text-gray-800 font-medium'
+                }`}
+              >
+                {task.title}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap mt-1.5">
                 <span
                   className={`badge text-[11px] ${dailyTaskTypeColor(task.taskType)}`}
                 >

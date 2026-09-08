@@ -269,7 +269,7 @@ export default async function DailyAnalyticsPage({
                   log.tasks.map(task => (
                     <tr key={task.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 text-gray-700">{log.member.name}</td>
-                      <td className="px-4 py-2.5 text-gray-900">{task.title}</td>
+                      <td className="px-4 py-2.5 text-gray-900 whitespace-pre-wrap break-words">{task.title}</td>
                       <td className="px-4 py-2.5 text-gray-500">{task.project?.name ?? '—'}</td>
                       <td className="text-center px-3 py-2.5">
                         <span
