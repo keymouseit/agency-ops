@@ -281,3 +281,131 @@ export function findTodayEditableEodLog(memberId: string) {
     include: openLogInclude,
   }).then(log => (log && canEditEod(log.eodSubmittedAt) ? log : null))
 }
+
+export type CarryOverMovedTask = {
+  id: string
+  title: string
+  taskType: string
+  priority: string
+  projectId: string | null
+  estimatedHours: number | null
+  project: { id: string; name: string } | null
+}
+
+export type CarryOverMovedResult = {
+  sourceDate: Date
+  sourceLogId: string
+  carryOverNotes: string | null
+  /** Same-day EOD (moved to tomorrow) vs previous day (ready to plan). */
+  sameDay: boolean
+  tasks: CarryOverMovedTask[]
+}
+
+/**
+ * Tasks marked "moved" on the latest EOD that still need to land in a future morning plan.
+ * - After today's EOD: show today's moved tasks (sameDay=true).
+ * - Next morning before planning: show previous EOD's moved tasks for prefilling.
+ * Once any later day has a submitted plan, carry-over is considered absorbed.
+ */
+export async function findCarryOverMovedTasks(
+  memberId: string,
+): Promise<CarryOverMovedResult | null> {
+  const today = businessDayStart()
+
+  const todayLog = await prisma.dailyLog.findUnique({
+    where: { memberId_date: { memberId, date: today } },
+    select: {
+      id: true,
+      date: true,
+      planSubmittedAt: true,
+      eodSubmittedAt: true,
+      carryOver: true,
+      tasks: {
+        where: { status: 'moved' },
+        select: {
+          id: true,
+          title: true,
+          taskType: true,
+          priority: true,
+          projectId: true,
+          estimatedHours: true,
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+      },
+    },
+  })
+
+  // Same day: EOD done with moved tasks → show on dashboard until tomorrow's plan.
+  if (todayLog?.eodSubmittedAt && todayLog.tasks.length > 0) {
+    return {
+      sourceDate: todayLog.date,
+      sourceLogId: todayLog.id,
+      carryOverNotes: todayLog.carryOver,
+      sameDay: true,
+      tasks: todayLog.tasks,
+    }
+  }
+
+  // Already planned today → don't prefill / don't show pending carry-over.
+  if (todayLog?.planSubmittedAt) return null
+
+  const pastLog = await prisma.dailyLog.findFirst({
+    where: {
+      memberId,
+      date: { lt: today },
+      eodSubmittedAt: { not: null },
+      tasks: { some: { status: 'moved' } },
+    },
+    orderBy: { date: 'desc' },
+    select: {
+      id: true,
+      date: true,
+      carryOver: true,
+      tasks: {
+        where: { status: 'moved' },
+        select: {
+          id: true,
+          title: true,
+          taskType: true,
+          priority: true,
+          projectId: true,
+          estimatedHours: true,
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+      },
+    },
+  })
+
+  if (!pastLog?.tasks.length) return null
+
+  const absorbed = await prisma.dailyLog.findFirst({
+    where: {
+      memberId,
+      date: { gt: pastLog.date },
+      planSubmittedAt: { not: null },
+    },
+    select: { id: true },
+  })
+  if (absorbed) return null
+
+  return {
+    sourceDate: pastLog.date,
+    sourceLogId: pastLog.id,
+    carryOverNotes: pastLog.carryOver,
+    sameDay: false,
+    tasks: pastLog.tasks,
+  }
+}
+
+/** Map moved tasks into morning-plan form rows. */
+export function carryOverTasksToPlanRows(tasks: CarryOverMovedTask[]) {
+  return tasks.map(t => ({
+    title: t.title,
+    taskType: t.taskType,
+    priority: t.priority || 'medium',
+    projectId: t.projectId ?? '',
+    estimatedHours: t.estimatedHours != null ? String(t.estimatedHours) : '',
+  }))
+}

@@ -1,6 +1,12 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate } from '@/lib/daily'
+import {
+  businessDayStart,
+  findPendingPastEodLogSummary,
+  formatDailyLogDate,
+  findCarryOverMovedTasks,
+  carryOverTasksToPlanRows,
+} from '@/lib/daily'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
@@ -14,7 +20,7 @@ export default async function MorningPlanPage() {
   const memberId = session.user.id
   const today = businessDayStart()
 
-  const [member, todayLog, pendingPastEodLog, projects] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, projects, carryOverMoved] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
 
     prisma.dailyLog.findUnique({
@@ -44,6 +50,8 @@ export default async function MorningPlanPage() {
       select: { id: true, name: true, clientName: true },
       orderBy: { name: 'asc' },
     }),
+
+    findCarryOverMovedTasks(memberId),
   ])
 
   if (!member) redirect('/login')
@@ -59,7 +67,16 @@ export default async function MorningPlanPage() {
     projectId: t.projectId ?? '',
     estimatedHours: t.estimatedHours?.toString() ?? '',
   }))
-  const alreadyPlannedToday = !!todayLog?.planSubmittedAt;
+  const alreadyPlannedToday = !!todayLog?.planSubmittedAt
+
+  const carryInTasks =
+    !isEditMode &&
+    !replanAfterEod &&
+    carryOverMoved &&
+    !carryOverMoved.sameDay &&
+    carryOverMoved.tasks.length > 0
+      ? carryOverTasksToPlanRows(carryOverMoved.tasks)
+      : undefined
 
   if (alreadyPlannedToday && !isEditMode) {
     return (
@@ -120,8 +137,19 @@ export default async function MorningPlanPage() {
       projects={projects}
       replanAfterEod={replanAfterEod}
       isEdit={isEditMode}
-      initialTasks={isEditMode ? initialTasks : undefined}
-      initialPlanNotes={isEditMode ? (todayLog?.planNotes ?? '') : undefined}
+      initialTasks={isEditMode ? initialTasks : carryInTasks}
+      initialPlanNotes={
+        isEditMode
+          ? (todayLog?.planNotes ?? '')
+          : carryOverMoved && !carryOverMoved.sameDay
+            ? (carryOverMoved.carryOverNotes ?? '')
+            : undefined
+      }
+      carryOverFromDate={
+        carryInTasks?.length && carryOverMoved
+          ? formatDailyLogDate(carryOverMoved.sourceDate)
+          : undefined
+      }
     />
   )
 }

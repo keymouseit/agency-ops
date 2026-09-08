@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 
-export default function MePlanWidget() {
+export default function MePlanWidget({ movedCount = 0 }: { movedCount?: number }) {
   return (
     <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -13,7 +13,9 @@ export default function MePlanWidget() {
           <div>
             <p className="text-sm font-semibold text-blue-950">No morning plan yet</p>
             <p className="text-xs text-blue-700 mt-1 max-w-md">
-              Plan your day before you start working — it takes about 2 minutes and keeps your team in sync.
+              {movedCount > 0
+                ? `${movedCount} moved task${movedCount === 1 ? '' : 's'} from yesterday will be prefilled when you plan.`
+                : 'Plan your day before you start working — it takes about 2 minutes and keeps your team in sync.'}
             </p>
           </div>
         </div>
@@ -21,7 +23,7 @@ export default function MePlanWidget() {
           href="/daily/plan"
           className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm shrink-0"
         >
-          Plan my day →
+          {movedCount > 0 ? 'Plan with moved tasks →' : 'Plan my day →'}
         </Link>
       </div>
 

@@ -92,6 +92,7 @@ export default function MorningPlanForm({
   isEdit = false,
   initialTasks,
   initialPlanNotes = '',
+  carryOverFromDate,
 }: {
   member: Member
   projects: Project[]
@@ -99,6 +100,7 @@ export default function MorningPlanForm({
   isEdit?: boolean
   initialTasks?: Task[]
   initialPlanNotes?: string
+  carryOverFromDate?: string
 }) {
   const [tasks, setTasks] = useState<Task[]>(
     initialTasks?.length
@@ -187,7 +189,14 @@ export default function MorningPlanForm({
         </div>
       )}
 
-      {!isEdit && !replanAfterEod && (
+      {carryOverFromDate && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          <span className="font-semibold">Prefilled from moved tasks</span>
+          <span className="text-slate-600"> · {carryOverFromDate}&apos;s EOD. Edit or add more before submitting.</span>
+        </div>
+      )}
+
+      {!isEdit && !replanAfterEod && !carryOverFromDate && (
         <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800">
           <span className="font-semibold">Tip:</span> Be specific — &quot;Fix the date picker bug on iOS&quot; beats
           &quot;work on app&quot;. Your EOD report will reference these tasks.
