@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { canEditEod } from '@/lib/daily'
+import { createClientId } from '@/lib/utils'
+import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import EODHeader from './EODHeader'
 
 type Task = {
@@ -17,6 +19,8 @@ type Task = {
   blockedReason: string | null
   project: { name: string } | null
 }
+
+type Project = { id: string; name: string; clientName: string | null }
 
 type Log = {
   id: string
@@ -35,6 +39,7 @@ const TASK_STATUSES = [
   { value: 'partial', label: '½ Partial', active: 'bg-amber-500 text-white border-amber-500', idle: 'border-amber-200 text-amber-700 hover:bg-amber-50' },
   { value: 'blocked', label: '⊘ Blocked', active: 'bg-red-600 text-white border-red-600', idle: 'border-red-200 text-red-700 hover:bg-red-50' },
   { value: 'moved', label: '→ Moved', active: 'bg-gray-600 text-white border-gray-600', idle: 'border-gray-200 text-gray-600 hover:bg-gray-50' },
+  { value: 'skipped', label: '— Skipped', active: 'bg-slate-500 text-white border-slate-500', idle: 'border-slate-200 text-slate-600 hover:bg-slate-50' },
 ] as const
 
 const STATUS_BADGE: Record<string, string> = {
@@ -42,6 +47,7 @@ const STATUS_BADGE: Record<string, string> = {
   partial: 'bg-amber-100 text-amber-800',
   blocked: 'bg-red-100 text-red-800',
   moved: 'bg-gray-100 text-gray-700',
+  skipped: 'bg-slate-100 text-slate-600',
 }
 
 type TaskUpdate = {
@@ -49,6 +55,18 @@ type TaskUpdate = {
   actualHours: string
   eodNotes: string
   blockedReason: string
+}
+
+type NewTask = {
+  clientId: string
+  title: string
+  projectId: string
+  actualHours: string
+  eodNotes: string
+}
+
+function emptyNewTask(): NewTask {
+  return { clientId: createClientId(), title: '', projectId: '', actualHours: '', eodNotes: '' }
 }
 
 function buildTaskUpdates(tasks: Task[], forEdit: boolean): Record<string, TaskUpdate> {
@@ -67,12 +85,14 @@ function buildTaskUpdates(tasks: Task[], forEdit: boolean): Record<string, TaskU
 
 function EODStats({
   doneCount,
+  skippedCount,
   blockedCount,
   totalActual,
   totalEst,
   dayRating,
 }: {
   doneCount: number
+  skippedCount: number
   blockedCount: number
   totalActual: number
   totalEst: number
@@ -80,6 +100,7 @@ function EODStats({
 }) {
   const stats = [
     { label: 'Done', value: doneCount.toString(), icon: '✅', good: doneCount > 0 },
+    { label: 'Skipped', value: skippedCount.toString(), icon: '—', muted: skippedCount > 0 },
     { label: 'Blocked', value: blockedCount.toString(), icon: '🚫', bad: blockedCount > 0 },
     {
       label: 'Hours logged',
@@ -93,8 +114,11 @@ function EODStats({
       : []),
   ]
 
+  const cols =
+    stats.length >= 5 ? 'grid-cols-2 lg:grid-cols-5' : stats.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-3'
+
   return (
-    <div className={`grid gap-3 mb-6 ${stats.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-3'}`}>
+    <div className={`grid gap-3 mb-6 ${cols}`}>
       {stats.map(stat => (
         <div
           key={stat.label}
@@ -108,7 +132,13 @@ function EODStats({
           </div>
           <div
             className={`text-xl font-semibold tabular-nums ${
-              stat.bad ? 'text-red-600' : stat.good ? 'text-green-700' : 'text-gray-900'
+              'bad' in stat && stat.bad
+                ? 'text-red-600'
+                : 'good' in stat && stat.good
+                  ? 'text-green-700'
+                  : 'muted' in stat && stat.muted
+                    ? 'text-slate-600'
+                    : 'text-gray-900'
             }`}
           >
             {stat.value}
@@ -170,15 +200,18 @@ function DayRatingPicker({
 
 export default function EODClient({
   log,
+  projects = [],
   readOnly = false,
 }: {
   log: Log
+  projects?: Project[]
   readOnly?: boolean
 }) {
   const isEditMode = !!log.eodSubmittedAt && !readOnly
   const [taskUpdates, setTaskUpdates] = useState<Record<string, TaskUpdate>>(() =>
     buildTaskUpdates(log.tasks, isEditMode)
   )
+  const [newTasks, setNewTasks] = useState<NewTask[]>([])
   const [blockers, setBlockers] = useState(log.blockers ?? '')
   const [carryOver, setCarryOver] = useState(log.carryOver ?? '')
   const [dayRating, setDayRating] = useState<number | null>(log.dayRating)
@@ -190,13 +223,33 @@ export default function EODClient({
   const router = useRouter()
 
   function updateTask(id: string, field: keyof TaskUpdate, value: string) {
-    setTaskUpdates(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
+    setTaskUpdates(prev => {
+      const next = { ...prev[id], [field]: value }
+      if (field === 'status' && value === 'skipped') {
+        next.actualHours = ''
+        next.blockedReason = ''
+      }
+      return { ...prev, [id]: next }
+    })
   }
 
-  const totalActual = Object.values(taskUpdates).reduce((s, t) => s + (parseFloat(t.actualHours) || 0), 0)
+  function updateNewTask(clientId: string, field: keyof Omit<NewTask, 'clientId'>, value: string) {
+    setNewTasks(prev => prev.map(t => (t.clientId === clientId ? { ...t, [field]: value } : t)))
+  }
+
+  const plannedActual = Object.entries(taskUpdates).reduce((s, [, t]) => {
+    if (t.status === 'skipped') return s
+    return s + (parseFloat(t.actualHours) || 0)
+  }, 0)
+  const newActual = newTasks.reduce((s, t) => s + (parseFloat(t.actualHours) || 0), 0)
+  const totalActual = plannedActual + newActual
   const totalEst = log.tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
-  const doneCount = Object.values(taskUpdates).filter(t => t.status === 'done').length
+  const doneCount =
+    Object.values(taskUpdates).filter(t => t.status === 'done').length +
+    newTasks.filter(t => t.title.trim()).length
+  const skippedCount = Object.values(taskUpdates).filter(t => t.status === 'skipped').length
   const blockedCount = Object.values(taskUpdates).filter(t => t.status === 'blocked').length
+  const taskTotal = log.tasks.length + newTasks.filter(t => t.title.trim()).length
 
   function go(href: string) {
     router.push(href)
@@ -206,22 +259,44 @@ export default function EODClient({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!dayRating) return
+
+    const invalidNew = newTasks.some(t => t.title.trim() && !(parseFloat(t.actualHours) > 0))
+    if (invalidNew) {
+      setError('New tasks need a title and actual hours worked.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
       const res = await fetch(`/api/daily/${log.id}/eod`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskUpdates, blockers, carryOver, dayRating, eodNotes }),
+        body: JSON.stringify({
+          taskUpdates,
+          newTasks: newTasks
+            .filter(t => t.title.trim())
+            .map(t => ({
+              title: t.title.trim(),
+              projectId: t.projectId || undefined,
+              actualHours: t.actualHours,
+              eodNotes: t.eodNotes,
+              status: 'done',
+            })),
+          blockers,
+          carryOver,
+          dayRating,
+          eodNotes,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to submit EOD')
 
-      // Clear stale /me and /daily client cache so “Submit EOD” disappears
       router.refresh()
 
       if (isEditMode) {
         setJustUpdated(true)
+        setNewTasks([])
       } else {
         setShowSuccess(true)
       }
@@ -246,6 +321,7 @@ export default function EODClient({
         <ReadOnlySummary
           log={log}
           doneCount={log.tasks.filter(t => t.status === 'done').length}
+          skippedCount={log.tasks.filter(t => t.status === 'skipped').length}
           blockedCount={log.tasks.filter(t => t.status === 'blocked').length}
         />
       </div>
@@ -262,7 +338,8 @@ export default function EODClient({
           </div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-2">EOD submitted</h1>
           <p className="text-gray-500 mb-1">
-            {log.member.name} — {doneCount} of {log.tasks.length} tasks done.
+            {log.member.name} — {doneCount} of {taskTotal} tasks done
+            {skippedCount > 0 ? ` · ${skippedCount} skipped` : ''}.
           </p>
           <p className="text-sm text-gray-400 mb-8 max-w-md mx-auto">
             {canEditAgain
@@ -312,13 +389,17 @@ export default function EODClient({
 
       <form onSubmit={submit} className="space-y-5">
         <div className="space-y-4">
+          <p className="text-sm font-semibold text-gray-900 px-1">Planned tasks</p>
           {log.tasks.map((task, i) => {
             const update = taskUpdates[task.id]
             const statusStyle = TASK_STATUSES.find(s => s.value === update.status)
+            const isSkipped = update.status === 'skipped'
             return (
               <div
                 key={task.id}
-                className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+                className={`rounded-2xl border bg-white shadow-sm overflow-hidden ${
+                  isSkipped ? 'border-slate-200 opacity-90' : 'border-gray-200'
+                }`}
               >
                 <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
                   <div className="flex items-center gap-2 min-w-0">
@@ -326,7 +407,9 @@ export default function EODClient({
                       {i + 1}
                     </span>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 whitespace-pre-line truncate">
+                      <div className={`text-sm font-semibold whitespace-pre-wrap break-words ${
+                        isSkipped ? 'text-gray-500 line-through' : 'text-gray-900'
+                      }`}>
                         {task.title}
                       </div>
                       {task.project && (
@@ -342,7 +425,7 @@ export default function EODClient({
                 <div className="p-5 space-y-4">
                   <div>
                     <label className="label mb-2">Status</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                       {TASK_STATUSES.map(s => (
                         <button
                           key={s.value}
@@ -356,48 +439,77 @@ export default function EODClient({
                         </button>
                       ))}
                     </div>
+                    {isSkipped && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        Marked as not worked on today — won’t count toward hours logged.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="grid sm:grid-cols-[120px_1fr] gap-4">
+                  {!isSkipped && (
+                    <div className="grid sm:grid-cols-[120px_1fr] gap-4">
+                      <div>
+                        <label className="label">Actual hours</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={update.actualHours}
+                          onChange={e => updateTask(task.id, 'actualHours', e.target.value)}
+                          className="input bg-gray-50/50 focus:bg-white tabular-nums"
+                        />
+                      </div>
+                      <div>
+                        {update.status === 'blocked' ? (
+                          <>
+                            <label className="label text-red-600">Why blocked?</label>
+                            <textarea
+                              value={update.blockedReason}
+                              onChange={e => updateTask(task.id, 'blockedReason', e.target.value)}
+                              onKeyDown={e =>
+                                insertNewlineOnEnter(e, next => updateTask(task.id, 'blockedReason', next))
+                              }
+                              rows={3}
+                              className="input border-red-200 bg-red-50/30 focus:bg-white min-h-[80px]"
+                              placeholder="Be specific about what's blocking this"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <label className="label">Notes (optional)</label>
+                            <textarea
+                              value={update.eodNotes}
+                              onChange={e => updateTask(task.id, 'eodNotes', e.target.value)}
+                              onKeyDown={e =>
+                                insertNewlineOnEnter(e, next => updateTask(task.id, 'eodNotes', next))
+                              }
+                              rows={3}
+                              className="input bg-gray-50/50 focus:bg-white min-h-[80px]"
+                              placeholder="What happened with this task?"
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isSkipped && (
                     <div>
-                      <label className="label">Actual hours</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={update.actualHours}
-                        onChange={e => updateTask(task.id, 'actualHours', e.target.value)}
-                        className="input bg-gray-50/50 focus:bg-white tabular-nums"
+                      <label className="label">Why skipped? (optional)</label>
+                      <textarea
+                        value={update.eodNotes}
+                        onChange={e => updateTask(task.id, 'eodNotes', e.target.value)}
+                        onKeyDown={e =>
+                          insertNewlineOnEnter(e, next => updateTask(task.id, 'eodNotes', next))
+                        }
+                        rows={2}
+                        className="input bg-slate-50/50 focus:bg-white min-h-[64px]"
+                        placeholder="Reprioritized, waiting on deps, covered by something else…"
                       />
                     </div>
-                    <div>
-                      {update.status === 'blocked' ? (
-                        <>
-                          <label className="label text-red-600">Why blocked?</label>
-                          <textarea
-                            value={update.blockedReason}
-                            onChange={e => updateTask(task.id, 'blockedReason', e.target.value)}
-                            rows={3}
-                            className="input border-red-200 bg-red-50/30 focus:bg-white min-h-[80px]"
-                            placeholder="Be specific about what's blocking this"
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <label className="label">Notes (optional)</label>
-                          <textarea
-                            value={update.eodNotes}
-                            onChange={e => updateTask(task.id, 'eodNotes', e.target.value)}
-                            rows={3}
-                            className="input bg-gray-50/50 focus:bg-white min-h-[80px]"
-                            placeholder="What happened with this task?"
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
-                  {statusStyle && (
+                  {statusStyle && !isSkipped && (
                     <div className="text-[11px] text-gray-400">
                       Marked as <span className="font-medium text-gray-600">{statusStyle.label}</span>
                     </div>
@@ -406,6 +518,104 @@ export default function EODClient({
               </div>
             )
           })}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3 px-1">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Also completed today</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Work that wasn’t in your morning plan — add it so EOD reflects the full day.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewTasks(prev => [...prev, emptyNewTask()])}
+              className="btn-secondary text-xs shrink-0"
+            >
+              + Add task
+            </button>
+          </div>
+
+          {newTasks.length === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center text-sm text-gray-400">
+              No unplanned tasks yet. Use “+ Add task” if you completed something extra.
+            </div>
+          )}
+
+          {newTasks.map((task, i) => (
+            <div key={task.clientId} className="rounded-2xl border border-teal-100 bg-teal-50/30 p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-teal-800 uppercase tracking-wide">
+                  Unplanned · {i + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewTasks(prev => prev.filter(t => t.clientId !== task.clientId))}
+                  className="text-xs text-red-600 hover:text-red-800"
+                >
+                  Remove
+                </button>
+              </div>
+              <div>
+                <label className="label">What did you complete?</label>
+                <textarea
+                  required={!!task.title.trim() || !!task.actualHours}
+                  value={task.title}
+                  onChange={e => updateNewTask(task.clientId, 'title', e.target.value)}
+                  onKeyDown={e =>
+                    insertNewlineOnEnter(e, next => updateNewTask(task.clientId, 'title', next))
+                  }
+                  rows={2}
+                  className="input bg-white min-h-[64px]"
+                  placeholder="e.g. Fixed production login bug for Client X"
+                />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Actual hours *</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    required={!!task.title.trim()}
+                    value={task.actualHours}
+                    onChange={e => updateNewTask(task.clientId, 'actualHours', e.target.value)}
+                    className="input bg-white tabular-nums"
+                    placeholder="1.5"
+                  />
+                </div>
+                <div>
+                  <label className="label">Project (optional)</label>
+                  <select
+                    value={task.projectId}
+                    onChange={e => updateNewTask(task.clientId, 'projectId', e.target.value)}
+                    className="input bg-white"
+                  >
+                    <option value="">— None —</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes (optional)</label>
+                <textarea
+                  value={task.eodNotes}
+                  onChange={e => updateNewTask(task.clientId, 'eodNotes', e.target.value)}
+                  onKeyDown={e =>
+                    insertNewlineOnEnter(e, next => updateNewTask(task.clientId, 'eodNotes', next))
+                  }
+                  rows={2}
+                  className="input bg-white min-h-[64px]"
+                  placeholder="Context for the team"
+                />
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-5">
@@ -426,6 +636,7 @@ export default function EODClient({
             <textarea
               value={blockers}
               onChange={e => setBlockers(e.target.value)}
+              onKeyDown={e => insertNewlineOnEnter(e, setBlockers)}
               rows={3}
               className="input min-h-[80px] bg-gray-50/50 focus:bg-white"
               placeholder="Waiting on client sign-off, staging access, etc."
@@ -445,6 +656,7 @@ export default function EODClient({
             <textarea
               value={carryOver}
               onChange={e => setCarryOver(e.target.value)}
+              onKeyDown={e => insertNewlineOnEnter(e, setCarryOver)}
               rows={3}
               className="input min-h-[80px] bg-gray-50/50 focus:bg-white"
               placeholder="Finish API integration — blocked on review"
@@ -464,6 +676,7 @@ export default function EODClient({
             <textarea
               value={eodNotes}
               onChange={e => setEodNotes(e.target.value)}
+              onKeyDown={e => insertNewlineOnEnter(e, setEodNotes)}
               rows={3}
               className="input min-h-[80px] bg-gray-50/50 focus:bg-white"
               placeholder="Shipped v2 to staging, demo prep went well"
@@ -494,10 +707,12 @@ export default function EODClient({
 function ReadOnlySummary({
   log,
   doneCount,
+  skippedCount,
   blockedCount,
 }: {
   log: Log
   doneCount: number
+  skippedCount: number
   blockedCount: number
 }) {
   const totalActual = log.tasks.reduce((s, t) => s + (t.actualHours ?? 0), 0)
@@ -507,6 +722,7 @@ function ReadOnlySummary({
     <div className="space-y-5">
       <EODStats
         doneCount={doneCount}
+        skippedCount={skippedCount}
         blockedCount={blockedCount}
         totalActual={totalActual}
         totalEst={totalEst}
@@ -523,7 +739,11 @@ function ReadOnlySummary({
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 shrink-0">
                     {i + 1}
                   </span>
-                  <div className="text-sm font-medium text-gray-800 whitespace-pre-line">{task.title}</div>
+                  <div className={`text-sm font-medium whitespace-pre-line ${
+                    task.status === 'skipped' ? 'text-gray-400 line-through' : 'text-gray-800'
+                  }`}>
+                    {task.title}
+                  </div>
                 </div>
                 <span className={`badge text-[11px] shrink-0 ${STATUS_BADGE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
                   {status?.label ?? task.status}

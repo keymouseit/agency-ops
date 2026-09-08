@@ -98,6 +98,15 @@ export default function LeaveDashboardClient({
   const [adminSection, setAdminSection] = useState<'approvals' | 'history'>('approvals')
   const [myLeaveFilter, setMyLeaveFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
 
+  const isSameDayLeave = leaveType === 'half_day' || leaveType === 'short_leave'
+
+  // Half day / short leave are always a single day — keep end locked to start
+  useEffect(() => {
+    if (isSameDayLeave && startDate) {
+      setEndDate(startDate)
+    }
+  }, [isSameDayLeave, startDate])
+
   function formatLeaveDates(start: string | Date, end: string | Date) {
     const s = new Date(start)
     const e = new Date(end)
@@ -210,12 +219,13 @@ export default function LeaveDashboardClient({
       }
 
       const targetMemberId = tab === 'admin' || isManualLogModalOpen ? adminMemberId : memberId
+      const sameDay = leaveType === 'half_day' || leaveType === 'short_leave'
       const payload = {
         memberId: targetMemberId,
         leaveType,
-        timeSlot: (leaveType === 'half_day' || leaveType === 'short_leave') ? timeSlot : undefined,
+        timeSlot: sameDay ? timeSlot : undefined,
         startDate,
-        endDate,
+        endDate: sameDay ? startDate : endDate,
         reason: reason.trim(),
         isAdmin: tab === 'admin' || isManualLogModalOpen
       }
@@ -575,7 +585,14 @@ export default function LeaveDashboardClient({
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
-                <select value={leaveType} onChange={e => { setLeaveType(e.target.value); setTimeSlot(''); }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
+                <select value={leaveType} onChange={e => {
+                  const next = e.target.value
+                  setLeaveType(next)
+                  setTimeSlot('')
+                  if ((next === 'half_day' || next === 'short_leave') && startDate) {
+                    setEndDate(startDate)
+                  }
+                }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
                   <option value="full_day">Full Day</option>
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
@@ -609,11 +626,32 @@ export default function LeaveDashboardClient({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
-                  <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
+                  <input
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={e => {
+                      const next = e.target.value
+                      setStartDate(next)
+                      if (isSameDayLeave) setEndDate(next)
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
-                  <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate || new Date().toISOString().split('T')[0]} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
+                  <input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    min={startDate || new Date().toISOString().split('T')[0]}
+                    disabled={isSameDayLeave}
+                    className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                      isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
+                    }`}
+                  />
                 </div>
               </div>
 
@@ -834,7 +872,14 @@ export default function LeaveDashboardClient({
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave type</label>
                     <select
                       value={leaveType}
-                      onChange={e => { setLeaveType(e.target.value); setTimeSlot('') }}
+                      onChange={e => {
+                        const next = e.target.value
+                        setLeaveType(next)
+                        setTimeSlot('')
+                        if ((next === 'half_day' || next === 'short_leave') && startDate) {
+                          setEndDate(startDate)
+                        }
+                      }}
                       className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                     >
                       <option value="full_day">Full Day</option>
@@ -884,7 +929,11 @@ export default function LeaveDashboardClient({
                         type="date"
                         required
                         value={startDate}
-                        onChange={e => setStartDate(e.target.value)}
+                        onChange={e => {
+                          const next = e.target.value
+                          setStartDate(next)
+                          if (isSameDayLeave) setEndDate(next)
+                        }}
                         min={new Date().toISOString().split('T')[0]}
                         className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       />
@@ -897,7 +946,10 @@ export default function LeaveDashboardClient({
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
                         min={startDate || new Date().toISOString().split('T')[0]}
-                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                        disabled={isSameDayLeave}
+                        className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                          isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
+                        }`}
                       />
                     </div>
                   </div>
@@ -1412,7 +1464,14 @@ export default function LeaveDashboardClient({
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
-                <select value={leaveType} onChange={e => { setLeaveType(e.target.value); setTimeSlot(''); }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
+                <select value={leaveType} onChange={e => {
+                  const next = e.target.value
+                  setLeaveType(next)
+                  setTimeSlot('')
+                  if ((next === 'half_day' || next === 'short_leave') && startDate) {
+                    setEndDate(startDate)
+                  }
+                }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
                   <option value="full_day">Full Day</option>
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
@@ -1446,11 +1505,30 @@ export default function LeaveDashboardClient({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
-                  <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
+                  <input
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={e => {
+                      const next = e.target.value
+                      setStartDate(next)
+                      if (isSameDayLeave) setEndDate(next)
+                    }}
+                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
-                  <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" />
+                  <input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    disabled={isSameDayLeave}
+                    className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                      isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
+                    }`}
+                  />
                 </div>
               </div>
 

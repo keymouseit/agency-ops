@@ -41,7 +41,7 @@ export function getProjectListCached(developerId?: string) {
   const scope = developerId ?? 'all'
   return unstable_cache(
     () => fetchProjectList(developerId),
-    ['projects-list-v1', scope],
+    ['projects-list-v2', scope],
     { revalidate: 30, tags: [CACHE_TAGS.projectsList] },
   )()
 }

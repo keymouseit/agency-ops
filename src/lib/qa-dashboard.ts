@@ -42,14 +42,24 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
   }
 }
 
-/** Progress shown on project list cards — matches CEO dashboard when a check-in exists. */
+/** Progress shown on project list cards — prefer weekly check-in %, else milestones. */
 export function projectListCardProgress(
   milestones: MilestoneRow[],
   checkIn?: { progressPct?: number | null } | null,
 ) {
   const milestone = projectMilestoneProgress(milestones)
-  const usesCheckIn = checkIn != null
-  const pct = usesCheckIn ? (checkIn.progressPct ?? 0) : milestone.pct
+  const checkInPct =
+    checkIn != null && checkIn.progressPct != null && !Number.isNaN(Number(checkIn.progressPct))
+      ? Math.max(0, Math.min(100, Number(checkIn.progressPct)))
+      : null
+
+  // Use the better signal so bars don't stick at 0% when check-in lags milestones (or vice versa)
+  const pct =
+    checkInPct != null
+      ? Math.max(checkInPct, milestone.pct)
+      : milestone.pct
+
+  const usesCheckIn = checkInPct != null
 
   return {
     pct,

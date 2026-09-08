@@ -58,10 +58,18 @@ async function syncCycleResult(cycleId: string, previousResult: string) {
 
 export async function PATCH(req: Request, { params }: { params: { caseId: string } }) {
   const data = await req.json()
-  const action = data.action === 'qa_retest' ? 'qa_retest' : 'dev_fix'
+  const action =
+    data.action === 'qa_retest'
+      ? 'qa_retest'
+      : data.action === 'qa_update_status'
+        ? 'qa_update_status'
+        : 'dev_fix'
 
   if (action === 'qa_retest') {
     return handleQARetest(req, params.caseId, data)
+  }
+  if (action === 'qa_update_status') {
+    return handleQAStatusUpdate(params.caseId, data)
   }
   return handleDevFix(params.caseId, data)
 }
@@ -246,6 +254,90 @@ async function handleQARetest(
       status,
       cycleResult: newResult,
       retestNotes: retestNotes || null,
+    },
+  )
+
+  return NextResponse.json({
+    ...serializeTestCycleCase(updated),
+    cycleResult: newResult,
+  })
+}
+
+/** QA can freely update case status on the latest unsigned cycle (not only after a retest). */
+async function handleQAStatusUpdate(
+  caseId: string,
+  data: { status?: string; notes?: string },
+) {
+  const deny = await checkRole(['QA', 'Founder'])
+  if (deny) return deny
+
+  const session = await auth()
+  const userId = session?.user?.id
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const status = typeof data.status === 'string' ? data.status : ''
+  if (!VALID_STATUSES.includes(status)) {
+    return NextResponse.json({ error: 'Invalid test result' }, { status: 400 })
+  }
+
+  const existing = await loadCase(caseId)
+  if (!existing) {
+    return NextResponse.json({ error: 'Test case not found' }, { status: 404 })
+  }
+
+  const cycleDeny = await assertLatestCycle(existing)
+  if (cycleDeny) return cycleDeny
+
+  const notes =
+    data.notes !== undefined
+      ? typeof data.notes === 'string'
+        ? data.notes.trim() || null
+        : null
+      : undefined
+
+  const updated = await prisma.testCycleCase.update({
+    where: { id: caseId },
+    data: {
+      status,
+      ...(notes !== undefined ? { notes } : {}),
+      // Changing status outside the retest flow clears any pending fix/retest markers
+      ...(status === 'pass' || status === 'skipped'
+        ? {
+            qaRetestedAt: new Date(),
+            qaRetestedById: userId,
+            qaRetestNotes: null,
+          }
+        : {
+            devFixedAt: null,
+            devFixNotes: null,
+            devFixedById: null,
+            qaRetestedAt: null,
+            qaRetestNotes: null,
+            qaRetestedById: null,
+          }),
+    },
+    include: {
+      devFixedBy: { select: { name: true } },
+      qaRetestedBy: { select: { name: true } },
+    },
+  })
+
+  const { newResult } = await syncCycleResult(existing.testCycleId, existing.testCycle.result)
+  const project = existing.testCycle.project
+
+  await logProjectQAActivity(
+    'updated',
+    project.id,
+    project.name,
+    {
+      qaEventType: 'test_cycle_case_status_updated',
+      caseId: updated.id,
+      caseTitle: existing.title,
+      cycleId: existing.testCycleId,
+      status,
+      cycleResult: newResult,
     },
   )
 

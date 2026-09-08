@@ -117,12 +117,13 @@ function checkApiAccess(path: string, role: string): boolean {
   if (['BD', 'Both', 'Founder'].includes(role)) {
     if (path.startsWith('/api/daily')) return true
   }
-  // QA can access QA and bug APIs, plus milestone updates and daily plans
+  // QA can access QA and bug APIs, plus milestone updates, status return-to-dev, and daily plans
   if (['QA', 'Founder'].includes(role)) {
     if (
       path.startsWith('/api/qa') ||
       path.startsWith('/api/blockers') ||
       path.startsWith('/api/projects/milestones') ||
+      path.match(/^\/api\/projects\/[^/]+\/status/) ||
       path.startsWith('/api/daily')
     ) return true
   }
@@ -134,6 +135,9 @@ function checkApiAccess(path: string, role: string): boolean {
   if (role === 'SocialMedia') {
     if (path.startsWith('/api/daily') || path.startsWith('/api/scores')) return true
   }
+  // Founder/Manager employee reports
+  if (['Founder', 'Manager'].includes(role) && path.startsWith('/api/reports')) return true
+
   // Everyone can access scores, notifications, apply for leaves, and project check-ins
   if (
     path.startsWith('/api/scores') || 

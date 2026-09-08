@@ -18,6 +18,12 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
 
   const memberId = session.user.id
 
+  const projects = await prisma.project.findMany({
+    where: { status: { in: ['active', 'qa', 'scoping', 'maintenance'] } },
+    select: { id: true, name: true, clientName: true },
+    orderBy: { name: 'asc' },
+  })
+
   if (searchParams.logId && searchParams.logId !== 'undefined' && searchParams.logId !== '') {
     const log = await prisma.dailyLog.findUnique({
       where: { id: searchParams.logId },
@@ -32,14 +38,14 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
       ? isEodReadOnly(log.eodSubmittedAt)
       : true
 
-    return <EODClient log={log} readOnly={readOnly} />
+    return <EODClient log={log} projects={projects} readOnly={readOnly} />
   }
 
   const openLog = await findOpenDailyLog(memberId)
-  if (openLog) return <EODClient log={openLog} />
+  if (openLog) return <EODClient log={openLog} projects={projects} />
 
   const editableLog = await findTodayEditableEodLog(memberId)
-  if (editableLog) return <EODClient log={editableLog} />
+  if (editableLog) return <EODClient log={editableLog} projects={projects} />
 
   return (
     <div className="py-8">

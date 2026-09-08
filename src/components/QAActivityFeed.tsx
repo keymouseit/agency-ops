@@ -241,7 +241,7 @@ export default function QAActivityFeed({
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Test cycles</h3>
             {qaDetailHref && (
               <Link href={qaDetailHref} className="text-xs font-medium text-teal-700 hover:text-teal-900">
-                Full QA details →
+                View in QA workspace →
               </Link>
             )}
           </div>

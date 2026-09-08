@@ -338,29 +338,29 @@ export default async function MeRightRail({ memberId, role, hasCheckin }: Props)
               } else if (!cycle) {
                 stateLabel = 'No test cycle'
                 stateCls = 'bg-gray-100 text-gray-500'
-                action = 'Start test cycle →'
+                action = 'Open project →'
               } else if (isBlockingCycleResult(cycle.result)) {
                 if (cycleFixSummary?.allFailuresFixed) {
                   stateLabel = 'Re-test needed'
                   stateCls = 'bg-teal-100 text-teal-800'
-                  action = 'Re-test fixes →'
+                  action = 'Open project →'
                 } else if (cycle.result === 'blocked') {
                   stateLabel = 'Blocked'
                   stateCls = 'bg-orange-100 text-orange-800'
-                  action = 'View blocker →'
+                  action = 'Open project →'
                 } else {
                   stateLabel = 'Failed'
                   stateCls = 'bg-red-100 text-red-700'
-                  action = 'View failures →'
+                  action = 'Open project →'
                 }
               } else if (cycle.result === 'pass' || cycle.result === 'conditional') {
                 stateLabel = 'Ready to sign off'
                 stateCls = 'bg-amber-100 text-amber-800'
-                action = 'Submit sign-off →'
+                action = 'Open project →'
               } else {
                 stateLabel = 'In progress'
                 stateCls = 'bg-blue-100 text-blue-800'
-                action = 'Continue →'
+                action = 'Open project →'
               }
 
               return (

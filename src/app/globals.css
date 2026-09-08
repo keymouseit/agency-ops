@@ -38,6 +38,8 @@ select.input {
 
 textarea.input {
   @apply resize-y min-h-[2.5rem];
+  white-space: pre-wrap;
+  field-sizing: content;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

@@ -4,6 +4,7 @@ export type QAEventType =
   | 'test_cycle_deleted'
   | 'test_cycle_case_dev_fix'
   | 'test_cycle_case_retest'
+  | 'test_cycle_case_status_updated'
   | 'release_signoff'
   | 'milestone_ready_for_qa'
   | 'milestone_testing_started'
@@ -41,6 +42,8 @@ export function formatQAActivitySummary(metadata: Record<string, unknown> | null
       const verdict = metadata.status === 'pass' ? 'verified Pass' : 'reopened — still failing'
       return `QA re-tested "${metadata.caseTitle}" — ${verdict}`
     }
+    case 'test_cycle_case_status_updated':
+      return `QA updated test case "${metadata.caseTitle}" → ${metadata.status}`
     case 'release_signoff': {
       const score = metadata.qualityScore != null ? ` (quality ${metadata.qualityScore}/10)` : ''
       return `Release sign-off submitted${score}`

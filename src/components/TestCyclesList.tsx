@@ -11,6 +11,7 @@ type Props = {
   hasSignOff?: boolean
   manageButtons?: (cycle: TestCycleDetail, isLatest: boolean, closeModal: () => void) => React.ReactNode
   allowDevFix?: boolean
+  allowQAManage?: boolean
 }
 
 export default function TestCyclesList({
@@ -18,6 +19,7 @@ export default function TestCyclesList({
   hasSignOff = false,
   manageButtons,
   allowDevFix = false,
+  allowQAManage = false,
 }: Props) {
   const [viewingCycleId, setViewingCycleId] = useState<string | null>(null)
 
@@ -123,7 +125,8 @@ export default function TestCyclesList({
             && viewingIndex === 0
             && (isBlockingCycleResult(viewingCycle.result) || hasFailingTestCases(viewingCycle.cases))
           }
-          allowQARetest={!hasSignOff && viewingIndex === 0}
+          allowQARetest={allowQAManage && !hasSignOff && viewingIndex === 0}
+          allowQAStatusEdit={allowQAManage && !hasSignOff && viewingIndex === 0}
           headerActions={manageButtons?.(viewingCycle, viewingIndex === 0, () => setViewingCycleId(null))}
           onClose={() => setViewingCycleId(null)}
         />

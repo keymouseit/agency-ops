@@ -33,7 +33,7 @@ export default function MilestoneTestCaseEditor({
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const canEdit = ['ready_for_qa', 'testing'].includes(milestoneStatus)
+  const canEdit = ['testing', 'done'].includes(milestoneStatus)
   const summary = testCaseSummary(testCases)
 
   async function startTesting() {
