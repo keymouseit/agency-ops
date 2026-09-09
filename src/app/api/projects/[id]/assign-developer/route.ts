@@ -3,15 +3,18 @@ import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
 import { notifyProjectAssigned } from '@/lib/notify'
+import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['Founder', 'Manager', 'BD', 'Both'])
   if (deny) return deny
 
-  const { developerId } = await req.json()
+  const body = await req.json()
+  const developerIds = uniqueMemberIds(body.developerIds ?? (body.developerId ? [body.developerId] : []))
 
-  if (!developerId || typeof developerId !== 'string') {
-    return NextResponse.json({ error: 'Assigned person is required.' }, { status: 400 })
+  if (!developerIds.length) {
+    return NextResponse.json({ error: 'Select at least one assigned person.' }, { status: 400 })
   }
 
   const project = await prisma.project.findUnique({
@@ -21,6 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       name: true,
       developerId: true,
       developer: { select: { name: true } },
+      assignees: { select: { memberId: true, member: { select: { name: true } } } },
     },
   })
 
@@ -28,27 +32,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  const newAssignee = await prisma.teamMember.findUnique({
-    where: { id: developerId },
-    select: { id: true, name: true, active: true },
+  const members = await prisma.teamMember.findMany({
+    where: { id: { in: developerIds }, active: true },
+    select: { id: true, name: true },
   })
-
-  if (!newAssignee?.active) {
-    return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
+  if (members.length !== developerIds.length) {
+    return NextResponse.json({ error: 'Select active team members only.' }, { status: 400 })
   }
 
-  if (newAssignee.id === project.developerId) {
-    return NextResponse.json({ success: true })
-  }
+  const previousIds = [
+    ...new Set([project.developerId, ...project.assignees.map(a => a.memberId)]),
+  ]
+  const primaryId = developerIds[0]
+  const namesById = Object.fromEntries(members.map(m => [m.id, m.name]))
 
   await prisma.project.update({
     where: { id: params.id },
-    data: { developerId: newAssignee.id },
+    data: { developerId: primaryId },
   })
+  await replaceProjectAssignees(params.id, developerIds)
 
   const session = await auth()
+  const newlyAssigned = developerIds.filter(id => !previousIds.includes(id))
   await notifyProjectAssigned(
-    [newAssignee.id],
+    newlyAssigned,
     session?.user?.id,
     project.name,
     `/projects/${project.id}`
@@ -60,12 +67,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     entityId: project.id,
     entityName: project.name,
     changes: {
-      developer: {
-        old: project.developer.name,
-        new: newAssignee.name,
+      assignees: {
+        old: [project.developer.name, ...project.assignees.map(a => a.member.name)]
+          .filter((name, i, arr) => arr.indexOf(name) === i)
+          .join(', '),
+        new: developerIds.map(id => namesById[id]).join(', '),
       },
     },
   })
 
+  invalidateProjectsListCache()
   return NextResponse.json({ success: true })
 }

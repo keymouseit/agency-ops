@@ -1,6 +1,7 @@
 type ProjectAssignment = {
   developerId: string
   bdMemberId?: string | null
+  assigneeIds?: string[]
 }
 
 export function isProjectAdmin(role?: string | null): boolean {
@@ -15,6 +16,7 @@ export function canEditProject(
   if (!userId) return false
   if (isProjectAdmin(userRole)) return true
   if (project.developerId === userId) return true
+  if (project.assigneeIds?.includes(userId)) return true
   if (project.bdMemberId === userId) return true
   return false
 }
@@ -66,7 +68,7 @@ export function projectEditFields(
   fields.add('name')
   fields.add('clientName')
 
-  if (project.developerId === userId) {
+  if (project.developerId === userId || project.assigneeIds?.includes(userId)) {
     ;['techStack', 'estimatedHours', 'actualHours', 'startDate', 'estimatedEnd'].forEach(f =>
       fields.add(f as ProjectEditField),
     )

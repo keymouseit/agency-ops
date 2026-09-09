@@ -19,6 +19,7 @@ model TeamMember {
   proposalsWritten Proposal[]
   projectsAsDeveloper Project[] @relation("ProjectDeveloper")
   projectsAsBD        Project[] @relation("ProjectBD")
+  projectAssignments  ProjectAssignee[]
   weeklyScores     WeeklyScore[]
   scopeChanges     ScopeChange[]
   checkIns         ProjectCheckIn[]
@@ -232,6 +233,19 @@ model Project {
   testCycles      TestCycle[]
   releaseSignOff  ReleaseSignOff?
   postDeliveryIssues PostDeliveryIssue[]
+  assignees          ProjectAssignee[]
+}
+
+model ProjectAssignee {
+  id        String     @id @default(cuid())
+  projectId String
+  memberId  String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  member    TeamMember @relation(fields: [memberId], references: [id])
+  createdAt DateTime   @default(now())
+
+  @@unique([projectId, memberId])
+  @@index([memberId])
 }
 
 model Milestone {

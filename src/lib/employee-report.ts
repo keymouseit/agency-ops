@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { assignedToMemberWhere } from '@/lib/project-assignees'
 import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
 import { differenceInCalendarDays } from 'date-fns'
@@ -107,7 +108,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
     }),
     prisma.project.findMany({
-      where: { developerId: memberId },
+      where: assignedToMemberWhere(memberId),
       select: {
         id: true,
         name: true,
@@ -213,7 +214,11 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
         dueDate: { lt: today },
         project: {
           status: { notIn: ['delivered', 'cancelled'] },
-          OR: [{ developerId: memberId }, { bdMemberId: memberId }],
+          OR: [
+            { developerId: memberId },
+            { bdMemberId: memberId },
+            { assignees: { some: { memberId } } },
+          ],
         },
       },
       select: {

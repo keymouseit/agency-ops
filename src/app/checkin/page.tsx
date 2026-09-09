@@ -47,9 +47,28 @@ export default async function CheckInPage() {
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.project.findMany({
       where: { status: { in: ['scoping', 'active', 'qa'] } },
-      select: { id: true, name: true, developerId: true, bdMemberId: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        developerId: true,
+        bdMemberId: true,
+        status: true,
+        assignees: { select: { memberId: true } },
+      },
       orderBy: { name: 'asc' },
     }),
   ])
-  return <CheckInClient members={members} projects={projects} />
+  return (
+    <CheckInClient
+      members={members}
+      projects={projects.map(p => ({
+        id: p.id,
+        name: p.name,
+        developerId: p.developerId,
+        bdMemberId: p.bdMemberId,
+        status: p.status,
+        assigneeIds: p.assignees.map(a => a.memberId),
+      }))}
+    />
+  )
 }

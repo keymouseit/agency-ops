@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 
-const PRISMA_SCHEMA_VERSION = 23
+const PRISMA_SCHEMA_VERSION = 24
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined

@@ -34,11 +34,20 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   if (!project) notFound()
 
-  if (isDev && project.developerId !== userId) notFound()
+  if (isDev && project.developerId !== userId && !project.assignees.some(a => a.memberId === userId)) notFound()
 
-  const showEdit = canEditProject(project, userId, userRole)
+  const assigneeNames = [
+    project.developer.name,
+    ...project.assignees.map(a => a.member.name).filter(name => name !== project.developer.name),
+  ]
+  const assignment = {
+    developerId: project.developerId,
+    bdMemberId: project.bdMemberId,
+    assigneeIds: project.assignees.map(a => a.memberId),
+  }
+  const showEdit = canEditProject(assignment, userId, userRole)
   const showDelete = canDeleteProject(userRole)
-  const editableFields = Array.from(projectEditFields(project, userId, userRole))
+  const editableFields = Array.from(projectEditFields(assignment, userId, userRole))
 
   const estAccuracy = project.actualHours && project.estimatedHours
     ? Math.round((project.actualHours / project.estimatedHours) * 100)
@@ -73,7 +82,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             {project.releaseSignOff && <QASignOffBadge signed />}
           </div>
           <div className="flex gap-4 text-sm text-gray-500">
-            <span>Developer: {project.developer.name}</span>
+            <span>Developer{assigneeNames.length > 1 ? 's' : ''}: {assigneeNames.join(', ')}</span>
             {project.bdMember && <span>BD: {project.bdMember.name}</span>}
             {project.clientName && <span>Client: {project.clientName}</span>}
             {project.contractValue && isBD && <span>Value: {fmtCurrency(project.contractValue, project.currency)}</span>}
@@ -90,6 +99,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
                     name: project.name,
                     leadId: project.leadId,
                     developerId: project.developerId,
+                    assigneeIds: assignment.assigneeIds,
                     bdMemberId: project.bdMemberId,
                     clientName: project.clientName,
                     contractValue: project.contractValue,
@@ -143,6 +153,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           postMortem: project.postMortem,
           bdMemberId: project.bdMemberId,
           developerId: project.developerId,
+          assigneeIds: assignment.assigneeIds,
           qaModulesDelivered: project.qaModulesDelivered,
           qaSuggestedTestType: project.qaSuggestedTestType,
           qaTestingNotes: project.qaTestingNotes,

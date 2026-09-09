@@ -4,6 +4,7 @@ import { serializeMilestoneBug } from '@/lib/milestone-bugs'
 export const projectDetailInclude = {
   developer: true,
   bdMember: true,
+  assignees: { include: { member: { select: { id: true, name: true } } } },
   lead: { select: { id: true, clientName: true, source: true } },
   milestones: { orderBy: { dueDate: 'asc' as const } },
   scopeChanges: { include: { approvedBy: true }, orderBy: { createdAt: 'desc' as const } },

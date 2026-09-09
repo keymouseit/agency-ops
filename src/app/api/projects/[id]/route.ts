@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logAudit, captureChanges, getClientIP } from '@/lib/audit'
 import { canEditProject, canDeleteProject, projectEditFields, type ProjectEditField } from '@/lib/projects'
+import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 function parseOptionalNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
@@ -30,18 +32,25 @@ export async function PATCH(
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
+    include: { assignees: { select: { memberId: true } } },
   })
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  if (!canEditProject(project, userId, userRole)) {
+  const assignment = {
+    developerId: project.developerId,
+    bdMemberId: project.bdMemberId,
+    assigneeIds: project.assignees.map(a => a.memberId),
+  }
+
+  if (!canEditProject(assignment, userId, userRole)) {
     return NextResponse.json({ error: 'You do not have permission to edit this project.' }, { status: 403 })
   }
 
   const data = await req.json()
-  const allowed = projectEditFields(project, userId, userRole)
+  const allowed = projectEditFields(assignment, userId, userRole)
   const updateData: Record<string, unknown> = {}
 
   const setIfAllowed = (field: ProjectEditField, value: unknown) => {
@@ -74,15 +83,24 @@ export async function PATCH(
     setIfAllowed('leadId', leadId)
   }
 
-  if (data.developerId !== undefined) {
-    const developer = await prisma.teamMember.findUnique({
-      where: { id: data.developerId },
-      select: { id: true, role: true, active: true },
-    })
-    if (!developer?.active) {
-      return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
+  if (data.developerIds !== undefined || data.developerId !== undefined) {
+    const developerIds = uniqueMemberIds(
+      data.developerIds ?? (data.developerId ? [data.developerId] : [])
+    )
+    if (!developerIds.length) {
+      return NextResponse.json({ error: 'Select at least one assigned person.' }, { status: 400 })
     }
-    setIfAllowed('developerId', developer.id)
+    const members = await prisma.teamMember.findMany({
+      where: { id: { in: developerIds }, active: true },
+      select: { id: true },
+    })
+    if (members.length !== developerIds.length) {
+      return NextResponse.json({ error: 'Select active team members only.' }, { status: 400 })
+    }
+    setIfAllowed('developerId', developerIds[0])
+    if (allowed.has('developerId')) {
+      await replaceProjectAssignees(params.id, developerIds)
+    }
   }
 
   if (data.bdMemberId !== undefined) {
@@ -149,6 +167,7 @@ export async function PATCH(
     where: { id: params.id },
     data: updateData,
   })
+  invalidateProjectsListCache()
 
   const changes = captureChanges(project, updateData)
   if (Object.keys(changes).length > 0) {
