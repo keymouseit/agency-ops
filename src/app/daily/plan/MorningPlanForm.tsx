@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { MAX_DAILY_PLAN_HOURS, defaultDailyTaskType, dailyTaskTypeGroupsForRole } from '@/lib/daily'
+import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDailyTaskTypeGroups'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import MorningPlanHeader from './MorningPlanHeader'
 
@@ -104,15 +105,13 @@ export default function MorningPlanForm({
   carryOverFromDate?: string
 }) {
   const [tasks, setTasks] = useState<Task[]>(
-    initialTasks?.length
-      ? initialTasks.map(t => (member.role === 'SocialMedia' ? { ...t, projectId: '' } : t))
-      : [emptyTask(member.role)]
+    initialTasks?.length ? initialTasks : [emptyTask(member.role)]
   )
   const [planNotes, setPlanNotes] = useState(initialPlanNotes)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const catalog = useDailyTaskTypeCatalog()
   const router = useRouter()
-  const hideProject = member.role === 'SocialMedia'
 
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
     setTasks(prev => prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)))
@@ -133,7 +132,7 @@ export default function MorningPlanForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planNotes,
-          tasks: hideProject ? tasks.map(t => ({ ...t, projectId: '' })) : tasks,
+          tasks,
           replanAfterEod,
         }),
       })
@@ -269,7 +268,7 @@ export default function MorningPlanForm({
                     </div>
                   </div>
 
-                  <div className={`grid gap-3 ${hideProject ? 'sm:grid-cols-3' : 'sm:grid-cols-3 lg:grid-cols-4'}`}>
+                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     <div>
                       <label className="label">Type</label>
                       <select
@@ -277,7 +276,7 @@ export default function MorningPlanForm({
                         onChange={e => updateTask(i, 'taskType', e.target.value)}
                         className="input bg-gray-50/50 focus:bg-white"
                       >
-                        {dailyTaskTypeGroupsForRole(member.role, task.taskType).map(group => (
+                        {(taskTypeGroupsForRole(catalog, member.role, task.taskType) ?? dailyTaskTypeGroupsForRole(member.role, task.taskType)).map(group => (
                           <optgroup key={group.label} label={group.label}>
                             {group.types.map(t => (
                               <option key={t.value} value={t.value}>
@@ -288,23 +287,21 @@ export default function MorningPlanForm({
                         ))}
                       </select>
                     </div>
-                    {!hideProject && (
-                      <div>
-                        <label className="label">Project</label>
-                        <select
-                          value={task.projectId}
-                          onChange={e => updateTask(i, 'projectId', e.target.value)}
-                          className="input bg-gray-50/50 focus:bg-white"
-                        >
-                          <option value="">— None —</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div>
+                      <label className="label">Project</label>
+                      <select
+                        value={task.projectId}
+                        onChange={e => updateTask(i, 'projectId', e.target.value)}
+                        className="input bg-gray-50/50 focus:bg-white"
+                      >
+                        <option value="">— None —</option>
+                        {projects.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="label">Est. hours *</label>
                       <input

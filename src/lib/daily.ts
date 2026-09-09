@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { IST_TIMEZONE, formatIstWeekdayLong } from '@/lib/ist'
+import { DAILY_TASK_TYPES } from '@/lib/daily-task-type-defaults'
 
 /** Company operates in India — all DailyLog "days" use this timezone. */
 export const BUSINESS_TIMEZONE = IST_TIMEZONE
@@ -40,110 +41,14 @@ export function requiresDailyCadence(role: string) {
   return role !== 'Founder'
 }
 
-export const DAILY_TASK_TYPE_GROUPS = [
-  {
-    label: 'Development',
-    types: [
-      { value: 'feature', label: 'Feature' },
-      { value: 'bug', label: 'Bug fix' },
-      { value: 'backend', label: 'Backend' },
-      { value: 'review', label: 'Code review' },
-      { value: 'research', label: 'Research' },
-    ],
-  },
-  {
-    label: 'BD / Sales',
-    types: [
-      { value: 'bd_prospecting', label: 'Prospecting' },
-      { value: 'bd_outreach', label: 'Outreach & campaigns' },
-      { value: 'bd_client_meeting', label: 'Client meeting / MOM' },
-      { value: 'bd_proposal', label: 'Proposal writing' },
-      { value: 'bd_follow_up', label: 'Follow-up' },
-      { value: 'bd_pipeline', label: 'Pipeline admin' },
-      { value: 'bd_estimation', label: 'Estimation' },
-    ],
-  },
-  {
-    label: 'QA',
-    types: [
-      { value: 'qa_testing', label: 'Test execution' },
-      { value: 'qa_regression', label: 'Regression testing' },
-      { value: 'qa_bug_report', label: 'Bug reporting' },
-      { value: 'qa_test_cases', label: 'Test case writing' },
-      { value: 'qa_signoff', label: 'Sign-off review' },
-    ],
-  },
-  {
-    label: 'HR',
-    types: [
-      { value: 'hr_recruiting', label: 'Recruiting' },
-      { value: 'hr_onboarding', label: 'Onboarding' },
-      { value: 'hr_people_ops', label: 'People ops' },
-      { value: 'hr_operations', label: 'HR Operations' },
-      { value: 'hr_talent_acquisition', label: 'Talent Acquisition' },
-    ],
-  },
-  {
-    label: 'Social media',
-    types: [
-      { value: 'social_content', label: 'Content creation' },
-      { value: 'social_campaign', label: 'Campaign work' },
-      { value: 'social_engagement', label: 'Engagement' },
-    ],
-  },
-  {
-    label: 'Management',
-    types: [
-      { value: 'mgmt_planning', label: 'Team planning' },
-      { value: 'mgmt_1on1', label: '1:1s' },
-      { value: 'mgmt_reviews', label: 'Reviews & scores' },
-    ],
-  },
-  {
-    label: 'Leadership',
-    types: [
-      { value: 'founder_strategy', label: 'Strategy' },
-      { value: 'founder_ops', label: 'Business operations' },
-    ],
-  },
-  {
-    label: 'General',
-    types: [
-      { value: 'meeting', label: 'Meeting' },
-      { value: 'admin', label: 'Admin' },
-      { value: 'rnd', label: 'Research and development' },
-      { value: 'discussion', label: 'Discussion' },
-    ],
-  },
-] as const
-
-const ROLE_TASK_GROUP_LABELS: Record<string, readonly string[]> = {
-  Dev: ['Development', 'General'],
-  BD: ['BD / Sales', 'General'],
-  QA: ['QA', 'General'],
-  HR: ['HR', 'General'],
-  SocialMedia: ['Social media', 'General'],
-  Manager: ['Management', 'General'],
-  Founder: DAILY_TASK_TYPE_GROUPS.map(group => group.label),
-  Both: ['Development', 'BD / Sales', 'General'],
-}
-
-export function dailyTaskTypeGroupsForRole(role: string, includeType?: string) {
-  const allowed = ROLE_TASK_GROUP_LABELS[role] ?? ROLE_TASK_GROUP_LABELS.Dev
-  const groups = DAILY_TASK_TYPE_GROUPS.filter(group => allowed.includes(group.label))
-
-  if (!includeType) return groups
-
-  const extraGroup = DAILY_TASK_TYPE_GROUPS.find(
-    group => group.types.some(type => type.value === includeType) && !allowed.includes(group.label),
-  )
-
-  return extraGroup ? [...groups, extraGroup] : groups
-}
-
-export const DAILY_TASK_TYPES = DAILY_TASK_TYPE_GROUPS.flatMap(group => [...group.types])
-
-export type DailyTaskType = (typeof DAILY_TASK_TYPES)[number]['value']
+export {
+  DAILY_TASK_TYPE_GROUPS,
+  DAILY_TASK_TYPES,
+  dailyTaskTypeGroupsForRole,
+  defaultDailyTaskType,
+  type DailyTaskType,
+  type TaskTypeGroup,
+} from '@/lib/daily-task-type-defaults'
 
 const LEGACY_TASK_TYPE_LABELS: Record<string, string> = {
   bd: 'BD / Sales',
@@ -179,27 +84,6 @@ export function dailyTaskTypeColor(value: string) {
   if (value.startsWith('mgmt_')) return 'bg-indigo-100 text-indigo-800'
   if (value.startsWith('founder_')) return 'bg-purple-100 text-purple-800'
   return 'bg-gray-100 text-gray-600'
-}
-
-export function defaultDailyTaskType(role: string): DailyTaskType {
-  switch (role) {
-    case 'QA':
-      return 'qa_testing'
-    case 'BD':
-      return 'bd_pipeline'
-    case 'Both':
-      return 'bd_prospecting'
-    case 'HR':
-      return 'hr_people_ops'
-    case 'SocialMedia':
-      return 'social_content'
-    case 'Manager':
-      return 'mgmt_planning'
-    case 'Founder':
-      return 'founder_ops'
-    default:
-      return 'feature'
-  }
 }
 
 const openLogInclude = {

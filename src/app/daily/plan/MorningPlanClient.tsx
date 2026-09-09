@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { dailyTaskTypeGroupsForRole, MAX_DAILY_PLAN_HOURS, defaultDailyTaskType } from '@/lib/daily'
+import { MAX_DAILY_PLAN_HOURS, defaultDailyTaskType, dailyTaskTypeGroupsForRole } from '@/lib/daily'
+import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDailyTaskTypeGroups'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { formatIstWeekdayLong } from '@/lib/ist'
 
@@ -41,6 +42,7 @@ export default function MorningPlanClient({
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [logId, setLogId] = useState('')
+  const catalog = useDailyTaskTypeCatalog()
   const router = useRouter()
 
   const member = members.find(m => m.id === memberId)
@@ -182,7 +184,7 @@ export default function MorningPlanClient({
                           onChange={e => updateTask(i, 'taskType', e.target.value)}
                           className="input"
                         >
-                          {dailyTaskTypeGroupsForRole(member?.role ?? 'Dev', task.taskType).map(group => (
+                          {(taskTypeGroupsForRole(catalog, member?.role ?? 'Dev', task.taskType) ?? dailyTaskTypeGroupsForRole(member?.role ?? 'Dev', task.taskType)).map(group => (
                             <optgroup key={group.label} label={group.label}>
                               {group.types.map(t => (
                                 <option key={t.value} value={t.value}>{t.label}</option>

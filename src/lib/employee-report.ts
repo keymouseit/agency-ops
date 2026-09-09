@@ -371,17 +371,16 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       byDay: hoursByDay,
     },
     snapshot: {
-      planRate:
-        expectedBusinessDays > 0
-          ? Math.round(
-              (plannedDays /
-                Math.max(
-                  1,
-                  hoursByDay.filter(d => d.phase === 'past' && d.expected > 0).length
-                )) *
-                100
-            )
-          : null,
+      planRate: (() => {
+        const elapsed = hoursByDay.filter(
+          d => d.phase !== 'future' && d.expected > 0,
+        ).length
+        if (elapsed <= 0) return null
+        const planned = hoursByDay.filter(
+          d => d.phase !== 'future' && d.expected > 0 && d.hasPlan,
+        ).length
+        return Math.min(100, Math.round((planned / elapsed) * 100))
+      })(),
       eodRate: plannedDays > 0 ? Math.round((eodDays / plannedDays) * 100) : null,
       plannedDays,
       eodDays,

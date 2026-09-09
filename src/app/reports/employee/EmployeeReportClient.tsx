@@ -351,8 +351,11 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
     : 0
 
   const elapsedBizDays =
-    hours?.byDay.filter(d => d.phase === 'past' && d.expected > 0).length ?? 0
+    hours?.byDay.filter(d => d.phase !== 'future' && d.expected > 0).length ?? 0
+  const plannedElapsedDays =
+    hours?.byDay.filter(d => d.phase !== 'future' && d.expected > 0 && d.hasPlan).length ?? 0
   const periodBizDays = hours?.byDay.filter(d => d.expected > 0).length ?? 0
+  const planPct = Math.min(100, snap?.planRate ?? 0)
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
@@ -494,12 +497,10 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
               </p>
             </div>
             <div className="rounded-xl bg-violet-600 text-white p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-100">
-                Plan cadence
-              </p>
-              <p className="text-3xl font-bold mt-1 tabular-nums">{snap.planRate ?? 0}%</p>
+              <p className="text-xs font-medium text-violet-100">Plan cadence</p>
+              <p className="text-3xl font-bold mt-1 tabular-nums">{planPct}%</p>
               <p className="text-xs text-violet-100 mt-1">
-                {snap.plannedDays}/{elapsedBizDays || report.range.expectedBusinessDays} days so far
+                {plannedElapsedDays}/{elapsedBizDays || report.range.expectedBusinessDays} days so far
                 {periodBizDays > elapsedBizDays ? ` · ${periodBizDays} in period` : ''}
               </p>
             </div>
@@ -524,7 +525,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                   value={hours.utilisationPct}
                   color="#2563eb"
                 />
-                <ScoreRing label="Plans" value={snap.planRate} color="#7c3aed" />
+                <ScoreRing label="Plans" value={planPct} color="#7c3aed" />
                 <ScoreRing label="EOD" value={snap.eodRate} color="#059669" />
                 <ScoreRing
                   label="Done"
@@ -613,7 +614,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
               />
               <ProgressPill
                 label="Plans"
-                current={snap.plannedDays}
+                current={plannedElapsedDays}
                 total={elapsedBizDays || report.range.expectedBusinessDays}
                 color="#7c3aed"
               />
