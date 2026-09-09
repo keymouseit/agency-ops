@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Branding } from '@/lib/branding'
 import CompanyProfileTab from './CompanyProfileTab'
 import TeamMembersTab from './TeamMembersTab'
 import NotificationsTab from './NotificationsTab'
+import DailyTaskTypesTab from './DailyTaskTypesTab'
 
 type Member = {
   id: string
@@ -21,24 +23,49 @@ type NotificationGroup = {
   emails: string[]
 }
 
+type DailyTaskTypeRecord = {
+  value: string
+  label: string
+  groupLabel: string
+  roles: string[]
+}
+
+type SettingsTab = 'team' | 'company' | 'notifications' | 'types'
+
+function tabFromParam(tab?: string): SettingsTab {
+  if (tab === 'company' || tab === 'notifications' || tab === 'types') return tab
+  if (tab === 'workflow') return 'types'
+  return 'team'
+}
+
 export default function SettingsClient({
   members,
   branding,
   canEditBranding,
   notificationGroups,
+  dailyTaskTypes,
+  initialTab,
 }: {
   members: Member[]
   branding: Branding
   canEditBranding: boolean
   notificationGroups: NotificationGroup[]
+  dailyTaskTypes: DailyTaskTypeRecord[]
+  initialTab?: string
 }) {
-  const [activeTab, setActiveTab] = useState<'team' | 'company' | 'notifications' | 'workflow'>('team')
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState<SettingsTab>(tabFromParam(initialTab))
+
+  function selectTab(id: SettingsTab) {
+    setActiveTab(id)
+    router.replace(id === 'team' ? '/settings' : `/settings?tab=${id}`, { scroll: false })
+  }
 
   const tabs = [
     { id: 'team' as const, label: 'Team Members', icon: '👥' },
     { id: 'company' as const, label: 'Company Profile', icon: '🏢' },
     { id: 'notifications' as const, label: 'Notifications', icon: '🔔' },
-    { id: 'workflow' as const, label: 'Workflow', icon: '⚙️' },
+    { id: 'types' as const, label: 'Task types', icon: '⚙️' },
   ]
 
   return (
@@ -46,7 +73,7 @@ export default function SettingsClient({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Manage team members, company profile, notifications, and workflow preferences
+          Manage team members, company profile, notifications, and daily task types
         </p>
       </div>
 
@@ -56,7 +83,7 @@ export default function SettingsClient({
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
                 activeTab === tab.id
                   ? 'border-gray-900 text-gray-900'
@@ -82,11 +109,8 @@ export default function SettingsClient({
           <NotificationsTab initialGroups={notificationGroups} canEdit={canEditBranding} />
         )}
 
-        {activeTab === 'workflow' && (
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4">Workflow Customization</h2>
-            <p className="text-gray-500 text-sm">Workflow customization coming soon...</p>
-          </div>
+        {activeTab === 'types' && (
+          <DailyTaskTypesTab initialTypes={dailyTaskTypes} canEdit={canEditBranding} />
         )}
       </div>
     </div>

@@ -897,3 +897,23 @@ model NotificationEmail {
   @@unique([purpose, email])
   @@index([purpose])
 }
+
+model DailyTaskTypeOption {
+  id         String   @id @default(cuid())
+  value      String   @unique
+  label      String
+  groupLabel String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  roles      DailyTaskTypeRoleAccess[]
+}
+
+model DailyTaskTypeRoleAccess {
+  id     String               @id @default(cuid())
+  typeId String
+  type   DailyTaskTypeOption  @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  role   String
+
+  @@unique([typeId, role])
+  @@index([role])
+}
