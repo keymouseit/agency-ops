@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { LeaveRequest, TeamMember } from '@prisma/client';
+import { getNotificationEmails } from '@/lib/notification-emails'
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -68,11 +69,12 @@ export async function sendLeaveApprovalEmail(
   const notesHtml = leave.approvalNotes
     ? `<div class="details-row"><span class="details-label">Comment:</span> ${leave.approvalNotes}</div>`
     : '';
+  const to = await leaveDecisionRecipients(leave.member.email)
 
   const mailOptions = {
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
-    to: leave.member.email,
-    subject: `Leave Request Approved - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
+    to,
+    subject: `Leave Request Approved - ${leave.member.name} - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
     text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been approved by ${actorLabel}.\n${leave.approvalNotes ? `Comment: ${leave.approvalNotes}\n` : ''}\nBest,\nHR Team`,
     html: getEmailTemplate(
       'Leave Request Approved',
@@ -102,14 +104,46 @@ export async function sendLeaveApprovalEmail(
   }
 }
 
-export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: TeamMember }, hrEmail: string) {
+export async function leaveNotifyEmails() {
+  return getNotificationEmails('leave_applied')
+}
+
+function uniqueEmails(...emails: Array<string | null | undefined>) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const email of emails) {
+    const value = email?.trim()
+    if (!value) continue
+    const key = value.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(value)
+  }
+  return out
+}
+
+async function leaveDecisionRecipients(memberEmail: string) {
+  const copies = await getNotificationEmails('leave_decision')
+  return uniqueEmails(memberEmail, ...copies).join(', ')
+}
+
+export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: TeamMember }, hrEmail: string | string[]) {
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
   const timeSlotStr = leave.timeSlot ? ` (${leave.timeSlot.replace('_', ' ')})` : '';
+  const to = (Array.isArray(hrEmail) ? hrEmail : hrEmail.split(/[,;]/))
+    .map(email => email.trim())
+    .filter(Boolean)
+    .join(', ')
+
+  if (!to) {
+    console.log('Leave applied email skipped: no recipients configured.')
+    return
+  }
 
   const mailOptions = {
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
-    to: hrEmail,
+    to,
     subject: `New Leave Request - ${leave.member.name}`,
     text: `Hello,\n\n${leave.member.name} has applied for leave from ${startDate.toDateString()} to ${endDate.toDateString()}.\n\nType: ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}\nReason: ${leave.reason || 'N/A'}\n\nPlease review this request in the admin dashboard.\n\nBest,\nSystem`,
     html: getEmailTemplate(
@@ -146,11 +180,12 @@ export async function sendLeaveRejectedEmail(
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
   const timeSlotStr = leave.timeSlot ? ` (${leave.timeSlot.replace('_', ' ')})` : '';
+  const to = await leaveDecisionRecipients(leave.member.email)
 
   const mailOptions = {
     from: `"Agency Ops" <${process.env.SMTP_USER}>`,
-    to: leave.member.email,
-    subject: `Leave Request Rejected - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
+    to,
+    subject: `Leave Request Rejected - ${leave.member.name} - ${leave.leaveType.replace(/_/g, ' ')}${timeSlotStr}`,
     text: `Hello ${leave.member.name},\n\nYour leave request from ${startDate.toDateString()} to ${endDate.toDateString()} has been rejected by ${actorLabel}.\n\nReason: ${leave.approvalNotes || 'No reason provided'}\n\nBest,\nHR Team`,
     html: getEmailTemplate(
       'Leave Request Update',

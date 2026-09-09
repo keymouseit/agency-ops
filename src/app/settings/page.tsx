@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { getBranding } from '@/lib/branding'
+import { listNotificationEmailGroups } from '@/lib/notification-emails'
 import { redirect } from 'next/navigation'
 import SettingsClient from './SettingsClient'
 
@@ -24,12 +25,14 @@ export default async function SettingsPage() {
   })
 
   const branding = await getBranding()
+  const notificationGroups = await listNotificationEmailGroups()
 
   return (
     <SettingsClient
       members={members}
       branding={branding}
       canEditBranding={userRole === 'Founder'}
+      notificationGroups={notificationGroups}
     />
   )
 }
