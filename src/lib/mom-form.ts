@@ -1,8 +1,33 @@
+import { Prisma } from '@prisma/client'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { MOM_MEETING_TYPES } from '@/lib/utils'
+import { MOM_FINAL_STATUSES, MOM_MEETING_TYPES } from '@/lib/utils'
+
+/** Write finalStatus via SQL so it works even if Next is serving a stale Prisma client. */
+export async function setMomThreadFinalStatus(rootId: string, finalStatus: string) {
+  await prisma.$executeRaw`
+    UPDATE "MeetingMinute"
+    SET "finalStatus" = ${finalStatus}, "updatedAt" = ${new Date()}
+    WHERE id = ${rootId} OR "parentId" = ${rootId}
+  `
+}
+
+export async function getMomFinalStatus(id: string) {
+  const rows = await prisma.$queryRaw<Array<{ finalStatus: string | null }>>`
+    SELECT "finalStatus" FROM "MeetingMinute" WHERE id = ${id} LIMIT 1
+  `
+  return rows[0]?.finalStatus || 'Active'
+}
+
+export async function getMomFinalStatusMap(ids: string[]) {
+  if (!ids.length) return {} as Record<string, string>
+  const rows = await prisma.$queryRaw<Array<{ id: string; finalStatus: string | null }>>`
+    SELECT id, "finalStatus" FROM "MeetingMinute" WHERE id IN (${Prisma.join(ids)})
+  `
+  return Object.fromEntries(rows.map(r => [r.id, r.finalStatus || 'Active']))
+}
 
 export function parseMomDate(value: FormDataEntryValue | null) {
   if (!value || typeof value !== 'string' || !value.trim()) return null
@@ -97,6 +122,8 @@ export type ParsedMomFields = {
   leadSource: string | null
   nextActionItem: string | null
   campaignCallId: string | null
+  parentId: string | null
+  finalStatus: string
 }
 
 /** Parse and validate MOM create/update form body. */
@@ -112,6 +139,11 @@ export async function parseMomFormFields(
   if (!meetingDate) throw Object.assign(new Error('Meeting date is required.'), { status: 400 })
   if (!meetingType || !MOM_MEETING_TYPES.includes(meetingType as (typeof MOM_MEETING_TYPES)[number])) {
     throw Object.assign(new Error('Valid meeting type is required.'), { status: 400 })
+  }
+
+  const finalStatus = momFormStr(form.get('finalStatus')) || 'Active'
+  if (!MOM_FINAL_STATUSES.includes(finalStatus as (typeof MOM_FINAL_STATUSES)[number])) {
+    throw Object.assign(new Error('Valid final status is required.'), { status: 400 })
   }
 
   const videoFile = form.get('meetingVideo')
@@ -142,6 +174,8 @@ export async function parseMomFormFields(
     leadSource: momFormStr(form.get('leadSource')),
     nextActionItem: momFormStr(form.get('nextActionItem')),
     campaignCallId: momFormStr(form.get('campaignCallId')),
+    parentId: momFormStr(form.get('parentId')),
+    finalStatus,
   }
 }
 

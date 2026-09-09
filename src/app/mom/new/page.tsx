@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { encodeMomClientKey, groupMomsByClient } from '@/lib/mom'
 import { fmtDate } from '@/lib/utils'
+import { parseMomAttendeesJson, splitMomAttendees } from '@/lib/mom-form'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import MomForm from '../MomForm'
 
 export const dynamic = 'force-dynamic'
@@ -9,9 +11,10 @@ export const dynamic = 'force-dynamic'
 export default async function NewMomPage({
   searchParams,
 }: {
-  searchParams: { callId?: string }
+  searchParams: { callId?: string; from?: string }
 }) {
-  const [members, records, campaignCall, openCalls] = await Promise.all([
+  const parentId = searchParams.from
+  const [members, records, campaignCall, openCalls, parentMom] = await Promise.all([
     prisma.teamMember.findMany({
       where: { active: true },
       select: { id: true, name: true, role: true },
@@ -47,9 +50,18 @@ export default async function NewMomPage({
       },
       orderBy: [{ scheduledDate: 'desc' }, { scheduledTime: 'desc' }],
     }),
+    parentId
+      ? prisma.meetingMinute.findUnique({ where: { id: parentId } })
+      : Promise.resolve(null),
   ])
 
+  if (parentId && !parentMom) notFound()
+
   const clientGroups = groupMomsByClient(records)
+  const parsedParentAttendees = parentMom ? parseMomAttendeesJson(parentMom.attendees) : []
+  const parentAttendees = parentMom
+    ? splitMomAttendees(parsedParentAttendees, members)
+    : { memberIds: [] as string[], customAttendees: [] }
 
   const callOptions = openCalls.map(c => ({
     id: c.id,
@@ -81,32 +93,69 @@ export default async function NewMomPage({
     })
   }
 
-  const prefill = campaignCall
+  const followUpPrefill = parentMom
     ? {
-        campaignCallId: campaignCall.id,
-        clientName: campaignCall.clientName,
-        companyName: campaignCall.companyName ?? undefined,
-        clientLinkedIn: campaignCall.clientLinkedIn ?? undefined,
-        clientEmail: campaignCall.clientEmail ?? undefined,
-        clientPhone: campaignCall.clientPhone ?? undefined,
-        meetingDate: campaignCall.scheduledDate.toISOString().slice(0, 10),
-        meetingTime: campaignCall.scheduledTime ?? undefined,
-        leadSource: 'LinkedIn',
+        parentId: parentMom.parentId ?? parentMom.id,
+        clientName: parentMom.clientName,
+        companyName: parentMom.companyName ?? undefined,
+        clientLinkedIn: parentMom.clientLinkedIn ?? undefined,
+        companyLinkedIn: parentMom.companyLinkedIn ?? undefined,
+        clientEmail: parentMom.clientEmail ?? undefined,
+        clientPhone: parentMom.clientPhone ?? undefined,
+        leadSource: parentMom.leadSource ?? undefined,
+        domain: parentMom.domain ?? undefined,
+        meetingType: 'Follow-up',
+        finalStatus: parentMom.finalStatus ?? 'Active',
+        attendeeIds: parentAttendees.memberIds,
+        customAttendees: parentAttendees.customAttendees,
       }
     : undefined
+
+  const prefill = followUpPrefill
+    ?? (campaignCall
+      ? {
+          campaignCallId: campaignCall.id,
+          clientName: campaignCall.clientName,
+          companyName: campaignCall.companyName ?? undefined,
+          clientLinkedIn: campaignCall.clientLinkedIn ?? undefined,
+          clientEmail: campaignCall.clientEmail ?? undefined,
+          clientPhone: campaignCall.clientPhone ?? undefined,
+          meetingDate: campaignCall.scheduledDate.toISOString().slice(0, 10),
+          meetingTime: campaignCall.scheduledTime ?? undefined,
+          leadSource: 'LinkedIn',
+        }
+      : undefined)
 
   return (
     <div className="w-full">
       <div className="text-xs text-gray-400 mb-4">
-        ← <Link href="/mom" className="hover:text-gray-700">Minutes of Meeting</Link>
+        ←{' '}
+        <Link
+          href={parentMom ? `/mom/${parentMom.parentId ?? parentMom.id}` : '/mom'}
+          className="hover:text-gray-700"
+        >
+          {parentMom ? 'Back to MOM' : 'Minutes of Meeting'}
+        </Link>
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">New Minutes of Meeting</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">
+          {parentMom ? 'Add follow-up MOM' : 'New Minutes of Meeting'}
+        </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Capture client meeting details, notes, and follow-ups.
-          {campaignCall && (
-            <> From campaign: <span className="font-medium text-gray-700">{campaignCall.campaign.name}</span></>
+          {parentMom ? (
+            <>
+              Client and company are copied from{' '}
+              <span className="font-medium text-gray-700">{parentMom.clientName}</span>
+              {parentMom.companyName ? ` · ${parentMom.companyName}` : ''}. Add this meeting&apos;s notes.
+            </>
+          ) : (
+            <>
+              Capture client meeting details, notes, and follow-ups.
+              {campaignCall && (
+                <> From campaign: <span className="font-medium text-gray-700">{campaignCall.campaign.name}</span></>
+              )}
+            </>
           )}
         </p>
       </div>
@@ -121,7 +170,7 @@ export default async function NewMomPage({
           threadHref: `/mom/client/${encodeMomClientKey(g.key)}`,
         }))}
         prefill={prefill}
-        campaignCalls={callOptions}
+        campaignCalls={parentMom ? [] : callOptions}
       />
     </div>
   )

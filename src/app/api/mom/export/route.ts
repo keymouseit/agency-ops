@@ -54,6 +54,7 @@ export async function GET() {
       'Client Email': r.clientEmail ?? '',
       'Client Phone': r.clientPhone ?? '',
       'Meeting Type': r.meetingType,
+      'Final Status': r.finalStatus ?? 'Active',
       'Meeting Outcome': r.meetingOutcome ?? '',
       'Industry / Domain': r.domain ?? '',
       Attendees: formatAttendees(r.attendees),

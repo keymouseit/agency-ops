@@ -42,6 +42,7 @@ export default async function EditMomPage({ params }: { params: { id: string } }
           meetingDate: record.meetingDate.toISOString().slice(0, 10),
           meetingTime: record.meetingTime ?? '',
           meetingType: record.meetingType,
+          finalStatus: record.finalStatus ?? 'Active',
           leadSource: record.leadSource ?? '',
           domain: record.domain ?? '',
           clientName: record.clientName,

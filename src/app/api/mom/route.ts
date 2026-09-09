@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { momClientKey } from '@/lib/mom'
 import { notify } from '@/lib/notify'
-import { momFieldsToPrismaData, parseMomFormFields } from '@/lib/mom-form'
+import { momFieldsToPrismaData, parseMomFormFields, setMomThreadFinalStatus } from '@/lib/mom-form'
 
 const MOM_ROLES = ['BD', 'Both', 'Founder', 'Manager'] as const
 
@@ -29,13 +29,28 @@ export async function POST(req: Request) {
     const form = await req.formData()
     const fields = await parseMomFormFields(form)
 
+    let parentId: string | null = null
+    if (fields.parentId) {
+      const parent = await prisma.meetingMinute.findUnique({
+        where: { id: fields.parentId },
+        select: { id: true, parentId: true },
+      })
+      if (!parent) {
+        return NextResponse.json({ error: 'Original MOM not found.' }, { status: 400 })
+      }
+      parentId = parent.parentId ?? parent.id
+    }
+
     const record = await prisma.meetingMinute.create({
       data: {
         ...momFieldsToPrismaData(fields),
+        parentId,
         createdById: memberId,
       },
       include: { createdBy: { select: { id: true, name: true } } },
     })
+
+    await setMomThreadFinalStatus(parentId ?? record.id, fields.finalStatus)
 
     const clientKey = momClientKey(fields.clientName, fields.companyName)
     const pendingSameClient = await prisma.meetingMinute.findMany({
@@ -79,7 +94,10 @@ export async function POST(req: Request) {
       })
     }
 
-    return NextResponse.json(record, { status: 201 })
+    return NextResponse.json(
+      { ...record, threadRootId: parentId ?? record.id },
+      { status: 201 }
+    )
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
       return NextResponse.json(

@@ -113,12 +113,16 @@ export async function assertNoOverlappingLeave(opts: {
   memberId: string
   startDate: Date
   endDate: Date
+  leaveType?: string
   excludeId?: string
 }) {
+  if (opts.leaveType === 'work_from_home') return
+
   const overlap = await prisma.leaveRequest.findFirst({
     where: {
       memberId: opts.memberId,
       status: { in: ['pending', 'approved'] },
+      leaveType: { not: 'work_from_home' },
       ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
       startDate: { lte: opts.endDate },
       endDate: { gte: opts.startDate },

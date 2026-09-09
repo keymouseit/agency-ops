@@ -8,8 +8,10 @@ import {
   momFieldsToPrismaData,
   parseMomAttendeesJson,
   parseMomFormFields,
+  setMomThreadFinalStatus,
   splitMomAttendees,
 } from '@/lib/mom-form'
+import { MOM_FINAL_STATUSES } from '@/lib/utils'
 
 const MOM_ROLES = ['BD', 'Both', 'Founder', 'Manager'] as const
 
@@ -17,29 +19,56 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const deny = await checkRole([...MOM_ROLES])
   if (deny) return deny
 
-  const body = await req.json().catch(() => ({}))
-  if (body.followUpCompleted !== true) {
-    return NextResponse.json({ error: 'Invalid update.' }, { status: 400 })
+  try {
+    const body = await req.json().catch(() => ({}))
+    const existing = await prisma.meetingMinute.findUnique({ where: { id: params.id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Meeting not found.' }, { status: 404 })
+    }
+
+    if (typeof body.finalStatus === 'string') {
+      if (!MOM_FINAL_STATUSES.includes(body.finalStatus as (typeof MOM_FINAL_STATUSES)[number])) {
+        return NextResponse.json({ error: 'Status must be Active, Hold, or Closed.' }, { status: 400 })
+      }
+
+      const rootId = existing.parentId ?? existing.id
+      await setMomThreadFinalStatus(rootId, body.finalStatus)
+
+      const record = await prisma.meetingMinute.findUnique({
+        where: { id: params.id },
+        include: { createdBy: { select: { id: true, name: true } } },
+      })
+
+      revalidatePath('/mom')
+      revalidatePath(`/mom/${rootId}`)
+      revalidatePath(`/mom/${params.id}`)
+
+      return NextResponse.json({ ...record, finalStatus: body.finalStatus })
+    }
+
+    if (body.followUpCompleted !== true) {
+      return NextResponse.json({ error: 'Invalid update.' }, { status: 400 })
+    }
+
+    if (!existing.followUpDate) {
+      return NextResponse.json({ error: 'This meeting has no follow-up date.' }, { status: 400 })
+    }
+
+    const record = await prisma.meetingMinute.update({
+      where: { id: params.id },
+      data: { followUpCompletedAt: new Date() },
+      include: { createdBy: { select: { id: true, name: true } } },
+    })
+
+    revalidatePath('/mom')
+    revalidatePath(`/mom/${params.id}`)
+
+    return NextResponse.json(record)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update status.'
+    logger.error('Failed to patch meeting minute', error as Error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  const existing = await prisma.meetingMinute.findUnique({ where: { id: params.id } })
-  if (!existing) {
-    return NextResponse.json({ error: 'Meeting not found.' }, { status: 404 })
-  }
-  if (!existing.followUpDate) {
-    return NextResponse.json({ error: 'This meeting has no follow-up date.' }, { status: 400 })
-  }
-
-  const record = await prisma.meetingMinute.update({
-    where: { id: params.id },
-    data: { followUpCompletedAt: new Date() },
-    include: { createdBy: { select: { id: true, name: true } } },
-  })
-
-  revalidatePath('/mom')
-  revalidatePath(`/mom/${params.id}`)
-
-  return NextResponse.json(record)
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
@@ -78,6 +107,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }),
       include: { createdBy: { select: { id: true, name: true } } },
     })
+
+    await setMomThreadFinalStatus(existing.parentId ?? existing.id, fields.finalStatus)
 
     if (newlyAdded.length) {
       const editorName =

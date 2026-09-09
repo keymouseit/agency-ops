@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       )
     }
 
-    await assertNoOverlappingLeave({ memberId, startDate: start, endDate: end })
+    await assertNoOverlappingLeave({ memberId, startDate: start, endDate: end, leaveType })
     await assertLeaveTypePolicy({ memberId, leaveType, startDate: start })
 
     const split = await computeLeaveBalanceSplit(memberId, leaveType, start, end)

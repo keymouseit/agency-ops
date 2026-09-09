@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { formatIstDate, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
+import { SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
 import toast, { Toaster } from 'react-hot-toast'
 
 type Employee = { id: string; name: string; email: string; role: string }
@@ -279,8 +280,13 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.used}</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Short leaves YTD</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  Short leaves this year
+                </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.shortLeaves}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Count of approved short leaves in {data.balance.year} — not deducted from Total (max 2 per month)
+                </p>
               </div>
             </div>
           )}
@@ -303,12 +309,10 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{data.usage.shortLeaveCount}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {data.usage.shortLeaveCount === 1
-                  ? '1 short leave'
-                  : `${data.usage.shortLeaveCount} short leaves`}
+              <p className="text-3xl font-bold text-gray-900 mt-1">
+                {data.usage.shortLeaveCount}/{SHORT_LEAVE_MONTHLY_CAP}
               </p>
+              <p className="text-xs text-gray-500 mt-1">used / monthly cap</p>
             </div>
           </div>
 
@@ -351,7 +355,7 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                         {l.unpaid && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
                             {Number(l.paidDays || 0) > 0 && Number(l.unpaidDays || 0) > 0
-                              ? `Partial unpaid (${l.paidDays}+${l.unpaidDays})`
+                              ? `${l.paidDays} paid + ${l.unpaidDays} unpaid`
                               : 'Unpaid'}
                           </span>
                         )}
