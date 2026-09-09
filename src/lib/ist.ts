@@ -47,6 +47,13 @@ export function istDateInputValue(date: Date | string = new Date()) {
   return formatIst(date, { year: 'numeric', month: '2-digit', day: '2-digit' }, 'en-CA')
 }
 
+/** Next calendar day as YYYY-MM-DD in IST. Google all-day events use an exclusive end date. */
+export function istNextDateInputValue(date: Date | string) {
+  const key = istDateInputValue(date)
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)
+}
+
 export function isSameIstDay(a: Date | string, b: Date | string) {
   return istDateInputValue(a) === istDateInputValue(b)
 }

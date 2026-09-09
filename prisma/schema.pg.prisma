@@ -250,7 +250,7 @@ model Milestone {
   projectId     String
   project       Project    @relation(fields: [projectId], references: [id])
   title         String
-  dueDate       DateTime
+  dueDate       DateTime?
   completedAt   DateTime?
   status        String     @default("pending") // pending | ready_for_qa | testing | done
   notes         String?

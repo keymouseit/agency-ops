@@ -18,7 +18,7 @@ type TestCase = {
 type Milestone = {
   id: string
   title: string
-  dueDate: Date
+  dueDate: Date | null
   status: string
   completedAt: Date | null
   qaStartedAt?: string | null
@@ -140,7 +140,7 @@ export default function DeveloperMilestones({
       <div className="space-y-2">
         {milestones.map(m => {
           const statusConfig = STATUS_CONFIG[m.status] || STATUS_CONFIG.pending
-          const isOverdue = new Date(m.dueDate) < new Date() && m.status !== 'done'
+          const isOverdue = !!m.dueDate && new Date(m.dueDate) < new Date() && m.status !== 'done'
           const testCases = m.testCases ?? []
           const bugs = m.bugs ?? []
           const canExpand = ['ready_for_qa', 'testing', 'done'].includes(m.status)
@@ -174,7 +174,7 @@ export default function DeveloperMilestones({
                     {m.title}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
-                    <span>Due: {fmtDate(m.dueDate)}</span>
+                    {m.dueDate ? <span>Due: {fmtDate(m.dueDate)}</span> : <span>No due date</span>}
                     {isOverdue && <span className="text-red-600">⚠ Overdue</span>}
                     {openBugs > 0 && (
                       <span className="text-red-600 font-medium">{openBugs} open bug(s)</span>
