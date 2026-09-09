@@ -40,7 +40,7 @@ type PostDeliveryIssue = {
 type Milestone = {
   id: string
   title: string
-  dueDate: Date | string
+  dueDate: Date | string | null
   status: string
   completedAt: Date | string | null
   qaStartedAt?: string | null
@@ -154,7 +154,7 @@ export default function QAActivityFeed({
                       {m.title}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      Due {fmtDate(m.dueDate)}
+                      {m.dueDate ? <>Due {fmtDate(m.dueDate)}</> : 'No due date'}
                       {m.status === 'done' && m.completedAt && (
                         <> · QA approved {fmtDate(m.completedAt)}</>
                       )}

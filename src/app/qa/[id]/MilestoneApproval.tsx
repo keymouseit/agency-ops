@@ -32,7 +32,7 @@ type Bug = {
 type Milestone = {
   id: string
   title: string
-  dueDate: Date
+  dueDate: Date | null
   status: string
   completedAt: Date | null
   qaStartedAt: Date | null
@@ -134,7 +134,7 @@ export default function MilestoneApproval({
 
       <div className="space-y-2">
         {milestones.map(m => {
-          const isOverdue = new Date(m.dueDate) < new Date() && m.status !== 'done'
+          const isOverdue = !!m.dueDate && new Date(m.dueDate) < new Date() && m.status !== 'done'
           const isReadyForQA = m.status === 'ready_for_qa'
           const isTesting = m.status === 'testing'
           const isPending = m.status === 'pending'
@@ -190,7 +190,7 @@ export default function MilestoneApproval({
                     {m.title}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5 flex-wrap">
-                    <span>Due: {fmtDate(m.dueDate)}</span>
+                    {m.dueDate ? <span>Due: {fmtDate(m.dueDate)}</span> : <span>No due date</span>}
                     {isPending && (
                       <span className="badge bg-gray-100 text-gray-500">Waiting for dev</span>
                     )}

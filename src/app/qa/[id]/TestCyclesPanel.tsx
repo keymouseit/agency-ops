@@ -7,7 +7,7 @@ import TestCycleManageButtons from './TestCycleManageButtons'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 
 type Member = { id: string; name: string; role: string }
-type Milestone = { id: string; title: string; status: string; dueDate: Date }
+type Milestone = { id: string; title: string; status: string; dueDate: Date | null }
 
 type Props = {
   project: { id: string; name: string; status: string }

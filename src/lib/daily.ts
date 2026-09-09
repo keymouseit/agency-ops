@@ -79,6 +79,8 @@ export const DAILY_TASK_TYPE_GROUPS = [
       { value: 'hr_recruiting', label: 'Recruiting' },
       { value: 'hr_onboarding', label: 'Onboarding' },
       { value: 'hr_people_ops', label: 'People ops' },
+      { value: 'hr_operations', label: 'HR Operations' },
+      { value: 'hr_talent_acquisition', label: 'Talent Acquisition' },
     ],
   },
   {

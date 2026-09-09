@@ -20,11 +20,11 @@ export function leaveTypeLabel(leaveType: string, timeSlot: string | null): stri
   }
   if (leaveType === 'half_day') {
     const slot = timeSlot ? timeSlot.replace(/_/g, ' ') : ''
-    return slot ? `Half day · ${slot}` : 'Half day'
+    return slot ? `Half day leave · ${slot}` : 'Half day leave'
   }
   if (leaveType === 'birthday_leave') return 'Birthday leave'
   if (leaveType === 'work_from_home') return 'Work from home'
-  return 'Full day'
+  return 'Full day leave'
 }
 
 function nextBusinessDayStart(from = new Date()): Date {

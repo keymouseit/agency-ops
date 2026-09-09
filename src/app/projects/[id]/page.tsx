@@ -209,7 +209,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           milestones: project.milestones.map(m => ({
             id: m.id,
             title: m.title,
-            dueDate: m.dueDate.toISOString(),
+            dueDate: m.dueDate?.toISOString() ?? null,
             status: m.status,
             completedAt: m.completedAt?.toISOString() ?? null,
             qaStartedAt: m.qaStartedAt?.toISOString() ?? null,

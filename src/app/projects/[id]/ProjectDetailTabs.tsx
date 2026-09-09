@@ -120,7 +120,7 @@ type Props = {
     milestones: Array<{
       id: string
       title: string
-      dueDate: string
+      dueDate: string | null,
       status: string
       completedAt: string | null
       qaStartedAt: string | null
@@ -310,7 +310,7 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
           <DeveloperMilestones
             milestones={project.milestones.map(m => ({
               ...m,
-              dueDate: new Date(m.dueDate),
+              dueDate: m.dueDate ? new Date(m.dueDate) : null,
               completedAt: m.completedAt ? new Date(m.completedAt) : null,
             }))}
             projectId={projectId}

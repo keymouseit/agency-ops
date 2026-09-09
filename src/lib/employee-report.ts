@@ -591,6 +591,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       }
 
       for (const m of overdueMilestones) {
+        if (!m.dueDate) continue
         const days = differenceInCalendarDays(today, m.dueDate)
         rows.push({
           kind: 'deadline',

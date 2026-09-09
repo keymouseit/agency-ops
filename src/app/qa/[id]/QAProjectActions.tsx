@@ -7,7 +7,7 @@ import { createClientId } from '@/lib/utils'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; status: string }
-type Milestone = { id: string; title: string; status: string; dueDate: Date }
+type Milestone = { id: string; title: string; status: string; dueDate: Date | null }
 type CycleTestCaseRow = { id: string; title: string; status: string; notes: string }
 
 export type EditableTestCycle = {

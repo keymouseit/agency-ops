@@ -220,8 +220,8 @@ export default function ProjectActions({ project, members, userRole }: { project
                 <input name="title" required className="input" placeholder="e.g. Design approved" />
               </div>
               <div>
-                <label className="label">Due date *</label>
-                <input name="dueDate" type="date" required className="input" />
+                <label className="label">Due date</label>
+                <input name="dueDate" type="date" className="input" />
               </div>
             </div>
             <div className="flex gap-2">
