@@ -887,3 +887,13 @@ model AuditLog {
   @@index([timestamp])
   @@index([action])
 }
+
+model NotificationEmail {
+  id        String   @id @default(cuid())
+  purpose   String
+  email     String
+  createdAt DateTime @default(now())
+
+  @@unique([purpose, email])
+  @@index([purpose])
+}

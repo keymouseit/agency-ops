@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendLeaveAppliedEmail } from '@/lib/notifications'
+import { sendLeaveAppliedEmail, leaveNotifyEmails } from '@/lib/notifications'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
 import { formatIstDate } from '@/lib/ist'
@@ -140,8 +140,7 @@ export async function POST(request: Request) {
 
     runInBackground(
       (async () => {
-        const hrEmail = process.env.HR_EMAIL || process.env.SMTP_USER || 'hr@example.com'
-        await sendLeaveAppliedEmail(leaveRequest, hrEmail)
+        await sendLeaveAppliedEmail(leaveRequest, await leaveNotifyEmails())
 
         const reviewers = await prisma.teamMember.findMany({
           where: { active: true, role: { in: ['HR', 'Founder', 'Manager'] } },

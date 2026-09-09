@@ -5,6 +5,7 @@ import { leavePaidDeduction } from '@/lib/leave-balance'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
 import { revalidateLeavePages } from '@/lib/cache-tags'
+import { removeEventFromGoogleCalendar } from '@/lib/gcal'
 
 const ALLOWED = ['Founder', 'HR', 'Manager']
 
@@ -106,6 +107,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
           `Management revoked your approved leave — ${notes}`,
           '/leaves'
         )
+        await removeEventFromGoogleCalendar(updated)
       })(),
       'leave-revoke-side-effects'
     )

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Branding } from '@/lib/branding'
 import CompanyProfileTab from './CompanyProfileTab'
 import TeamMembersTab from './TeamMembersTab'
+import NotificationsTab from './NotificationsTab'
 
 type Member = {
   id: string
@@ -13,14 +14,23 @@ type Member = {
   createdAt: Date
 }
 
+type NotificationGroup = {
+  purpose: 'leave_applied' | 'leave_decision' | 'leave_calendar'
+  label: string
+  description: string
+  emails: string[]
+}
+
 export default function SettingsClient({
   members,
   branding,
   canEditBranding,
+  notificationGroups,
 }: {
   members: Member[]
   branding: Branding
   canEditBranding: boolean
+  notificationGroups: NotificationGroup[]
 }) {
   const [activeTab, setActiveTab] = useState<'team' | 'company' | 'notifications' | 'workflow'>('team')
 
@@ -69,10 +79,7 @@ export default function SettingsClient({
         )}
 
         {activeTab === 'notifications' && (
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4">Notification Preferences</h2>
-            <p className="text-gray-500 text-sm">Notification preferences coming soon...</p>
-          </div>
+          <NotificationsTab initialGroups={notificationGroups} canEdit={canEditBranding} />
         )}
 
         {activeTab === 'workflow' && (
