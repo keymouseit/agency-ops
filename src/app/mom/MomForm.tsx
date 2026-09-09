@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { INDUSTRIES, LEAD_SOURCES, MOM_MEETING_TYPES, ROLE_COLORS } from '@/lib/utils'
+import { LEAD_SOURCES, MOM_FINAL_STATUSES, MOM_MEETING_TYPES, ROLE_COLORS } from '@/lib/utils'
 import { momClientKey } from '@/lib/mom'
 
 type Member = { id: string; name: string; role: string }
@@ -21,11 +21,18 @@ type MomPrefill = {
   clientName?: string
   companyName?: string
   clientLinkedIn?: string
+  companyLinkedIn?: string
   clientEmail?: string
   clientPhone?: string
   meetingDate?: string
   meetingTime?: string
   leadSource?: string
+  domain?: string
+  meetingType?: string
+  finalStatus?: string
+  parentId?: string
+  attendeeIds?: string[]
+  customAttendees?: CustomAttendee[]
 }
 
 type MomEditInitial = {
@@ -33,6 +40,7 @@ type MomEditInitial = {
   meetingDate: string
   meetingTime: string
   meetingType: string
+  finalStatus: string
   leadSource: string
   domain: string
   clientName: string
@@ -262,7 +270,8 @@ export default function MomForm({
   initialMom?: MomEditInitial
 }) {
   const isEdit = !!initialMom
-  const initialCall = !isEdit && prefill?.campaignCallId
+  const isFollowUp = !isEdit && !!prefill?.parentId
+  const initialCall = !isEdit && !isFollowUp && prefill?.campaignCallId
     ? campaignCalls.find(c => c.id === prefill.campaignCallId)
     : null
   const initialFields = initialMom
@@ -291,8 +300,10 @@ export default function MomForm({
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [attendeeIds, setAttendeeIds] = useState<string[]>(initialMom?.attendeeIds ?? [])
-  const [customAttendees, setCustomAttendees] = useState<CustomAttendee[]>(initialMom?.customAttendees ?? [])
+  const [attendeeIds, setAttendeeIds] = useState<string[]>(initialMom?.attendeeIds ?? prefill?.attendeeIds ?? [])
+  const [customAttendees, setCustomAttendees] = useState<CustomAttendee[]>(
+    initialMom?.customAttendees ?? prefill?.customAttendees ?? []
+  )
   const [selectedCallId, setSelectedCallId] = useState(prefill?.campaignCallId ?? '')
   const [clientName, setClientName] = useState(initialFields.clientName)
   const [companyName, setCompanyName] = useState(initialFields.companyName)
@@ -355,15 +366,22 @@ export default function MomForm({
     }
 
     const data = await res.json()
-    router.push(`/mom/${data.id}`)
+    const rootId = data.threadRootId || data.id
+    const dest = rootId !== data.id ? `/mom/${rootId}?view=${data.id}` : `/mom/${data.id}`
+    router.push(dest)
     router.refresh()
   }
 
-  const cancelHref = isEdit ? `/mom/${initialMom!.id}` : '/mom'
+  const cancelHref = isEdit
+    ? `/mom/${initialMom!.id}`
+    : isFollowUp
+      ? `/mom/${prefill!.parentId}`
+      : '/mom'
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      {!isEdit && campaignCalls.length > 0 && (
+      {isFollowUp && <input type="hidden" name="parentId" value={prefill!.parentId} />}
+      {!isEdit && !isFollowUp && campaignCalls.length > 0 && (
         <section className="card p-6 space-y-3">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Campaign call</h2>
@@ -426,10 +444,27 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Meeting type *</label>
-            <select name="meetingType" required className="input" defaultValue={initialMom?.meetingType ?? ''}>
+            <select
+              name="meetingType"
+              required
+              className="input"
+              defaultValue={initialMom?.meetingType ?? prefill?.meetingType ?? ''}
+            >
               <option value="">Select type</option>
               {MOM_MEETING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="label">Final status *</label>
+            <select
+              name="finalStatus"
+              required
+              className="input"
+              defaultValue={initialMom?.finalStatus ?? prefill?.finalStatus ?? 'Active'}
+            >
+              {MOM_FINAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Current outcome of this MOM: Active, Hold, or Closed.</p>
           </div>
           <div>
             <label className="label">Lead source</label>
@@ -446,22 +481,30 @@ export default function MomForm({
         </div>
         <div>
           <label className="label">Domain / industry</label>
-          <select name="domain" className="input" defaultValue={initialMom?.domain ?? ''}>
-            <option value="">Select industry</option>
-            {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-          </select>
+          <input
+            name="domain"
+            className="input"
+            defaultValue={initialMom?.domain ?? prefill?.domain ?? ''}
+            placeholder="e.g. Healthcare, FinTech, Oil & Gas"
+          />
         </div>
       </section>
 
       <section className="card p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Client & company</h2>
+        {isFollowUp && (
+          <p className="text-xs text-gray-500 -mt-2">
+            Copied from the original MOM. Add this follow-up&apos;s meeting notes below.
+          </p>
+        )}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Client name *</label>
             <input
               name="clientName"
               required
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="Contact person"
               value={clientName}
               onChange={e => setClientName(e.target.value)}
@@ -472,7 +515,8 @@ export default function MomForm({
             <input
               name="clientLinkedIn"
               type="url"
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="https://linkedin.com/in/..."
               value={clientLinkedIn}
               onChange={e => setClientLinkedIn(e.target.value)}
@@ -482,7 +526,8 @@ export default function MomForm({
             <label className="label">Company name</label>
             <input
               name="companyName"
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="Company"
               value={companyName}
               onChange={e => setCompanyName(e.target.value)}
@@ -493,9 +538,10 @@ export default function MomForm({
             <input
               name="companyLinkedIn"
               type="url"
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="https://linkedin.com/company/..."
-              defaultValue={initialMom?.companyLinkedIn ?? ''}
+              defaultValue={initialMom?.companyLinkedIn ?? prefill?.companyLinkedIn ?? ''}
             />
           </div>
           <div>
@@ -503,7 +549,8 @@ export default function MomForm({
             <input
               name="clientEmail"
               type="email"
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="client@company.com"
               value={clientEmail}
               onChange={e => setClientEmail(e.target.value)}
@@ -514,7 +561,8 @@ export default function MomForm({
             <input
               name="clientPhone"
               type="tel"
-              className="input"
+              readOnly={isFollowUp}
+              className={`input${isFollowUp ? ' bg-gray-50 text-gray-700' : ''}`}
               placeholder="+1 555 000 0000"
               value={clientPhone}
               onChange={e => setClientPhone(e.target.value)}
@@ -522,7 +570,7 @@ export default function MomForm({
           </div>
         </div>
 
-        {matchedClient && (
+        {matchedClient && !isFollowUp && (
           <div className="px-3 py-2.5 rounded-lg bg-violet-50 border border-violet-100 text-sm text-violet-900">
             This client already has {matchedClient.meetingCount} meeting
             {matchedClient.meetingCount === 1 ? '' : 's'} logged.{' '}
@@ -540,8 +588,8 @@ export default function MomForm({
           <label className="label">Meeting outcome</label>
           <textarea
             name="meetingOutcome"
-            rows={5}
-            className="input min-h-[120px]"
+            rows={8}
+            className="input !min-h-[10rem]"
             placeholder="What was decided or concluded?"
             defaultValue={initialMom?.meetingOutcome ?? ''}
           />
@@ -550,8 +598,8 @@ export default function MomForm({
           <label className="label">Client pain points</label>
           <textarea
             name="clientPainPoints"
-            rows={5}
-            className="input min-h-[120px]"
+            rows={8}
+            className="input !min-h-[10rem]"
             placeholder="Problems or challenges the client shared"
             defaultValue={initialMom?.clientPainPoints ?? ''}
           />
@@ -560,8 +608,8 @@ export default function MomForm({
           <label className="label">Our approach</label>
           <textarea
             name="ourApproach"
-            rows={5}
-            className="input min-h-[120px]"
+            rows={8}
+            className="input !min-h-[10rem]"
             placeholder="How we positioned our solution"
             defaultValue={initialMom?.ourApproach ?? ''}
           />
@@ -570,8 +618,8 @@ export default function MomForm({
           <label className="label">Requirement from client</label>
           <textarea
             name="requirementsFromClient"
-            rows={5}
-            className="input min-h-[120px]"
+            rows={8}
+            className="input !min-h-[10rem]"
             placeholder="Scope, features, or deliverables discussed"
             defaultValue={initialMom?.requirementsFromClient ?? ''}
           />
@@ -580,8 +628,8 @@ export default function MomForm({
           <label className="label">Next action item</label>
           <textarea
             name="nextActionItem"
-            rows={4}
-            className="input min-h-[100px]"
+            rows={6}
+            className="input !min-h-[8rem]"
             placeholder="Who does what, and by when?"
             defaultValue={initialMom?.nextActionItem ?? ''}
           />
@@ -643,7 +691,7 @@ export default function MomForm({
 
       <div className="flex gap-3 pb-8">
         <button type="submit" disabled={loading} className="btn-primary px-8">
-          {loading ? 'Saving...' : isEdit ? 'Save changes' : 'Save MOM'}
+          {loading ? 'Saving...' : isEdit ? 'Save changes' : isFollowUp ? 'Save follow-up' : 'Save MOM'}
         </button>
         <Link href={cancelHref} className="btn-secondary">Cancel</Link>
       </div>

@@ -42,6 +42,7 @@ export type MomRecordBase = {
   meetingDate: Date
   meetingTime: string | null
   meetingType: string
+  finalStatus?: string | null
   meetingOutcome: string | null
   followUpDate: Date | null
   followUpCompletedAt?: Date | null

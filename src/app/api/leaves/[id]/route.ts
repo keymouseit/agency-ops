@@ -50,6 +50,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       memberId: existingLeave.memberId,
       startDate: nextStart,
       endDate: nextEnd,
+      leaveType: nextType,
       excludeId: id,
     })
     await assertLeaveTypePolicy({

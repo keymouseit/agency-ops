@@ -20,7 +20,7 @@ function typeBadgeClass(leaveType: string) {
 function unpaidLabel(req: PendingLeaveRequest) {
   if (!req.unpaid && req.unpaidDays <= 0) return null
   if (req.paidDays > 0 && req.unpaidDays > 0) {
-    return `Partial unpaid (${req.paidDays}+${req.unpaidDays})`
+    return `${req.paidDays} paid + ${req.unpaidDays} unpaid`
   }
   return 'Unpaid'
 }

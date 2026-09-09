@@ -25,6 +25,45 @@ import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
 import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
 
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  status: 'Status',
+  unpaid: 'Unpaid',
+  paidDays: 'Paid days',
+  unpaidDays: 'Unpaid days',
+  leaveType: 'Leave type',
+  startDate: 'Start date',
+  endDate: 'End date',
+  reason: 'Reason',
+  timeSlot: 'Time slot',
+}
+
+function formatAuditLabel(key: string) {
+  return AUDIT_FIELD_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())
+}
+
+function formatAuditValue(key: string, val: unknown): string {
+  if (val == null || val === '') return '—'
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No'
+  if (key === 'startDate' || key === 'endDate') {
+    try {
+      return formatIstDate(val as string | Date)
+    } catch {
+      return String(val)
+    }
+  }
+  if (typeof val === 'string') return val.replace(/_/g, ' ')
+  return String(val)
+}
+
+function parseAuditJson(raw: string | null | undefined) {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 export default function LeaveDashboardClient({
   memberId,
   isAdmin,
@@ -382,7 +421,7 @@ export default function LeaveDashboardClient({
     const paid = Number(l.paidDays || 0)
     const unpaidDays = Number(l.unpaidDays || 0)
     if (!l.unpaid && unpaidDays <= 0) return null
-    if (paid > 0 && unpaidDays > 0) return `Partial unpaid (${paid}+${unpaidDays})`
+    if (paid > 0 && unpaidDays > 0) return `${paid} paid + ${unpaidDays} unpaid`
     return 'Unpaid'
   }
 
@@ -835,25 +874,43 @@ export default function LeaveDashboardClient({
                           By <span className="font-medium text-gray-700">{log.user?.name || 'Unknown'}</span> on {formatIstDateTimeShort(log.timestamp)}
                         </div>
                         
-                        {log.changes && (
-                          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 font-mono space-y-1 ring-1 ring-inset ring-gray-900/5">
-                            {Object.entries(JSON.parse(log.changes)).map(([key, val]: any) => (
-                              <div key={key}>
-                                <span className="font-semibold text-gray-900 capitalize">{key}:</span>{' '}
-                                {typeof val === 'object' && val !== null ? (
-                                  <span><span className="line-through text-red-500 opacity-70">{val.old}</span> → <span className="text-green-600">{val.new}</span></span>
-                                ) : (
-                                  <span>{val}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {log.metadata && JSON.parse(log.metadata).notes && (
-                          <div className="mt-2 text-xs text-gray-600 italic border-l-2 border-gray-300 pl-2">
-                            "{JSON.parse(log.metadata).notes}"
-                          </div>
-                        )}
+                        {log.changes && (() => {
+                          const changes = parseAuditJson(log.changes)
+                          if (!changes) return null
+                          return (
+                            <div className="rounded-xl border border-gray-100 overflow-hidden">
+                              {Object.entries(changes).map(([key, val]) => {
+                                const isDiff = typeof val === 'object' && val !== null && 'old' in val && 'new' in val
+                                const diff = isDiff ? (val as { old: unknown; new: unknown }) : null
+                                return (
+                                  <div key={key} className="flex gap-3 px-3 py-2 text-sm border-b border-gray-50 last:border-0">
+                                    <span className="w-28 shrink-0 text-gray-500">{formatAuditLabel(key)}</span>
+                                    <span className="text-gray-900 capitalize">
+                                      {diff ? (
+                                        <>
+                                          <span className="text-gray-400 line-through">{formatAuditValue(key, diff.old)}</span>
+                                          {' → '}
+                                          <span className="font-medium">{formatAuditValue(key, diff.new)}</span>
+                                        </>
+                                      ) : (
+                                        formatAuditValue(key, val)
+                                      )}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
+                        {(() => {
+                          const notes = parseAuditJson(log.metadata)?.notes
+                          if (!notes || typeof notes !== 'string') return null
+                          return (
+                            <p className="mt-2 text-sm text-gray-600">
+                              <span className="text-gray-500">Note:</span> {notes}
+                            </p>
+                          )
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -1164,7 +1221,7 @@ export default function LeaveDashboardClient({
                         onClick={() => viewHistory(l)}
                         className="px-3 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                       >
-                        Logs
+                        View Details
                       </button>
                       {l.status === 'pending' && (
                         <>
@@ -1340,7 +1397,7 @@ export default function LeaveDashboardClient({
                           onClick={() => viewHistory(l)}
                           className="px-3 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                         >
-                          Logs
+                          View Details
                         </button>
                         <button
                           type="button"
@@ -1437,7 +1494,7 @@ export default function LeaveDashboardClient({
                                   onClick={() => viewHistory(l)}
                                   className="text-gray-500 hover:text-blue-600 font-bold text-xs bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
                                 >
-                                  Logs
+                                  View Details
                                 </button>
                                 {l.status === 'approved' && (
                                   <button

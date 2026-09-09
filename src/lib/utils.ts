@@ -3,6 +3,7 @@ import { formatIstDate, formatIstDateTime, istHour } from '@/lib/ist'
 
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
 export const MOM_MEETING_TYPES = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal Discussion'] as const
+export const MOM_FINAL_STATUSES = ['Active', 'Hold', 'Closed'] as const
 
 export const INDUSTRIES = [
   'Healthcare',
@@ -37,6 +38,12 @@ export const MOM_MEETING_TYPE_COLORS: Record<string, string> = {
   'Demo': 'bg-blue-100 text-blue-800',
   'Follow-up': 'bg-amber-100 text-amber-800',
   'Proposal Discussion': 'bg-green-100 text-green-800',
+}
+
+export const MOM_FINAL_STATUS_COLORS: Record<string, string> = {
+  Active: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  Hold: 'bg-amber-50 text-amber-800 border-amber-200',
+  Closed: 'bg-slate-100 text-slate-700 border-slate-200',
 }
 
 export const ROLE_COLORS: Record<string, string> = {

@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { fmtDate, ROLE_COLORS, MOM_MEETING_TYPE_COLORS } from '@/lib/utils'
+import { fmtDate, ROLE_COLORS, MOM_MEETING_TYPE_COLORS, MOM_FINAL_STATUS_COLORS } from '@/lib/utils'
 import { encodeMomClientKey, momClientKey } from '@/lib/mom'
+import { getMomFinalStatus } from '@/lib/mom-form'
 import MomFollowUpButton from '../MomFollowUpButton'
+import MomFinalStatusControl from '../MomFinalStatusControl'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { differenceInDays, startOfDay } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -97,13 +99,34 @@ function NoteBlock({
   )
 }
 
-export default async function MomDetailPage({ params }: { params: { id: string } }) {
+export default async function MomDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams: { view?: string }
+}) {
   const record = await prisma.meetingMinute.findUnique({
     where: { id: params.id },
     include: { createdBy: { select: { name: true, email: true } } },
   })
 
   if (!record) notFound()
+
+  const finalStatus = await getMomFinalStatus(record.id)
+
+  if (record.parentId) {
+    redirect(`/mom/${record.parentId}?view=${record.id}`)
+  }
+
+  const followUps = await prisma.meetingMinute.findMany({
+    where: { parentId: record.id },
+    include: { createdBy: { select: { name: true, email: true } } },
+    orderBy: [{ meetingDate: 'asc' }, { createdAt: 'asc' }],
+  })
+
+  const selected =
+    (searchParams.view ? followUps.find(m => m.id === searchParams.view) : null) ?? record
 
   const relatedMeetings = (
     await prisma.meetingMinute.findMany({
@@ -115,17 +138,21 @@ export default async function MomDetailPage({ params }: { params: { id: string }
       orderBy: [{ meetingDate: 'desc' }, { meetingTime: 'desc' }],
     })
   ).filter(
-    m => momClientKey(m.clientName, m.companyName) === momClientKey(record.clientName, record.companyName)
+    m =>
+      m.parentId !== record.id &&
+      momClientKey(m.clientName, m.companyName) === momClientKey(record.clientName, record.companyName)
   )
 
   const clientThreadHref = `/mom/client/${encodeMomClientKey(momClientKey(record.clientName, record.companyName))}`
-  const totalMeetings = relatedMeetings.length + 1
+  const totalMeetings = relatedMeetings.length + 1 + followUps.length
 
-  const attendees = parseAttendees(record.attendees)
-  const typeColor = `${MOM_MEETING_TYPE_COLORS[record.meetingType] ?? 'bg-gray-100 text-gray-700'} border-gray-200`
-  const followUpDays = record.followUpDate && !record.followUpCompletedAt
-    ? differenceInDays(startOfDay(record.followUpDate), startOfDay(new Date()))
+  const attendees = parseAttendees(selected.attendees)
+  const typeColor = `${MOM_MEETING_TYPE_COLORS[selected.meetingType] ?? 'bg-gray-100 text-gray-700'} border-gray-200`
+  const followUpDays = selected.followUpDate && !selected.followUpCompletedAt
+    ? differenceInDays(startOfDay(selected.followUpDate), startOfDay(new Date()))
     : null
+  const selectedIsFollowUp = selected.id !== record.id
+  const followUpIndex = followUps.findIndex(m => m.id === selected.id)
 
   return (
     <div className="w-full">
@@ -138,10 +165,18 @@ export default async function MomDetailPage({ params }: { params: { id: string }
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className={`badge border ${typeColor}`}>{record.meetingType}</span>
-              {record.leadSource && (
-                <span className="badge bg-gray-100 text-gray-600 border border-gray-200">{record.leadSource}</span>
+              <span className={`badge border ${typeColor}`}>{selected.meetingType}</span>
+              {selectedIsFollowUp && (
+                <span className="badge bg-sky-50 text-sky-800 border border-sky-100">
+                  Follow-up {followUpIndex + 1}
+                </span>
               )}
+              {selected.leadSource && (
+                <span className="badge bg-gray-100 text-gray-600 border border-gray-200">{selected.leadSource}</span>
+              )}
+              <span className={`badge border ${MOM_FINAL_STATUS_COLORS[finalStatus] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                {finalStatus}
+              </span>
             </div>
             <h1 className="text-2xl font-semibold text-gray-900">{record.clientName}</h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -158,35 +193,46 @@ export default async function MomDetailPage({ params }: { params: { id: string }
           </div>
           <div className="text-left sm:text-right shrink-0 space-y-2">
             <div>
-              <div className="text-lg font-semibold text-gray-900">{fmtDate(record.meetingDate)}</div>
-              {record.meetingTime && (
-                <div className="text-sm text-gray-500 mt-0.5">{record.meetingTime}</div>
+              <div className="text-lg font-semibold text-gray-900">{fmtDate(selected.meetingDate)}</div>
+              {selected.meetingTime && (
+                <div className="text-sm text-gray-500 mt-0.5">{selected.meetingTime}</div>
               )}
             </div>
-            <Link
-              href={`/mom/${record.id}/edit`}
-              className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Edit MOM
-            </Link>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <MomFinalStatusControl id={record.id} status={finalStatus} />
+              <Link
+                href={`/mom/new?from=${record.id}`}
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                + Add follow-up
+              </Link>
+              <Link
+                href={`/mom/${selected.id}/edit`}
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Edit MOM
+              </Link>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-          <MetaPill label="Logged by" value={record.createdBy.name} />
+          <MetaPill label="Logged by" value={selected.createdBy.name} />
           <MetaPill
             label="Follow-up"
             value={
-              record.followUpCompletedAt
-                ? 'Completed'
-                : record.followUpDate
-                  ? fmtDate(record.followUpDate)
-                  : '—'
+              followUps.length
+                ? `${followUps.length} logged`
+                : selected.followUpCompletedAt
+                  ? 'Completed'
+                  : selected.followUpDate
+                    ? fmtDate(selected.followUpDate)
+                    : '—'
             }
           />
           <MetaPill
             label="Industry"
-            value={record.domain || '—'}
+            value={selected.domain || '—'}
           />
           <MetaPill
             label="Attendees"
@@ -214,10 +260,10 @@ export default async function MomDetailPage({ params }: { params: { id: string }
               ))}
             </div>
           </div>
-        ) : record.attendees ? (
+        ) : selected.attendees ? (
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">Attendees</div>
-            <p className="text-sm text-gray-700">{record.attendees}</p>
+            <p className="text-sm text-gray-700">{selected.attendees}</p>
           </div>
         ) : null}
 
@@ -237,13 +283,42 @@ export default async function MomDetailPage({ params }: { params: { id: string }
           </div>
         )}
 
-        {record.followUpDate && (
+        {selected.followUpDate && (
           <MomFollowUpButton
-            id={record.id}
-            followUpDate={record.followUpDate.toISOString()}
-            completedAt={record.followUpCompletedAt?.toISOString() ?? null}
+            id={selected.id}
+            followUpDate={selected.followUpDate.toISOString()}
+            completedAt={selected.followUpCompletedAt?.toISOString() ?? null}
           />
         )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <Link
+          href={`/mom/${record.id}`}
+          className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+            !selectedIsFollowUp
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+          }`}
+        >
+          First meeting
+        </Link>
+        {followUps.map((m, i) => (
+          <Link
+            key={m.id}
+            href={`/mom/${record.id}?view=${m.id}`}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+              selected.id === m.id
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+            }`}
+          >
+            Follow-up {i + 1}
+            <span className={`ml-1.5 text-[11px] font-medium ${selected.id === m.id ? 'text-white/70' : 'text-gray-400'}`}>
+              {fmtDate(m.meetingDate)}
+            </span>
+          </Link>
+        ))}
       </div>
 
       {relatedMeetings.length > 0 && (
@@ -304,7 +379,7 @@ export default async function MomDetailPage({ params }: { params: { id: string }
           <p className="text-xs text-gray-400 mb-4">Summary of what was discussed and decided</p>
           <div className="flex-1 rounded-xl bg-gray-50 border border-gray-100 p-4">
             <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {record.meetingOutcome || <span className="text-gray-400">No outcome recorded</span>}
+              {selected.meetingOutcome || <span className="text-gray-400">No outcome recorded</span>}
             </p>
           </div>
         </div>
@@ -314,28 +389,28 @@ export default async function MomDetailPage({ params }: { params: { id: string }
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Discussion notes</h2>
         <div className="grid sm:grid-cols-2 gap-3">
-          <NoteBlock title="Client pain points" value={record.clientPainPoints} accent="red" />
-          <NoteBlock title="Our approach" value={record.ourApproach} accent="blue" />
-          <NoteBlock title="Requirement from client" value={record.requirementsFromClient} accent="gray" />
-          <NoteBlock title="Next action item" value={record.nextActionItem} accent="amber" />
+          <NoteBlock title="Client pain points" value={selected.clientPainPoints} accent="red" />
+          <NoteBlock title="Our approach" value={selected.ourApproach} accent="blue" />
+          <NoteBlock title="Requirement from client" value={selected.requirementsFromClient} accent="gray" />
+          <NoteBlock title="Next action item" value={selected.nextActionItem} accent="amber" />
         </div>
       </div>
 
       {/* Video */}
-      {(record.meetingVideoPath || record.meetingVideoUrl) && (
+      {(selected.meetingVideoPath || selected.meetingVideoUrl) && (
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-4">Meeting recording</h2>
           <div className="space-y-4">
-            {record.meetingVideoPath && (
+            {selected.meetingVideoPath && (
               <div>
                 <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Uploaded file</div>
                 <video
-                  src={record.meetingVideoPath}
+                  src={selected.meetingVideoPath}
                   controls
                   className="w-full rounded-xl bg-black max-h-[28rem] shadow-sm"
                 />
                 <a
-                  href={record.meetingVideoPath}
+                  href={selected.meetingVideoPath}
                   download
                   className="inline-flex items-center gap-1 mt-3 text-xs text-gray-500 hover:text-gray-800 font-medium"
                 >
@@ -344,11 +419,11 @@ export default async function MomDetailPage({ params }: { params: { id: string }
               </div>
             )}
 
-            {record.meetingVideoUrl && (
-              <div className={record.meetingVideoPath ? 'pt-4 border-t border-gray-100' : ''}>
+            {selected.meetingVideoUrl && (
+              <div className={selected.meetingVideoPath ? 'pt-4 border-t border-gray-100' : ''}>
                 <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">External link</div>
                 <a
-                  href={record.meetingVideoUrl}
+                  href={selected.meetingVideoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors group"
@@ -358,7 +433,7 @@ export default async function MomDetailPage({ params }: { params: { id: string }
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-gray-900 group-hover:text-blue-700">Open recording</div>
-                    <div className="text-xs text-gray-500 truncate mt-0.5">{record.meetingVideoUrl}</div>
+                    <div className="text-xs text-gray-500 truncate mt-0.5">{selected.meetingVideoUrl}</div>
                   </div>
                   <span className="text-gray-400 text-sm shrink-0">→</span>
                 </a>

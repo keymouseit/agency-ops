@@ -97,11 +97,17 @@ model MeetingMinute {
   meetingVideoUrl        String?
   leadSource             String?
   nextActionItem         String?
+  finalStatus            String     @default("Active") // Active | Hold | Closed
+  parentId               String?
+  parent                 MeetingMinute?  @relation("MomFollowUps", fields: [parentId], references: [id], onDelete: SetNull)
+  followUps              MeetingMinute[] @relation("MomFollowUps")
   campaignCall           CampaignCall?
   createdById            String
   createdBy              TeamMember @relation(fields: [createdById], references: [id])
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
+
+  @@index([parentId])
 }
 
 // ─── LINKEDIN / OUTREACH CAMPAIGNS ───────────────────────────
