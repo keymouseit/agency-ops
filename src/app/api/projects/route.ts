@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { invalidateProjectsListCache } from '@/lib/cache-tags'
+import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
 
 export async function POST(req: Request) {
   const deny = await checkRole(['BD', 'Dev', 'Both', 'Founder', 'Manager'])
@@ -20,23 +21,26 @@ export async function POST(req: Request) {
     )
   }
 
-  if (!data.developerId || typeof data.developerId !== 'string') {
-    return NextResponse.json({ error: 'Assigned person is required.' }, { status: 400 })
+  const developerIds = uniqueMemberIds(data.developerIds ?? (data.developerId ? [data.developerId] : []))
+  if (!developerIds.length) {
+    return NextResponse.json({ error: 'Select at least one assigned person.' }, { status: 400 })
   }
 
-  const assignee = await prisma.teamMember.findUnique({
-    where: { id: data.developerId },
-    select: { id: true, active: true },
+  const assignees = await prisma.teamMember.findMany({
+    where: { id: { in: developerIds }, active: true },
+    select: { id: true },
   })
-  if (!assignee?.active) {
-    return NextResponse.json({ error: 'Select an active team member.' }, { status: 400 })
+  if (assignees.length !== developerIds.length) {
+    return NextResponse.json({ error: 'Select active team members only.' }, { status: 400 })
   }
+
+  const primaryId = developerIds[0]
 
   const project = await prisma.project.create({
     data: {
       name: data.name,
       leadId: data.leadId || null,
-      developerId: assignee.id,
+      developerId: primaryId,
       bdMemberId: data.bdMemberId || null,
       clientName: data.clientName || null,
       contractValue: data.contractValue ? parseFloat(data.contractValue) : null,
@@ -48,8 +52,10 @@ export async function POST(req: Request) {
     },
   })
 
+  await replaceProjectAssignees(project.id, developerIds)
+
   await notifyProjectAssigned(
-    [assignee.id, data.bdMemberId],
+    [...developerIds, data.bdMemberId],
     creatorId,
     data.name,
     `/projects/${project.id}`

@@ -56,6 +56,7 @@ type Props = {
     postMortem: PostMortem | null
     bdMemberId: string | null
     developerId: string
+    assigneeIds?: string[]
     qaModulesDelivered: string | null
     qaSuggestedTestType: string | null
     qaTestingNotes: string | null
@@ -295,6 +296,7 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
               postMortem: project.postMortem,
               bdMemberId: project.bdMemberId,
               developerId: project.developerId,
+              assigneeIds: project.assigneeIds,
             }}
             members={members}
             userRole={userRole}

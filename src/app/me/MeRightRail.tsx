@@ -6,6 +6,7 @@ import { businessDayStart } from '@/lib/daily'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
+import { assignedToMemberWhere } from '@/lib/project-assignees'
 import MeSection from './MeSection'
 
 type Props = {
@@ -26,7 +27,7 @@ export default async function MeRightRail({ memberId, role, hasCheckin }: Props)
     await Promise.all([
       isDev
         ? prisma.project.findMany({
-            where: { developerId: memberId, status: { in: ['scoping', 'active', 'qa'] } },
+            where: { AND: [assignedToMemberWhere(memberId), { status: { in: ['scoping', 'active', 'qa'] } }] },
             select: {
               id: true,
               name: true,

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ProjectEditField } from '@/lib/projects'
+import AssigneeMultiSelect from '../AssigneeMultiSelect'
 
 type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
@@ -12,6 +13,7 @@ type Project = {
   name: string
   leadId: string | null
   developerId: string
+  assigneeIds?: string[]
   bdMemberId: string | null
   clientName: string | null
   contractValue: number | null
@@ -57,7 +59,16 @@ export default function EditProjectForm({
 
       if (can('name')) data.name = (fd.get('name') as string)?.trim()
       if (can('leadId')) data.leadId = (fd.get('leadId') as string) || null
-      if (can('developerId')) data.developerId = fd.get('developerId') as string
+      if (can('developerId')) {
+        const developerIds = fd.getAll('developerIds').filter((id): id is string => typeof id === 'string')
+        if (!developerIds.length) {
+          setError('Select at least one assigned person.')
+          setLoading(false)
+          return
+        }
+        data.developerId = developerIds[0]
+        ;(data as Record<string, unknown>).developerIds = developerIds
+      }
       if (can('bdMemberId')) data.bdMemberId = (fd.get('bdMemberId') as string) || null
       if (can('clientName')) data.clientName = (fd.get('clientName') as string)?.trim() || null
       if (can('contractValue')) data.contractValue = (fd.get('contractValue') as string) || ''
@@ -164,15 +175,14 @@ export default function EditProjectForm({
               {(can('developerId') || can('bdMemberId')) && (
                 <div className="grid grid-cols-2 gap-3">
                   {can('developerId') && (
-                    <div>
-                      <label className="label">Assigned person *</label>
-                      <select name="developerId" required className="input" defaultValue={project.developerId}>
-                        {members.map(m => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} · {m.role}
-                          </option>
-                        ))}
-                      </select>
+                    <div className={can('bdMemberId') ? '' : 'col-span-2'}>
+                      <label className="label">Assigned people *</label>
+                      <AssigneeMultiSelect
+                        members={members}
+                        selectedIds={
+                          project.assigneeIds?.length ? project.assigneeIds : [project.developerId]
+                        }
+                      />
                     </div>
                   )}
                   {can('bdMemberId') && (

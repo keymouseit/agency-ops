@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import AssigneeMultiSelect from './AssigneeMultiSelect'
 
 type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
@@ -35,7 +36,14 @@ export default function AddProjectForm({
 
     try {
       const fd = new FormData(e.currentTarget)
+      const developerIds = fd.getAll('developerIds').filter((id): id is string => typeof id === 'string')
+      if (!developerIds.length) {
+        setError('Select at least one assigned person.')
+        setLoading(false)
+        return
+      }
       const data = Object.fromEntries(fd)
+      const payload = { ...data, developerIds, developerId: developerIds[0] }
 
       // Validate estimated hours only when provided
       const estimatedHoursRaw = (data.estimatedHours as string)?.trim()
@@ -51,7 +59,7 @@ export default function AddProjectForm({
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -105,15 +113,11 @@ export default function AddProjectForm({
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Assigned person *</label>
-                  <select name="developerId" required className="input">
-                    <option value="">Select person...</option>
-                    {members.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} · {m.role}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="label">Assigned people *</label>
+                  <AssigneeMultiSelect
+                    members={members}
+                    selectedIds={currentUserId ? [currentUserId] : []}
+                  />
                 </div>
                 <div>
                   <label className="label">BD (client manager)</label>

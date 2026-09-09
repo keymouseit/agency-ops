@@ -13,6 +13,7 @@ type Project = {
   actualHours: number | null
   estimatedHours: number | null
   developer: { name: string }
+  assignees?: Array<{ member: { name: string } }>
   bdMember: { name: string } | null
   checkIns: Array<{ onTrack?: string | null; blockers?: string | null; progressPct?: number | null }>
   scopeChanges: Array<{ changeOrderSigned: boolean }>
@@ -67,7 +68,13 @@ export default function ProjectListCard({
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
               <span>
-                <span className="text-gray-400">Dev</span> {project.developer.name}
+                <span className="text-gray-400">Dev</span>{' '}
+                {[
+                  project.developer.name,
+                  ...(project.assignees ?? [])
+                    .map(a => a.member.name)
+                    .filter(name => name !== project.developer.name),
+                ].join(', ')}
               </span>
               {project.bdMember && (
                 <span>
