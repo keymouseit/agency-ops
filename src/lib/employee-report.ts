@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
 import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
+import { milestoneListOrderBy } from '@/lib/project-queries'
 import { differenceInCalendarDays } from 'date-fns'
 import { formatIstDate, formatIst } from '@/lib/ist'
 
@@ -228,7 +229,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
         status: true,
         project: { select: { id: true, name: true } },
       },
-      orderBy: { dueDate: 'asc' },
+      orderBy: milestoneListOrderBy,
       take: 20,
     }),
   ])

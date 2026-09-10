@@ -8,6 +8,7 @@ import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboar
 import { calculateMilestoneProgress } from '@/lib/milestone-qa'
 import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
+import { milestoneListOrderBy } from '@/lib/project-queries'
 import MeSection from './MeSection'
 
 type Props = {
@@ -35,7 +36,7 @@ export default async function MeRightRail({ memberId, role, hasCheckin }: Props)
               status: true,
               milestones: {
                 select: { status: true, title: true, dueDate: true },
-                orderBy: { dueDate: 'asc' },
+                orderBy: milestoneListOrderBy,
               },
               checkIns: {
                 orderBy: { weekOf: 'desc' },
@@ -87,7 +88,7 @@ export default async function MeRightRail({ memberId, role, hasCheckin }: Props)
             where: { status: { in: ['active', 'qa'] } },
             include: {
               milestones: {
-                orderBy: { dueDate: 'asc' },
+                orderBy: milestoneListOrderBy,
                 include: { testCases: { select: { status: true } } },
               },
               testCycles: {

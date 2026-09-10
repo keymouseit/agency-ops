@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
+import { milestoneListOrderBy } from '@/lib/project-queries'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import QAProjectListCard from './QAProjectListCard'
@@ -18,7 +19,7 @@ export default async function QAPage() {
         developer: true,
         bdMember: true,
         milestones: {
-          orderBy: { dueDate: 'asc' },
+          orderBy: milestoneListOrderBy,
           include: {
             testCases: { select: { status: true } },
           },
