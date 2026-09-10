@@ -13,8 +13,32 @@ export function assignedToMemberWhere(memberId: string) {
 
 const DAILY_PROJECT_STATUSES = ['active', 'qa', 'scoping', 'maintenance'] as const
 
-export async function listDailyProjectsForMember(memberId: string, includeIds: string[] = []) {
+/** BD (and Both) can pick any active project in daily plan/EOD; others only assigned projects. */
+function canSeeAllDailyProjects(role?: string | null) {
+  return !!role && ['BD', 'Both', 'Founder', 'Manager'].includes(role)
+}
+
+export async function listDailyProjectsForMember(
+  memberId: string,
+  includeIds: string[] = [],
+  role?: string | null,
+) {
   const extraIds = [...new Set(includeIds.filter(Boolean))]
+  const seeAll = canSeeAllDailyProjects(role)
+
+  if (seeAll) {
+    return prisma.project.findMany({
+      where: {
+        OR: [
+          { status: { in: [...DAILY_PROJECT_STATUSES] } },
+          ...(extraIds.length ? [{ id: { in: extraIds } }] : []),
+        ],
+      },
+      select: { id: true, name: true, clientName: true },
+      orderBy: { name: 'asc' },
+    })
+  }
+
   return prisma.project.findMany({
     where: {
       status: { in: [...DAILY_PROJECT_STATUSES] },

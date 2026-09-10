@@ -49,10 +49,14 @@ export default async function MorningPlanPage() {
     findCarryOverMovedTasks(memberId),
   ])
 
-  const projects = await listDailyProjectsForMember(memberId, [
-    ...(todayLog?.tasks.map(t => t.projectId ?? '') ?? []),
-    ...(carryOverMoved?.tasks.map(t => t.projectId ?? '') ?? []),
-  ])
+  const projects = await listDailyProjectsForMember(
+    memberId,
+    [
+      ...(todayLog?.tasks.map(t => t.projectId ?? '') ?? []),
+      ...(carryOverMoved?.tasks.map(t => t.projectId ?? '') ?? []),
+    ],
+    member?.role ?? session.user.role,
+  )
 
   if (!member) redirect('/login')
 
