@@ -35,6 +35,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const projects = await listDailyProjectsForMember(
       log.memberId,
       log.tasks.map(t => t.projectId ?? ''),
+      session.user.role,
     )
 
     return <EODClient log={log} projects={projects} readOnly={readOnly} />
@@ -45,6 +46,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const projects = await listDailyProjectsForMember(
       memberId,
       openLog.tasks.map(t => t.projectId ?? ''),
+      session.user.role,
     )
     return <EODClient log={openLog} projects={projects} />
   }
@@ -54,6 +56,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const projects = await listDailyProjectsForMember(
       memberId,
       editableLog.tasks.map(t => t.projectId ?? ''),
+      session.user.role,
     )
     return <EODClient log={editableLog} projects={projects} />
   }
