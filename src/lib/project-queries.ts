@@ -1,12 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { serializeMilestoneBug } from '@/lib/milestone-bugs'
 
+/** Stable creation order — do not sort by status/dueDate (updates reshuffle NULL due dates). */
+export const milestoneListOrderBy = { id: 'asc' as const }
+
 export const projectDetailInclude = {
   developer: true,
   bdMember: true,
   assignees: { include: { member: { select: { id: true, name: true } } } },
   lead: { select: { id: true, clientName: true, source: true } },
-  milestones: { orderBy: { dueDate: 'asc' as const } },
+  milestones: { orderBy: milestoneListOrderBy },
   scopeChanges: { include: { approvedBy: true }, orderBy: { createdAt: 'desc' as const } },
   checkIns: { include: { submittedBy: true }, orderBy: { weekOf: 'desc' as const }, take: 8 },
   postMortem: true,
@@ -20,7 +23,7 @@ export const projectDetailInclude = {
 
 export const qaProjectInclude = {
   developer: true,
-  milestones: { orderBy: { dueDate: 'asc' as const } },
+  milestones: { orderBy: milestoneListOrderBy },
   testCycles: {
     orderBy: { startedAt: 'desc' as const },
     include: { conductedBy: true, signOff: { include: { signedOffBy: true } } },
