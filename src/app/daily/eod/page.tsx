@@ -6,6 +6,7 @@ import {
   findTodayEditableEodLog,
   isEodReadOnly,
 } from '@/lib/daily'
+import { listDailyProjectsForMember } from '@/lib/project-assignees'
 import { redirect, notFound } from 'next/navigation'
 import EODClient from './EODClient'
 import Link from 'next/link'
@@ -17,12 +18,6 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
   if (!session?.user?.id) redirect('/login')
 
   const memberId = session.user.id
-
-  const projects = await prisma.project.findMany({
-    where: { status: { in: ['active', 'qa', 'scoping', 'maintenance'] } },
-    select: { id: true, name: true, clientName: true },
-    orderBy: { name: 'asc' },
-  })
 
   if (searchParams.logId && searchParams.logId !== 'undefined' && searchParams.logId !== '') {
     const log = await prisma.dailyLog.findUnique({
@@ -37,15 +32,31 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const readOnly = log.memberId === memberId
       ? isEodReadOnly(log.eodSubmittedAt)
       : true
+    const projects = await listDailyProjectsForMember(
+      log.memberId,
+      log.tasks.map(t => t.projectId ?? ''),
+    )
 
     return <EODClient log={log} projects={projects} readOnly={readOnly} />
   }
 
   const openLog = await findOpenDailyLog(memberId)
-  if (openLog) return <EODClient log={openLog} projects={projects} />
+  if (openLog) {
+    const projects = await listDailyProjectsForMember(
+      memberId,
+      openLog.tasks.map(t => t.projectId ?? ''),
+    )
+    return <EODClient log={openLog} projects={projects} />
+  }
 
   const editableLog = await findTodayEditableEodLog(memberId)
-  if (editableLog) return <EODClient log={editableLog} projects={projects} />
+  if (editableLog) {
+    const projects = await listDailyProjectsForMember(
+      memberId,
+      editableLog.tasks.map(t => t.projectId ?? ''),
+    )
+    return <EODClient log={editableLog} projects={projects} />
+  }
 
   return (
     <div className="py-8">
