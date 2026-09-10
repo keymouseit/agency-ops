@@ -7,6 +7,7 @@ import {
   findCarryOverMovedTasks,
   carryOverTasksToPlanRows,
 } from '@/lib/daily'
+import { listDailyProjectsForMember } from '@/lib/project-assignees'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
@@ -20,7 +21,7 @@ export default async function MorningPlanPage() {
   const memberId = session.user.id
   const today = businessDayStart()
 
-  const [member, todayLog, pendingPastEodLog, projects, carryOverMoved] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, carryOverMoved] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
 
     prisma.dailyLog.findUnique({
@@ -45,13 +46,12 @@ export default async function MorningPlanPage() {
 
     findPendingPastEodLogSummary(memberId),
 
-    prisma.project.findMany({
-      where: { status: { in: ['active', 'qa', 'scoping', 'maintenance'] } },
-      select: { id: true, name: true, clientName: true },
-      orderBy: { name: 'asc' },
-    }),
-
     findCarryOverMovedTasks(memberId),
+  ])
+
+  const projects = await listDailyProjectsForMember(memberId, [
+    ...(todayLog?.tasks.map(t => t.projectId ?? '') ?? []),
+    ...(carryOverMoved?.tasks.map(t => t.projectId ?? '') ?? []),
   ])
 
   if (!member) redirect('/login')
