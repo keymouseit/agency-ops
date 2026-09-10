@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 
 interface QAReadyPromptProps {
   projectId: string
@@ -29,8 +30,7 @@ export default function QAReadyPrompt({ projectId, projectName }: QAReadyPromptP
         throw new Error(data.error || 'Failed to update project status')
       }
 
-      // Refresh the page to show updated status
-      router.refresh()
+      softRefresh(router)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
       setLoading(false)

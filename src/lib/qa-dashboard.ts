@@ -1,4 +1,4 @@
-import { testCaseSummary } from '@/lib/milestone-qa'
+import { calculateMilestoneProgress, testCaseSummary } from '@/lib/milestone-qa'
 import { testCycleCaseSummary } from '@/lib/qa'
 
 type MilestoneRow = {
@@ -16,6 +16,7 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
   const approved = milestones.filter(m => m.status === 'done').length
   const testing = milestones.filter(m => m.status === 'testing').length
   const ready = milestones.filter(m => m.status === 'ready_for_qa').length
+  const inProgress = milestones.filter(m => m.status === 'in_progress').length
 
   let totalCases = 0
   let passedCases = 0
@@ -34,11 +35,12 @@ export function projectMilestoneProgress(milestones: MilestoneRow[]) {
     approved,
     testing,
     ready,
+    inProgress,
     totalCases,
     passedCases,
     failedCases,
     blockedCases,
-    pct: total > 0 ? Math.round((approved / total) * 100) : 0,
+    pct: calculateMilestoneProgress(milestones),
   }
 }
 

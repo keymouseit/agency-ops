@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 import AssigneeMultiSelect from './AssigneeMultiSelect'
 
 type Member = { id: string; name: string; role: string }
@@ -69,7 +70,7 @@ export default function AddProjectForm({
 
       setLoading(false)
       setOpen(false)
-      router.refresh()
+      softRefresh(router)
     } catch (err) {
       setLoading(false)
       setError(err instanceof Error ? err.message : 'Failed to create project. Please try again.')
@@ -78,7 +79,13 @@ export default function AddProjectForm({
 
   return (
     <>
-      <button className="btn-primary" onClick={() => setOpen(true)}>+ New project</button>
+      <button
+        type="button"
+        className="inline-flex items-center rounded-full border border-green-700 px-4 py-1.5 text-sm font-medium text-green-800 hover:bg-green-50"
+        onClick={() => setOpen(true)}
+      >
+        New project
+      </button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">

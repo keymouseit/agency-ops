@@ -10,6 +10,10 @@ const projectListSelect = {
   contractValue: true,
   currency: true,
   estimatedEnd: true,
+  actualEnd: true,
+  startDate: true,
+  createdAt: true,
+  clientName: true,
   actualHours: true,
   estimatedHours: true,
   onTime: true,
@@ -43,7 +47,7 @@ export function getProjectListCached(developerId?: string) {
   const scope = developerId ?? 'all'
   return unstable_cache(
     () => fetchProjectList(developerId),
-    ['projects-list-v3', scope],
+    ['projects-list-v4', scope],
     { revalidate: 30, tags: [CACHE_TAGS.projectsList] },
   )()
 }

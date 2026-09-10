@@ -1,12 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { fetchProjectForDetailPage, serializeMilestoneBug, serializeMilestoneTestCase } from '@/lib/project-queries'
-import { fmtCurrency, STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
+import { calculateMilestoneProgress } from '@/lib/milestone-qa'
 import QAReadyPrompt from './QAReadyPrompt'
 import DeleteProjectButton from './DeleteProjectButton'
 import EditProjectForm from './EditProjectForm'
-import { QASignOffBadge } from '@/components/QASignOffStatus'
+import ProjectActions from './ProjectActions'
+import ProjectHeader from './ProjectHeader'
 import ProjectDetailTabs from './ProjectDetailTabs'
 import { canDeleteProject, canEditProject, projectEditFields } from '@/lib/projects'
 
@@ -58,12 +59,13 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   const totalMilestones = project.milestones.length
   const completedMilestones = project.milestones.filter(m => m.status === 'done').length
-  const calculatedProgress = totalMilestones > 0
-    ? Math.round((completedMilestones / totalMilestones) * 100)
-    : 0
+  const inProgressMilestones = project.milestones.filter(m => m.status === 'in_progress').length
+  const calculatedProgress = calculateMilestoneProgress(project.milestones)
 
   const allMilestonesReadyForQA = totalMilestones > 0 &&
-    project.milestones.every(m => m.status === 'ready_for_qa' || m.status === 'done')
+    project.milestones.every(m =>
+      m.status === 'ready_for_qa' || m.status === 'testing' || m.status === 'done'
+    )
   const showQAPrompt = allMilestonesReadyForQA &&
     project.status !== 'qa' &&
     project.status !== 'delivered' &&
@@ -72,56 +74,70 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   return (
     <div className="w-full">
-      <div className="text-xs text-gray-400 mb-2">← <a href="/projects" className="hover:text-gray-700">Projects</a></div>
-
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
-            <span className={`badge ${STATUS_COLORS[project.status]}`}>{PROJECT_STATUS_LABELS[project.status] ?? project.status}</span>
-            {project.releaseSignOff && <QASignOffBadge signed />}
+      <ProjectHeader
+        name={project.name}
+        status={project.status}
+        clientName={project.clientName}
+        developerNames={assigneeNames}
+        bdName={project.bdMember?.name ?? null}
+        contractValue={project.contractValue}
+        currency={project.currency}
+        showValue={!!isBD}
+        leadSource={project.lead?.source ?? null}
+        startDate={project.startDate}
+        estimatedEnd={project.estimatedEnd}
+        estimatedHours={project.estimatedHours}
+        actualHours={project.actualHours}
+        progressPct={calculatedProgress}
+        completedMilestones={completedMilestones}
+        inProgressMilestones={inProgressMilestones}
+        totalMilestones={totalMilestones}
+        releaseSignedOff={!!project.releaseSignOff}
+        techStack={project.techStack}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <ProjectActions
+              project={{
+                id: project.id,
+                status: project.status,
+                postMortem: project.postMortem,
+                bdMemberId: project.bdMemberId,
+                developerId: project.developerId,
+                assigneeIds: assignment.assigneeIds,
+                releaseSignOff: project.releaseSignOff,
+              }}
+              members={members}
+              userRole={userRole}
+            />
+            {showEdit && (
+              <EditProjectForm
+                project={{
+                  id: project.id,
+                  name: project.name,
+                  leadId: project.leadId,
+                  developerId: project.developerId,
+                  assigneeIds: assignment.assigneeIds,
+                  bdMemberId: project.bdMemberId,
+                  clientName: project.clientName,
+                  contractValue: project.contractValue,
+                  currency: project.currency,
+                  estimatedHours: project.estimatedHours,
+                  actualHours: project.actualHours,
+                  techStack: project.techStack,
+                  startDate: project.startDate?.toISOString() ?? null,
+                  estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
+                }}
+                members={members}
+                wonLeads={wonLeads}
+                editableFields={editableFields}
+              />
+            )}
+            {showDelete && (
+              <DeleteProjectButton projectId={project.id} projectName={project.name} />
+            )}
           </div>
-          <div className="flex gap-4 text-sm text-gray-500">
-            <span>Developer{assigneeNames.length > 1 ? 's' : ''}: {assigneeNames.join(', ')}</span>
-            {project.bdMember && <span>BD: {project.bdMember.name}</span>}
-            {project.clientName && <span>Client: {project.clientName}</span>}
-            {project.contractValue && isBD && <span>Value: {fmtCurrency(project.contractValue, project.currency)}</span>}
-            {project.lead && <span>Source: {project.lead.source}</span>}
-          </div>
-        </div>
-        {(showEdit || showDelete) && (
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              {showEdit && (
-                <EditProjectForm
-                  project={{
-                    id: project.id,
-                    name: project.name,
-                    leadId: project.leadId,
-                    developerId: project.developerId,
-                    assigneeIds: assignment.assigneeIds,
-                    bdMemberId: project.bdMemberId,
-                    clientName: project.clientName,
-                    contractValue: project.contractValue,
-                    currency: project.currency,
-                    estimatedHours: project.estimatedHours,
-                    actualHours: project.actualHours,
-                    techStack: project.techStack,
-                    startDate: project.startDate?.toISOString() ?? null,
-                    estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
-                  }}
-                  members={members}
-                  wonLeads={wonLeads}
-                  editableFields={editableFields}
-                />
-              )}
-              {showDelete && (
-                <DeleteProjectButton projectId={project.id} projectName={project.name} />
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+        }
+      />
 
       {unsignedCOs.length > 0 && (
         <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800">
@@ -143,6 +159,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         stats={{
           calculatedProgress,
           completedMilestones,
+          inProgressMilestones,
           totalMilestones,
           estAccuracy,
           totalScopeHours,
@@ -212,6 +229,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             dueDate: m.dueDate?.toISOString() ?? null,
             status: m.status,
             completedAt: m.completedAt?.toISOString() ?? null,
+            notes: m.notes,
+            createdById: m.createdById,
             qaStartedAt: m.qaStartedAt?.toISOString() ?? null,
             testCases: m.testCases.map(serializeMilestoneTestCase),
             bugs: m.bugs.map(serializeMilestoneBug),

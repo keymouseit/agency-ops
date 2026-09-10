@@ -1,10 +1,16 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
 import MilestoneBugFixActions from '@/components/MilestoneBugFixActions'
-import { openBugCount, SerializedBug } from '@/lib/milestone-qa'
+import {
+  MILESTONE_STATUS_CONFIG,
+  calculateMilestoneProgress,
+  openBugCount,
+  SerializedBug,
+} from '@/lib/milestone-qa'
 
 type TestCase = {
   id: string
@@ -24,33 +30,6 @@ type Milestone = {
   qaStartedAt?: string | null
   testCases?: TestCase[]
   bugs?: SerializedBug[]
-}
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
-  pending: {
-    label: 'Not Started',
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200'
-  },
-  ready_for_qa: {
-    label: 'Ready for QA',
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200'
-  },
-  testing: {
-    label: 'In testing',
-    color: 'text-teal-700',
-    bgColor: 'bg-teal-50',
-    borderColor: 'border-teal-200'
-  },
-  done: {
-    label: 'QA Approved',
-    color: 'text-green-700',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200'
-  },
 }
 
 export default function DeveloperMilestones({
@@ -79,7 +58,7 @@ export default function DeveloperMilestones({
         throw new Error(data?.error || 'Failed to update milestone')
       }
 
-      router.refresh()
+      softRefresh(router)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update milestone')
     } finally {
@@ -95,16 +74,22 @@ export default function DeveloperMilestones({
     )
   }
 
+  const inProgressCount = milestones.filter(m => m.status === 'in_progress').length
   const readyForQACount = milestones.filter(m => m.status === 'ready_for_qa').length
   const testingCount = milestones.filter(m => m.status === 'testing').length
   const approvedCount = milestones.filter(m => m.status === 'done').length
-  const progressPct = Math.round((approvedCount / milestones.length) * 100)
+  const progressPct = calculateMilestoneProgress(milestones)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-gray-500">
           {approvedCount} of {milestones.length} QA-approved
+          {inProgressCount > 0 && (
+            <span className="ml-2 text-amber-700">
+              · {inProgressCount} in progress
+            </span>
+          )}
           {testingCount > 0 && (
             <span className="ml-2 text-teal-600">
               · {testingCount} in testing
@@ -112,7 +97,7 @@ export default function DeveloperMilestones({
           )}
           {readyForQACount > 0 && (
             <span className="ml-2 text-blue-600">
-              · {readyForQACount} ready for QA
+              · {readyForQACount} in QA
             </span>
           )}
         </div>
@@ -139,7 +124,7 @@ export default function DeveloperMilestones({
 
       <div className="space-y-2">
         {milestones.map(m => {
-          const statusConfig = STATUS_CONFIG[m.status] || STATUS_CONFIG.pending
+          const statusConfig = MILESTONE_STATUS_CONFIG[m.status] || MILESTONE_STATUS_CONFIG.pending
           const isOverdue = !!m.dueDate && new Date(m.dueDate) < new Date() && m.status !== 'done'
           const testCases = m.testCases ?? []
           const bugs = m.bugs ?? []
@@ -150,7 +135,13 @@ export default function DeveloperMilestones({
           return (
             <div
               key={m.id}
-              className={`rounded-lg border ${statusConfig.borderColor} ${statusConfig.bgColor}`}
+              className={`rounded-lg border border-gray-200 ${
+                m.status === 'in_progress' ? 'bg-amber-50/60' :
+                m.status === 'ready_for_qa' ? 'bg-blue-50/60' :
+                m.status === 'testing' ? 'bg-teal-50/60' :
+                m.status === 'done' ? 'bg-green-50/40' :
+                'bg-gray-50'
+              }`}
             >
               <div
                 className={`p-3 flex items-start justify-between gap-3 ${
@@ -190,7 +181,7 @@ export default function DeveloperMilestones({
                   className="flex items-center gap-2 shrink-0"
                   onClick={e => e.stopPropagation()}
                 >
-                  <span className={`badge text-xs ${statusConfig.color} ${statusConfig.bgColor}`}>
+                  <span className={`badge text-xs ${statusConfig.cls}`}>
                     {statusConfig.label}
                   </span>
                   {canExpand && (
@@ -205,21 +196,41 @@ export default function DeveloperMilestones({
                       {m.status === 'pending' && (
                         <button
                           type="button"
-                          onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa')}
+                          onClick={() => updateMilestoneStatus(m.id, 'in_progress')}
                           className="btn-secondary text-xs py-1 px-2"
-                          title="Mark as ready for QA testing"
+                          title="Start working on this milestone"
                         >
-                          → Send to QA
+                          → Start
                         </button>
+                      )}
+                      {m.status === 'in_progress' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa')}
+                            className="btn-secondary text-xs py-1 px-2"
+                            title="Mark as ready for QA testing"
+                          >
+                            → Send to QA
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateMilestoneStatus(m.id, 'pending')}
+                            className="btn-secondary text-xs py-1 px-2"
+                            title="Pause and move back to not started"
+                          >
+                            ← Pause
+                          </button>
+                        </>
                       )}
                       {m.status === 'ready_for_qa' && (
                         <button
                           type="button"
-                          onClick={() => updateMilestoneStatus(m.id, 'pending')}
+                          onClick={() => updateMilestoneStatus(m.id, 'in_progress')}
                           className="btn-secondary text-xs py-1 px-2"
-                          title="Move back to pending"
+                          title="Move back to in progress"
                         >
-                          ← Not Ready
+                          ← In progress
                         </button>
                       )}
                       {m.status === 'done' && (
@@ -248,7 +259,7 @@ export default function DeveloperMilestones({
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        Mark milestones as &quot;Ready for QA&quot; when complete. Click a milestone row to see test summary and bugs.
+        Start a milestone when you begin work, then send it to QA when ready. Progress includes in-progress work.
       </p>
     </div>
   )

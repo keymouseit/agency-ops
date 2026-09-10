@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { startOfWeek } from 'date-fns'
-import { invalidateProjectsListCache } from '@/lib/cache-tags'
+import { invalidateProjectCaches } from '@/lib/cache-tags'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['BD', 'Dev', 'QA', 'Both', 'Founder', 'Manager', 'SocialMedia'])
@@ -41,6 +41,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     },
   })
 
-  invalidateProjectsListCache()
+  invalidateProjectCaches(params.id)
   return NextResponse.json(ci)
 }

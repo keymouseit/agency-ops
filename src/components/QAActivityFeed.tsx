@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { fmtDate } from '@/lib/utils'
 import Link from 'next/link'
 import {
@@ -7,7 +8,12 @@ import {
 import TestCyclesList from '@/components/TestCyclesList'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import { MILESTONE_STATUS_CONFIG, milestoneHasTestingVisibility } from '@/lib/milestone-qa'
+import {
+  MILESTONE_STATUS_CONFIG,
+  milestoneHasTestingVisibility,
+  openBugCount,
+  testCaseSummary,
+} from '@/lib/milestone-qa'
 
 type TestCycle = TestCycleDetail
 
@@ -43,6 +49,7 @@ type Milestone = {
   dueDate: Date | string | null
   status: string
   completedAt: Date | string | null
+  notes?: string | null
   qaStartedAt?: string | null
   testCases?: Array<{
     id: string
@@ -81,6 +88,51 @@ type Props = {
   qaDetailHref?: string
 }
 
+function SummaryChip({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'blue' | 'teal' | 'green' | 'amber' | 'red'
+}) {
+  const tones = {
+    neutral: 'bg-gray-50 text-gray-800 border-gray-100',
+    blue: 'bg-blue-50 text-blue-800 border-blue-100',
+    teal: 'bg-teal-50 text-teal-800 border-teal-100',
+    green: 'bg-green-50 text-green-800 border-green-100',
+    amber: 'bg-amber-50 text-amber-800 border-amber-100',
+    red: 'bg-red-50 text-red-800 border-red-100',
+  }
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${tones[tone]}`}>
+      <div className="text-[11px] font-medium uppercase tracking-wide opacity-70">{label}</div>
+      <div className="mt-0.5 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
+  )
+}
+
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
 export default function QAActivityFeed({
   qaModulesDelivered,
   qaSuggestedTestType,
@@ -95,234 +147,273 @@ export default function QAActivityFeed({
   allowDevFix = false,
   qaDetailHref,
 }: Props) {
+  const inQaCount = milestones.filter(m => m.status === 'ready_for_qa').length
+  const testingCount = milestones.filter(m => m.status === 'testing').length
+  const approvedCount = milestones.filter(m => m.status === 'done').length
   const qaMilestones = milestones.filter(m =>
     m.status === 'ready_for_qa' || m.status === 'testing' || m.status === 'done'
   )
-  const hasDetailedContent = !!(
-    qaHandoffAt ||
-    qaModulesDelivered ||
-    testCycles.length > 0 ||
-    releaseSignOff ||
-    postDeliveryIssues.length > 0
-  )
-  const showSection = hasDetailedContent
-    || qaMilestones.length > 0
-    || projectStatus === 'qa'
-    || projectStatus === 'delivered'
+  const openIssues = postDeliveryIssues.filter(i => !i.resolvedAt).length
+  const hasHandoff = !!(qaModulesDelivered || qaSuggestedTestType || qaTestingNotes || qaAreasChanged)
+  const waitingForTestCycles =
+    (projectStatus === 'qa' || projectStatus === 'delivered') &&
+    testCycles.length === 0 &&
+    !releaseSignOff
 
-  if (!showSection) return null
-
-  const waitingForTestCycles = (projectStatus === 'qa' || projectStatus === 'delivered')
-    && testCycles.length === 0
-    && !releaseSignOff
+  const empty =
+    qaMilestones.length === 0 &&
+    !hasHandoff &&
+    testCycles.length === 0 &&
+    !releaseSignOff &&
+    postDeliveryIssues.length === 0
 
   return (
-    <div id="qa-updates" className="card p-5 mb-4 border-teal-100">
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold text-gray-900">QA updates</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Milestone reviews, test cycles, sign-off, and feedback from the QA team.
-        </p>
+    <div id="qa-updates" className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">QA updates</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Milestone reviews, test cycles, handoff, and release sign-off.
+          </p>
+        </div>
+        {qaDetailHref && (
+          <Link
+            href={qaDetailHref}
+            className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Open QA workspace →
+          </Link>
+        )}
       </div>
 
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <SummaryChip label="In QA" value={inQaCount} tone="blue" />
+        <SummaryChip label="Testing" value={testingCount} tone="teal" />
+        <SummaryChip label="Approved" value={approvedCount} tone="green" />
+        <SummaryChip label="Cycles" value={testCycles.length} tone="neutral" />
+        <SummaryChip
+          label="Sign-off"
+          value={releaseSignOff ? 'Done' : projectStatus === 'qa' ? 'Pending' : '—'}
+          tone={releaseSignOff ? 'green' : projectStatus === 'qa' ? 'amber' : 'neutral'}
+        />
+      </div>
+
+      {empty && (
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-5 py-10 text-center">
+          <p className="text-sm font-medium text-gray-700">No QA activity yet</p>
+          <p className="mt-1 text-sm text-gray-400">
+            When milestones move to QA, handoff notes and test cycles will show up here.
+          </p>
+        </div>
+      )}
+
       {qaMilestones.length > 0 && (
-        <div className="mb-5">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Milestone reviews</h3>
-          <div className="space-y-2">
+        <Section title="Milestone reviews">
+          <div className="divide-y divide-gray-100">
             {qaMilestones.map(m => {
               const statusCfg = MILESTONE_STATUS_CONFIG[m.status] ?? MILESTONE_STATUS_CONFIG.pending
               const testCases = m.testCases ?? []
               const bugs = m.bugs ?? []
               const showCases = milestoneHasTestingVisibility(m.status, testCases.length, bugs.length)
+              const summary = testCaseSummary(testCases)
+              const bugsOpen = openBugCount(bugs)
 
               return (
-              <div
-                key={m.id}
-                className={`p-3 rounded-lg border text-sm ${
-                  m.status === 'done'
-                    ? 'bg-green-50 border-green-200'
-                    : m.status === 'testing'
-                    ? 'bg-teal-50 border-teal-200'
-                    : 'bg-blue-50 border-blue-200'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className={`font-medium ${
-                      m.status === 'done' ? 'text-green-900' : m.status === 'testing' ? 'text-teal-900' : 'text-blue-900'
-                    }`}>
-                      {m.title}
+                <div key={m.id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900">{m.title}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                        <span>{m.dueDate ? `Due ${fmtDate(m.dueDate)}` : 'No due date'}</span>
+                        {m.status === 'done' && m.completedAt && (
+                          <span>· Approved {fmtDate(m.completedAt)}</span>
+                        )}
+                        {m.status === 'testing' && m.qaStartedAt && (
+                          <span>· Testing since {fmtDate(m.qaStartedAt)}</span>
+                        )}
+                        {summary.total > 0 && (
+                          <span>
+                            · {summary.passed}/{summary.total} cases
+                          </span>
+                        )}
+                        {bugsOpen > 0 && (
+                          <span className="text-red-600">· {bugsOpen} open bug{bugsOpen === 1 ? '' : 's'}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {m.dueDate ? <>Due {fmtDate(m.dueDate)}</> : 'No due date'}
-                      {m.status === 'done' && m.completedAt && (
-                        <> · QA approved {fmtDate(m.completedAt)}</>
-                      )}
-                      {m.status === 'testing' && m.qaStartedAt && (
-                        <> · Testing since {fmtDate(m.qaStartedAt)}</>
-                      )}
-                    </div>
+                    <span className={`badge text-xs shrink-0 ${statusCfg.cls}`}>
+                      {statusCfg.label}
+                    </span>
                   </div>
-                  <span className={`badge text-xs shrink-0 ${statusCfg.cls}`}>
-                    {statusCfg.label}
-                  </span>
+                  {showCases && (
+                    <MilestoneTestProgress
+                      milestoneTitle={m.title}
+                      milestoneStatus={m.status}
+                      qaStartedAt={m.qaStartedAt}
+                      testCases={testCases}
+                      bugs={bugs}
+                      compact
+                    />
+                  )}
                 </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
 
-                {showCases && (
-                  <MilestoneTestProgress
-                    milestoneTitle={m.title}
-                    milestoneStatus={m.status}
-                    qaStartedAt={m.qaStartedAt}
-                    testCases={testCases}
-                    bugs={bugs}
-                    compact
-                  />
-                )}
+      {hasHandoff && (
+        <Section
+          title="QA handoff"
+          action={
+            qaHandoffAt ? (
+              <span className="text-xs text-gray-400">{fmtDate(qaHandoffAt)}</span>
+            ) : null
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {qaModulesDelivered && (
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium text-gray-400 mb-1">Modules / features</div>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{qaModulesDelivered}</p>
               </div>
-            )})}
-          </div>
-        </div>
-      )}
-
-      {waitingForTestCycles && (
-        <div className="mb-5 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
-          Project is in QA — test cycle reports will appear here when QA logs them.
-        </div>
-      )}
-
-      {!hasDetailedContent && qaMilestones.length > 0 && projectStatus === 'active' && (
-        <div className="mb-5 p-3 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-600">
-          Milestone test progress appears here once QA starts testing. Project-level test cycle reports appear after the project moves to QA status.
-        </div>
-      )}
-
-      {qaModulesDelivered && (
-        <div className="mb-5 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-          <div className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
-            QA handoff
-            {qaHandoffAt && (
-              <span className="text-xs text-purple-600 font-normal">
-                · {fmtDate(qaHandoffAt)}
-              </span>
             )}
-          </div>
-          <div className="space-y-3">
-            <div>
-              <div className="text-xs text-purple-700 font-medium mb-1">Modules / features delivered</div>
-              <p className="text-sm text-purple-900 whitespace-pre-wrap">{qaModulesDelivered}</p>
-            </div>
             {qaSuggestedTestType && (
               <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Suggested test type</div>
-                <span className="inline-block text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded capitalize">
+                <div className="text-xs font-medium text-gray-400 mb-1">Suggested test type</div>
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 capitalize">
                   {qaSuggestedTestType}
                 </span>
               </div>
             )}
             {qaTestingNotes && (
-              <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Testing notes</div>
-                <p className="text-sm text-purple-900 whitespace-pre-wrap">{qaTestingNotes}</p>
+              <div className={qaSuggestedTestType ? '' : 'sm:col-span-2'}>
+                <div className="text-xs font-medium text-gray-400 mb-1">Testing notes</div>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{qaTestingNotes}</p>
               </div>
             )}
             {qaAreasChanged && (
-              <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Areas changed</div>
-                <p className="text-sm text-purple-900 whitespace-pre-wrap font-mono text-xs">{qaAreasChanged}</p>
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium text-gray-400 mb-1">Areas changed</div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap font-mono text-xs bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                  {qaAreasChanged}
+                </p>
               </div>
             )}
           </div>
-        </div>
+        </Section>
       )}
 
-      {testCycles.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Test cycles</h3>
-            {qaDetailHref && (
-              <Link href={qaDetailHref} className="text-xs font-medium text-teal-700 hover:text-teal-900">
-                View in QA workspace →
+      {(testCycles.length > 0 || waitingForTestCycles) && (
+        <Section
+          title="Test cycles"
+          action={
+            qaDetailHref ? (
+              <Link href={qaDetailHref} className="text-xs font-medium text-gray-500 hover:text-gray-800">
+                Manage in QA →
               </Link>
-            )}
-          </div>
-          <TestCyclesList
-            testCycles={testCycles}
-            allowDevFix={allowDevFix}
-          />
-        </div>
+            ) : null
+          }
+        >
+          {waitingForTestCycles ? (
+            <p className="text-sm text-gray-500">
+              Project is in QA — cycle reports will appear here when QA logs them.
+            </p>
+          ) : (
+            <TestCyclesList testCycles={testCycles} allowDevFix={allowDevFix} />
+          )}
+        </Section>
       )}
 
       {releaseSignOff && (
-        <div className="mb-5 p-4 bg-green-50 border border-green-100 rounded-xl">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Release sign-off</h3>
-          <div className="text-xs text-green-700 mb-3">
-            Signed off by {releaseSignOff.signedOffBy.name} on {fmtDate(releaseSignOff.signedOffAt)}
-            {releaseSignOff.qualityScore != null && ` · Quality score: ${releaseSignOff.qualityScore}/10`}
+        <Section title="Release sign-off">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-3">
+            <span className="badge bg-green-100 text-green-800">Signed off</span>
+            <span>
+              by {releaseSignOff.signedOffBy.name} · {fmtDate(releaseSignOff.signedOffAt)}
+            </span>
+            {releaseSignOff.qualityScore != null && (
+              <span>· Quality {releaseSignOff.qualityScore}/10</span>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-            {QA_SIGNOFF_CHECKLIST.map(item => (
-              <div key={item.key} className="flex items-center gap-2 text-sm">
-                <span className={releaseSignOff[item.key as keyof SignOff] ? 'text-green-600' : 'text-red-500'}>
-                  {releaseSignOff[item.key as keyof SignOff] ? '✓' : '✗'}
-                </span>
-                <span className="text-gray-700">{item.label}</span>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
+            {QA_SIGNOFF_CHECKLIST.map(item => {
+              const ok = !!releaseSignOff[item.key as keyof SignOff]
+              return (
+                <div key={item.key} className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className={ok ? 'text-green-600' : 'text-red-500'}>{ok ? '✓' : '✗'}</span>
+                  <span>{item.label}</span>
+                </div>
+              )
+            })}
           </div>
           {releaseSignOff.releaseNotes && (
-            <p className="text-sm text-green-800 whitespace-pre-wrap">{releaseSignOff.releaseNotes}</p>
+            <p className="text-sm text-gray-800 whitespace-pre-wrap">{releaseSignOff.releaseNotes}</p>
           )}
           {releaseSignOff.exceptionsNotes && (
-            <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded mt-2">
-              Exceptions noted: {releaseSignOff.exceptionsNotes}
+            <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Exceptions: {releaseSignOff.exceptionsNotes}
             </div>
           )}
-        </div>
+        </Section>
       )}
 
       {postDeliveryIssues.length > 0 && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Post-delivery issues</h3>
-          <div className="space-y-3">
+        <Section
+          title="Post-delivery issues"
+          action={
+            openIssues > 0 ? (
+              <span className="text-xs font-medium text-red-600">{openIssues} open</span>
+            ) : (
+              <span className="text-xs text-gray-400">All resolved</span>
+            )
+          }
+        >
+          <div className="space-y-2">
             {postDeliveryIssues.map(issue => (
               <div
                 key={issue.id}
-                className={`p-3 rounded-lg border text-sm ${
-                  issue.resolvedAt ? 'bg-gray-50 border-gray-100 opacity-70' : 'bg-red-50 border-red-100'
+                className={`rounded-xl border px-3 py-3 ${
+                  issue.resolvedAt
+                    ? 'border-gray-100 bg-gray-50/80'
+                    : 'border-red-100 bg-red-50/40'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className={`badge text-xs ${QA_SEVERITY_CLS[issue.severity] ?? 'bg-gray-100 text-gray-600'}`}>
                         {issue.severity}
                       </span>
                       <span className="text-xs text-gray-400">
-                        Reported by {issue.reportedBy} · {fmtDate(issue.reportedAt)}
+                        {issue.reportedBy} · {fmtDate(issue.reportedAt)}
                       </span>
                       {issue.wasInScope === true && (
                         <span className="badge bg-red-100 text-red-700 text-xs">QA miss</span>
                       )}
                     </div>
-                    <p className="text-gray-800 whitespace-pre-wrap">{issue.description}</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{issue.description}</p>
                     {issue.rootCause && (
-                      <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">Root cause: {issue.rootCause}</p>
+                      <p className="text-xs text-gray-500 mt-1">Root cause: {issue.rootCause}</p>
                     )}
                     {issue.resolutionNotes && (
-                      <p className="text-xs text-green-700 mt-1 whitespace-pre-wrap">✓ {issue.resolutionNotes}</p>
+                      <p className="text-xs text-green-700 mt-1">✓ {issue.resolutionNotes}</p>
                     )}
                   </div>
-                  <div className="shrink-0">
-                    {issue.resolvedAt
-                      ? <span className="badge bg-green-100 text-green-700 text-xs">Resolved</span>
-                      : <span className="badge bg-red-100 text-red-700 text-xs">Open</span>
-                    }
-                  </div>
+                  <span
+                    className={`badge text-xs shrink-0 ${
+                      issue.resolvedAt
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {issue.resolvedAt ? 'Resolved' : 'Open'}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Section>
       )}
     </div>
   )

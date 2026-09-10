@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 import { fmtDate } from '@/lib/utils'
 import { BUG_SEVERITY_CONFIG, SerializedBug } from '@/lib/milestone-qa'
 
@@ -33,7 +34,7 @@ export default function MilestoneBugFixActions({
       if (!res.ok) throw new Error(data.error ?? 'Failed to submit fix')
       setFixingId(null)
       setResolutionNotes('')
-      router.refresh()
+      softRefresh(router)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to submit fix')
     } finally {

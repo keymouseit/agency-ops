@@ -19,11 +19,16 @@ const EVENT_STYLES: Record<string, { icon: string; box: string; label: string }>
   test_cycle_case_dev_fix: { icon: '🔧', box: 'bg-amber-100', label: 'Dev fix' },
   test_cycle_case_retest: { icon: '🔁', box: 'bg-teal-100', label: 'Re-test' },
   release_signoff: { icon: '🎉', box: 'bg-green-100', label: 'Sign-off' },
+  milestone_created: { icon: '📌', box: 'bg-green-100', label: 'Milestone' },
+  milestone_started: { icon: '▶️', box: 'bg-amber-100', label: 'Milestone' },
   milestone_ready_for_qa: { icon: '📥', box: 'bg-blue-100', label: 'Milestone' },
   milestone_testing_started: { icon: '🔍', box: 'bg-teal-100', label: 'Milestone' },
   milestone_test_case_added: { icon: '➕', box: 'bg-gray-100', label: 'Test case' },
   milestone_test_case_updated: { icon: '📝', box: 'bg-amber-100', label: 'Test case' },
   milestone_approved: { icon: '✅', box: 'bg-green-100', label: 'Milestone' },
+  milestone_status_changed: { icon: '↔️', box: 'bg-purple-100', label: 'Milestone' },
+  milestone_updated: { icon: '✏️', box: 'bg-blue-100', label: 'Milestone' },
+  milestone_deleted: { icon: '🗑', box: 'bg-red-100', label: 'Milestone' },
   milestone_bug_fixed: { icon: '🐛', box: 'bg-amber-100', label: 'Bug fix' },
 }
 
