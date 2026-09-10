@@ -29,6 +29,13 @@ export function invalidateProjectsListCache() {
   revalidateTag(CACHE_TAGS.projectsList)
 }
 
+/** Bust list + project/QA detail pages after project mutations. */
+export function invalidateProjectCaches(projectId: string) {
+  invalidateProjectsListCache()
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/qa/${projectId}`)
+}
+
 export function invalidatePipelineLeadsCache() {
   revalidateTag(CACHE_TAGS.pipelineLeads)
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, scoreColor, avg } from '@/lib/utils'
 import Link from 'next/link'
@@ -7,7 +8,7 @@ import { formatIstWeekdayShort } from '@/lib/ist'
 import { getActiveMembersCached } from '@/lib/active-members'
 
 /** Heavy dashboard panels — streamed under Suspense. */
-export default async function DashboardBody() {
+export default async function DashboardBody({ children }: { children?: ReactNode }) {
   const [leads, projects, scores, members, dailyLogs, allQAIssues] = await Promise.all([
     prisma.lead.findMany({
       select: {
@@ -117,7 +118,7 @@ export default async function DashboardBody() {
   return (
     <div>
       {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         {[
           { label: 'Active pipeline', value: fmtCurrency(totalPipeline), sub: `${leads.filter(l => !['won','lost'].includes(l.status)).length} open leads`, danger: false },
           { label: 'Won revenue (total)', value: fmtCurrency(wonRevenue), sub: `${winRate}% win rate`, danger: false },
@@ -136,56 +137,58 @@ export default async function DashboardBody() {
         ))}
       </div>
 
-      {/* Daily ops summary */}
-      {(() => {
-        const today = new Date()
-        const isWeekday = today.getDay() !== 0 && today.getDay() !== 6
-        if (!isWeekday) return null
-        const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
-        const cadenceIds = new Set(cadenceMembers.map(m => m.id))
-        const submitted = dailyLogs.filter(l => l.planSubmittedAt && cadenceIds.has(l.memberId)).length
-        const eodDone = dailyLogs.filter(l => l.eodSubmittedAt && cadenceIds.has(l.memberId)).length
-        const noPlan = cadenceMembers.filter(m => !dailyLogs.find(l => l.memberId === m.id && l.planSubmittedAt))
-        const blockers = dailyLogs.filter(l => l.blockers && l.blockers.trim())
-        const allTasks = dailyLogs.flatMap(l => l.tasks)
-        const doneTasks = allTasks.filter(t => t.status === 'done').length
-        return (
-          <div className="card p-4 mb-6 border-l-4 border-blue-400">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-900">Today — {formatIstWeekdayShort(today)}</span>
-                <span className="badge bg-blue-100 text-blue-800 text-xs">{submitted}/{cadenceMembers.length} planned · {eodDone} EOD done</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
+        {children}
+        {(() => {
+          const today = new Date()
+          const isWeekday = today.getDay() !== 0 && today.getDay() !== 6
+          if (!isWeekday) return null
+          const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
+          const cadenceIds = new Set(cadenceMembers.map(m => m.id))
+          const submitted = dailyLogs.filter(l => l.planSubmittedAt && cadenceIds.has(l.memberId)).length
+          const eodDone = dailyLogs.filter(l => l.eodSubmittedAt && cadenceIds.has(l.memberId)).length
+          const noPlan = cadenceMembers.filter(m => !dailyLogs.find(l => l.memberId === m.id && l.planSubmittedAt))
+          const blockers = dailyLogs.filter(l => l.blockers && l.blockers.trim())
+          const allTasks = dailyLogs.flatMap(l => l.tasks)
+          const doneTasks = allTasks.filter(t => t.status === 'done').length
+          return (
+            <div className="card p-4 h-full border-l-4 border-blue-400">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-sm font-semibold text-gray-900">Today — {formatIstWeekdayShort(today)}</span>
+                  <span className="badge bg-blue-100 text-blue-800 text-xs">{submitted}/{cadenceMembers.length} planned · {eodDone} EOD done</span>
+                </div>
+                <Link href="/daily" className="text-xs text-blue-600 hover:underline shrink-0">Full daily view →</Link>
               </div>
-              <Link href="/daily" className="text-xs text-blue-600 hover:underline">Full daily view →</Link>
-            </div>
-            <div className="flex gap-6 text-sm">
-              <div>
-                <span className="text-gray-400 text-xs uppercase tracking-wide">Tasks</span>
-                <div className="font-semibold text-gray-800">{doneTasks} done / {allTasks.length} planned</div>
-              </div>
-              {noPlan.length > 0 && (
+              <div className="flex flex-col gap-3 text-sm">
                 <div>
-                  <span className="text-red-500 text-xs uppercase tracking-wide">No plan submitted</span>
-                  <div className="flex gap-1 mt-0.5 flex-wrap">
-                    {noPlan.map(m => (
-                      <span key={m.id} className="badge bg-red-100 text-red-700 text-xs">{m.name.split(' ')[0]}</span>
-                    ))}
+                  <span className="text-gray-400 text-xs uppercase tracking-wide">Tasks</span>
+                  <div className="font-semibold text-gray-800">{doneTasks} done / {allTasks.length} planned</div>
+                </div>
+                {noPlan.length > 0 && (
+                  <div>
+                    <span className="text-red-500 text-xs uppercase tracking-wide">No plan submitted</span>
+                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                      {noPlan.map(m => (
+                        <span key={m.id} className="badge bg-red-100 text-red-700 text-xs">{m.name.split(' ')[0]}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {blockers.length > 0 && (
-                <div>
-                  <span className="text-amber-600 text-xs uppercase tracking-wide">Blockers today</span>
-                  <div className="text-gray-700 text-sm">{blockers.map(l => l.member.name.split(' ')[0]).join(', ')}</div>
-                </div>
-              )}
-              {submitted === cadenceMembers.length && noPlan.length === 0 && (
-                <div className="text-green-700 text-sm font-medium">✓ Full team planned</div>
-              )}
+                )}
+                {blockers.length > 0 && (
+                  <div>
+                    <span className="text-amber-600 text-xs uppercase tracking-wide">Blockers today</span>
+                    <div className="text-gray-700 text-sm">{blockers.map(l => l.member.name.split(' ')[0]).join(', ')}</div>
+                  </div>
+                )}
+                {submitted === cadenceMembers.length && noPlan.length === 0 && (
+                  <div className="text-green-700 text-sm font-medium">✓ Full team planned</div>
+                )}
+              </div>
             </div>
-          </div>
-        )
-      })()}
+          )
+        })()}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Flags */}

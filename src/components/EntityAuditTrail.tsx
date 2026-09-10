@@ -38,6 +38,20 @@ const ACTION_COLORS: Record<string, string> = {
   password_changed: 'bg-amber-100 text-amber-800',
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  created: 'created',
+  updated: 'updated',
+  deleted: 'deleted',
+  status_changed: 'status changed',
+  activated: 'activated',
+  deactivated: 'deactivated',
+  signed_off: 'signed off',
+  approved: 'approved',
+  rejected: 'rejected',
+  submitted: 'submitted',
+  password_changed: 'password changed',
+}
+
 interface EntityAuditTrailProps {
   entityType: string
   entityId: string
@@ -116,7 +130,7 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
               {/* Action & User */}
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className={`badge text-xs ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-600'}`}>
-                  {log.action}
+                  {ACTION_LABELS[log.action] || log.action}
                 </span>
                 <span className="text-xs text-gray-600">
                   by <span className="font-medium text-gray-900">{log.userName || 'System'}</span>
@@ -127,10 +141,10 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                 <p className="text-sm text-gray-800 mb-1">{qaSummary}</p>
               )}
 
-              {/* Changes Summary */}
-              {log.changes && Object.keys(log.changes).length > 0 && (
+              {/* Changes Summary — skip project-status wording when a milestone/QA summary already explains it */}
+              {!qaSummary && log.changes && Object.keys(log.changes).length > 0 && (
                 <div className="text-xs text-gray-600 mb-1">
-                  {Object.entries(log.changes).map(([field, change], i) => (
+                  {Object.entries(log.changes).map(([field, change]) => (
                     <div key={field}>
                       {field === 'status' ? (
                         <>
@@ -143,9 +157,10 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
                             {String(change.new)}
                           </span>
                         </>
-                      ) : field === "name" ? (
+                      ) : field === 'name' ? (
                         <>
-                          <span className="font-medium">{field}</span> changed <span className="font-medium">
+                          <span className="font-medium">{field}</span> changed{' '}
+                          <span className="font-medium">
                             {String(change.old || 'Not Set')}
                           </span>{' '}
                           →{' '}

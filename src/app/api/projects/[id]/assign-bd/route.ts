@@ -3,6 +3,7 @@ import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
 import { notifyProjectAssigned } from '@/lib/notify'
+import { invalidateProjectCaches } from '@/lib/cache-tags'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const deny = await checkRole(['Founder', 'Manager'])
@@ -51,5 +52,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
   })
 
+  invalidateProjectCaches(params.id)
   return NextResponse.json({ success: true })
 }

@@ -1,4 +1,10 @@
-export const MILESTONE_STATUSES = ['pending', 'ready_for_qa', 'testing', 'done'] as const
+export const MILESTONE_STATUSES = [
+  'pending',
+  'in_progress',
+  'ready_for_qa',
+  'testing',
+  'done',
+] as const
 export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number]
 
 export const TEST_CASE_STATUSES = ['pending', 'pass', 'fail', 'blocked', 'skipped'] as const
@@ -10,11 +16,38 @@ export type BugStatus = (typeof BUG_STATUSES)[number]
 export const BUG_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
 export type BugSeverity = (typeof BUG_SEVERITIES)[number]
 
+/** Weight toward overall delivery progress (QA approval still = 100% of a milestone). */
+export const MILESTONE_PROGRESS_WEIGHT: Record<MilestoneStatus, number> = {
+  pending: 0,
+  in_progress: 0.5,
+  ready_for_qa: 0.75,
+  testing: 0.85,
+  done: 1,
+}
+
 export const MILESTONE_STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   pending:       { label: 'Not started',    cls: 'bg-gray-100 text-gray-600' },
-  ready_for_qa:  { label: 'Ready for QA',   cls: 'bg-blue-100 text-blue-800' },
+  in_progress:   { label: 'In progress',    cls: 'bg-amber-100 text-amber-800' },
+  ready_for_qa:  { label: 'In QA',          cls: 'bg-blue-100 text-blue-800' },
   testing:       { label: 'In testing',     cls: 'bg-teal-100 text-teal-800' },
   done:          { label: 'QA approved',    cls: 'bg-green-100 text-green-800' },
+}
+
+export function isMilestoneStatus(value: string): value is MilestoneStatus {
+  return (MILESTONE_STATUSES as readonly string[]).includes(value)
+}
+
+/** Weighted % so started / in-QA work shows progress before QA approval. */
+export function calculateMilestoneProgress(milestones: { status: string }[]) {
+  const total = milestones.length
+  if (total === 0) return 0
+  const sum = milestones.reduce((acc, m) => {
+    const weight = isMilestoneStatus(m.status)
+      ? MILESTONE_PROGRESS_WEIGHT[m.status]
+      : 0
+    return acc + weight
+  }, 0)
+  return Math.round((sum / total) * 100)
 }
 
 export const TEST_CASE_STATUS_CONFIG: Record<string, { label: string; cls: string }> = {

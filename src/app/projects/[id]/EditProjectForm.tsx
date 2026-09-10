@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 import type { ProjectEditField } from '@/lib/projects'
 import AssigneeMultiSelect from '../AssigneeMultiSelect'
 
@@ -110,7 +111,7 @@ export default function EditProjectForm({
 
       setLoading(false)
       setOpen(false)
-      router.refresh()
+      softRefresh(router)
     } catch (err) {
       setLoading(false)
       setError(err instanceof Error ? err.message : 'Failed to update project. Please try again.')
@@ -121,7 +122,7 @@ export default function EditProjectForm({
     <>
       <button
         type="button"
-        className="text-xs px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
         onClick={() => {
           setError('')
           setOpen(true)

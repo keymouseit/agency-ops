@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react'
 import { fmtDate, STATUS_COLORS } from '@/lib/utils'
 import { canViewQATestCycles } from '@/lib/qa-access'
-import DeveloperMilestones from './DeveloperMilestones'
+import MilestoneTimeline from './MilestoneTimeline'
 import ScopeChangesCard from './ScopeChangesCard'
-import ProjectActions from './ProjectActions'
 import QASignOffStatus from '@/components/QASignOffStatus'
 import QAActivityFeed from '@/components/QAActivityFeed'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 
-type TabId = 'overview' | 'milestones' | 'qa' | 'scope' | 'checkins' | 'history'
+type TabId = 'overview' | 'qa' | 'scope' | 'checkins' | 'history'
 
 type Member = { id: string; name: string; role: string }
 
@@ -120,9 +119,11 @@ type Props = {
     milestones: Array<{
       id: string
       title: string
-      dueDate: string | null,
+      dueDate: string | null
       status: string
       completedAt: string | null
+      notes: string | null
+      createdById: string | null
       qaStartedAt: string | null
       testCases: Array<{
         id: string
@@ -151,6 +152,7 @@ type Props = {
   stats: {
     calculatedProgress: number
     completedMilestones: number
+    inProgressMilestones: number
     totalMilestones: number
     estAccuracy: number | null
     totalScopeHours: number
@@ -159,7 +161,7 @@ type Props = {
 
 const TAB_HASH: Record<string, TabId> = {
   overview: 'overview',
-  milestones: 'milestones',
+  milestones: 'overview', // milestones live on overview
   qa: 'qa',
   'qa-updates': 'qa',
   scope: 'scope',
@@ -178,7 +180,6 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
 
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'milestones', label: 'Milestones', badge: project.milestones.length || undefined },
     { id: 'qa', label: 'QA updates', badge: qaTabCount || undefined },
     { id: 'scope', label: 'Scope', badge: pendingScopeCount || undefined },
     { id: 'checkins', label: 'Check-ins', badge: project.checkIns.length || undefined },
@@ -237,84 +238,70 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
             showQALink={showQADetailLink}
           />
 
-          {stats.totalMilestones > 0 && (
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-gray-900">Overall progress</h2>
-                <span className={`text-lg font-bold ${
-                  stats.calculatedProgress >= 80 ? 'text-green-600' :
-                  stats.calculatedProgress >= 50 ? 'text-amber-600' :
-                  stats.calculatedProgress >= 25 ? 'text-blue-600' :
-                  'text-gray-500'
-                }`}>
-                  {stats.calculatedProgress}%
-                </span>
+          <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4 items-start">
+            <MilestoneTimeline
+              milestones={project.milestones.map(m => ({
+                ...m,
+                dueDate: m.dueDate ? new Date(m.dueDate) : null,
+                completedAt: m.completedAt ? new Date(m.completedAt) : null,
+              }))}
+              currentUserId={userId}
+              userRole={userRole}
+            />
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Estimated hours', value: project.estimatedHours?.toString() ?? '—' },
+                  { label: 'Actual hours', value: project.actualHours?.toString() ?? '—' },
+                  {
+                    label: 'Est. accuracy',
+                    value: stats.estAccuracy != null ? `${stats.estAccuracy}%` : '—',
+                    danger: stats.estAccuracy != null && stats.estAccuracy > 120,
+                  },
+                  {
+                    label: 'Scope drift (hrs)',
+                    value: stats.totalScopeHours > 0 ? `+${stats.totalScopeHours}h` : '0h',
+                    danger: stats.totalScopeHours > 20,
+                  },
+                ].map(s => (
+                  <div key={s.label} className="card p-4">
+                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{s.label}</div>
+                    <div className={`text-xl font-semibold ${s.danger ? 'text-red-600' : 'text-gray-900'}`}>{s.value}</div>
+                  </div>
+                ))}
               </div>
-              <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    stats.calculatedProgress >= 80 ? 'bg-green-500' :
-                    stats.calculatedProgress >= 50 ? 'bg-amber-400' :
-                    stats.calculatedProgress >= 25 ? 'bg-blue-500' :
-                    'bg-gray-400'
-                  }`}
-                  style={{ width: `${stats.calculatedProgress}%` }}
-                />
+
+              <div className="card p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Overall progress</h3>
+                  <span className="text-lg font-bold text-gray-900">
+                    {stats.totalMilestones > 0 ? `${stats.calculatedProgress}%` : '—'}
+                  </span>
+                </div>
+                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-green-600 transition-all"
+                    style={{
+                      width: `${stats.totalMilestones > 0 ? Math.max(0, Math.min(100, stats.calculatedProgress)) : 0}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {stats.totalMilestones > 0 ? (
+                    <>
+                      {stats.completedMilestones} of {stats.totalMilestones} milestones QA-approved
+                      {stats.inProgressMilestones > 0
+                        ? ` · ${stats.inProgressMilestones} in progress`
+                        : ''}
+                    </>
+                  ) : (
+                    'No milestones yet'
+                  )}
+                </p>
               </div>
-              <p className="text-xs text-gray-500">
-                {stats.completedMilestones} of {stats.totalMilestones} milestones completed
-              </p>
             </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'Estimated hours', value: project.estimatedHours?.toString() ?? '—' },
-              { label: 'Actual hours', value: project.actualHours?.toString() ?? '—' },
-              {
-                label: 'Est. accuracy',
-                value: stats.estAccuracy != null ? `${stats.estAccuracy}%` : '—',
-                danger: stats.estAccuracy != null && stats.estAccuracy > 120,
-              },
-              {
-                label: 'Scope drift (hrs)',
-                value: stats.totalScopeHours > 0 ? `+${stats.totalScopeHours}h` : '0h',
-                danger: stats.totalScopeHours > 20,
-              },
-            ].map(s => (
-              <div key={s.label} className="card p-4">
-                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{s.label}</div>
-                <div className={`text-xl font-semibold ${s.danger ? 'text-red-600' : 'text-gray-900'}`}>{s.value}</div>
-              </div>
-            ))}
           </div>
-
-          <ProjectActions
-            project={{
-              id: project.id,
-              status: project.status,
-              postMortem: project.postMortem,
-              bdMemberId: project.bdMemberId,
-              developerId: project.developerId,
-              assigneeIds: project.assigneeIds,
-            }}
-            members={members}
-            userRole={userRole}
-          />
-        </div>
-      )}
-
-      {activeTab === 'milestones' && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Milestones</h2>
-          <DeveloperMilestones
-            milestones={project.milestones.map(m => ({
-              ...m,
-              dueDate: m.dueDate ? new Date(m.dueDate) : null,
-              completedAt: m.completedAt ? new Date(m.completedAt) : null,
-            }))}
-            projectId={projectId}
-          />
         </div>
       )}
 

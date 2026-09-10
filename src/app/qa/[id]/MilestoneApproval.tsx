@@ -87,6 +87,7 @@ export default function MilestoneApproval({
   const approvedCount = milestones.filter(m => m.status === 'done').length
   const testingCount = milestones.filter(m => m.status === 'testing').length
   const readyForQACount = milestones.filter(m => m.status === 'ready_for_qa').length
+  const inProgressCount = milestones.filter(m => m.status === 'in_progress').length
   const pendingCount = milestones.filter(m => m.status === 'pending').length
   const progressPct = Math.round((approvedCount / milestones.length) * 100)
 
@@ -105,9 +106,14 @@ export default function MilestoneApproval({
               · {readyForQACount} ready to test
             </span>
           )}
+          {inProgressCount > 0 && (
+            <span className="ml-2 text-amber-700">
+              · {inProgressCount} in progress
+            </span>
+          )}
           {pendingCount > 0 && (
             <span className="ml-2 text-gray-400">
-              · {pendingCount} pending dev
+              · {pendingCount} not started
             </span>
           )}
         </div>
@@ -137,6 +143,7 @@ export default function MilestoneApproval({
           const isOverdue = !!m.dueDate && new Date(m.dueDate) < new Date() && m.status !== 'done'
           const isReadyForQA = m.status === 'ready_for_qa'
           const isTesting = m.status === 'testing'
+          const isInProgress = m.status === 'in_progress'
           const isPending = m.status === 'pending'
           const isExpanded = expanded === m.id
           const openBugs = openBugCount(m.bugs)
@@ -152,6 +159,8 @@ export default function MilestoneApproval({
                   ? 'bg-teal-50 border-teal-200'
                   : isReadyForQA
                   ? 'bg-blue-50 border-blue-200'
+                  : isInProgress
+                  ? 'bg-amber-50 border-amber-200'
                   : isPending
                   ? 'bg-gray-50 border-gray-200 opacity-60'
                   : isOverdue
@@ -166,11 +175,11 @@ export default function MilestoneApproval({
                     data-testid="milestone-checkbox"
                     checked={m.status === 'done'}
                     onChange={() => toggleMilestone(m.id, m.status)}
-                    disabled={loading === m.id || isPending || !canToggleApproval}
+                    disabled={loading === m.id || isPending || isInProgress || !canToggleApproval}
                     className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
                     title={
-                      isPending
-                        ? 'Waiting for developer to mark as ready for QA'
+                      isPending || isInProgress
+                        ? 'Waiting for developer to send this milestone to QA'
                         : !canToggleApproval
                         ? 'Start testing before approving'
                         : 'Toggle QA approval'
@@ -192,7 +201,10 @@ export default function MilestoneApproval({
                   <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5 flex-wrap">
                     {m.dueDate ? <span>Due: {fmtDate(m.dueDate)}</span> : <span>No due date</span>}
                     {isPending && (
-                      <span className="badge bg-gray-100 text-gray-500">Waiting for dev</span>
+                      <span className="badge bg-gray-100 text-gray-500">Not started</span>
+                    )}
+                    {isInProgress && (
+                      <span className="badge bg-amber-100 text-amber-800">In progress</span>
                     )}
                     {isReadyForQA && (
                       <span className="badge bg-blue-100 text-blue-700">Ready to test</span>

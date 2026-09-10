@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logAudit, captureChanges, getClientIP } from '@/lib/audit'
 import { canEditProject, canDeleteProject, projectEditFields, type ProjectEditField } from '@/lib/projects'
 import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
-import { invalidateProjectsListCache } from '@/lib/cache-tags'
+import { invalidateProjectCaches } from '@/lib/cache-tags'
 
 function parseOptionalNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
@@ -167,7 +167,7 @@ export async function PATCH(
     where: { id: params.id },
     data: updateData,
   })
-  invalidateProjectsListCache()
+  invalidateProjectCaches(params.id)
 
   const changes = captureChanges(project, updateData)
   if (Object.keys(changes).length > 0) {

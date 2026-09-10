@@ -16,6 +16,7 @@ async function DashboardLeave() {
     <OnLeaveTodayCard
       people={people}
       dateLabel={formatIstWeekdayShort(businessDayStart())}
+      className="h-full"
     />
   )
 }
@@ -40,12 +41,12 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      <Suspense fallback={<CardSectionFallback className="mb-6" />}>
-        <DashboardLeave />
-      </Suspense>
-
       <Suspense fallback={<DashboardKpiFallback />}>
-        <DashboardBody />
+        <DashboardBody>
+          <Suspense fallback={<CardSectionFallback className="h-full mb-0" />}>
+            <DashboardLeave />
+          </Suspense>
+        </DashboardBody>
       </Suspense>
     </div>
   )

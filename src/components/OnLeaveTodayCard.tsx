@@ -12,12 +12,14 @@ function typeBadgeClass(leaveType: string) {
 export default function OnLeaveTodayCard({
   people,
   dateLabel,
+  className = 'mb-6',
 }: {
   people: OnLeaveTodayPerson[]
   dateLabel?: string
+  className?: string
 }) {
   return (
-    <div className="card p-5 mb-6">
+    <div className={`card p-5 ${className}`}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2">

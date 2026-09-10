@@ -42,6 +42,7 @@ model TeamMember {
   campaigns              Campaign[]
   campaignCalls          CampaignCall[]
   milestonesQAStarted    Milestone[]         @relation("MilestoneQAStartedBy")
+  milestonesCreated      Milestone[]         @relation("MilestoneCreatedBy")
   milestoneTestCases     MilestoneTestCase[] @relation("TestCaseTestedBy")
   milestoneBugsReported  MilestoneBug[]      @relation("BugReportedBy")
   testCycleCasesFixed    TestCycleCase[]     @relation("TestCycleCaseFixedBy")
@@ -252,8 +253,10 @@ model Milestone {
   title         String
   dueDate       DateTime?
   completedAt   DateTime?
-  status        String     @default("pending") // pending | ready_for_qa | testing | done
+  status        String     @default("pending") // pending | in_progress | ready_for_qa | testing | done
   notes         String?
+  createdById   String?
+  createdBy     TeamMember? @relation("MilestoneCreatedBy", fields: [createdById], references: [id])
   qaStartedAt   DateTime?
   qaStartedById String?
   qaStartedBy   TeamMember? @relation("MilestoneQAStartedBy", fields: [qaStartedById], references: [id])

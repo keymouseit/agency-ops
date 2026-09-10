@@ -45,7 +45,7 @@ export default function DeleteProjectButton({
           setShowModal(true)
         }}
         disabled={loading}
-        className="text-xs px-3 py-1.5 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+        className="inline-flex items-center rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
       >
         Delete project
       </button>

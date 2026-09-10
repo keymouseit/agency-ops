@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { softRefresh } from '@/lib/soft-refresh'
 import { fmtCurrency } from '@/lib/utils'
 
 type ScopeChange = {
@@ -71,7 +72,7 @@ export default function ScopeChangesCard({
         return
       }
 
-      router.refresh()
+      softRefresh(router)
     } catch {
       setError('Network error - could not update scope change.')
     } finally {

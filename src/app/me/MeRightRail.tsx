@@ -5,6 +5,7 @@ import { avg, isSameWeek } from '@/lib/utils'
 import { businessDayStart } from '@/lib/daily'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
+import { calculateMilestoneProgress } from '@/lib/milestone-qa'
 import { isBlockingCycleResult, testCycleCaseSummary } from '@/lib/qa'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
 import MeSection from './MeSection'
@@ -140,9 +141,7 @@ export default async function MeRightRail({ memberId, role, hasCheckin }: Props)
               const totalMilestones = p.milestones.length
               const completedMilestones = p.milestones.filter(m => m.status === 'done').length
               const calculatedProgress =
-                totalMilestones > 0
-                  ? Math.round((completedMilestones / totalMilestones) * 100)
-                  : null
+                totalMilestones > 0 ? calculateMilestoneProgress(p.milestones) : null
               const milestone = p.milestones.find(m => m.status !== 'done')
               const daysLeft = milestone?.dueDate
                 ? differenceInDays(new Date(milestone.dueDate), today)
