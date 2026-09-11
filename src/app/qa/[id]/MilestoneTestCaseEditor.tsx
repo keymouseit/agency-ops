@@ -32,9 +32,33 @@ export default function MilestoneTestCaseEditor({
   const [loading, setLoading] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
 
   const canEdit = ['testing', 'done'].includes(milestoneStatus)
   const summary = testCaseSummary(testCases)
+
+  function startEdit(tc: TestCase) {
+    setEditingId(tc.id)
+    setEditTitle(tc.title)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditTitle('')
+  }
+
+  async function saveTitle(caseId: string) {
+    const trimmed = editTitle.trim()
+    if (!trimmed) return
+    const current = testCases.find(tc => tc.id === caseId)
+    if (current && trimmed === current.title) {
+      cancelEdit()
+      return
+    }
+    const ok = await updateCase(caseId, { title: trimmed })
+    if (ok) cancelEdit()
+  }
 
   async function startTesting() {
     setLoading('start')
@@ -87,8 +111,10 @@ export default function MilestoneTestCaseEditor({
       if (!res.ok) throw new Error(data.error || 'Failed to update')
       setTestCases(prev => prev.map(tc => (tc.id === caseId ? data : tc)))
       router.refresh()
+      return true
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update')
+      return false
     } finally {
       setLoading(null)
     }
@@ -158,14 +184,71 @@ export default function MilestoneTestCaseEditor({
             <div key={tc.id} className="rounded-lg border border-gray-100 bg-white p-2.5">
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900">{tc.title}</div>
-                  {tc.testedAt && tc.testedBy && (
+                  {editingId === tc.id ? (
+                    <form
+                      className="flex items-center gap-1.5"
+                      onSubmit={e => {
+                        e.preventDefault()
+                        void saveTitle(tc.id)
+                      }}
+                    >
+                      <input
+                        className="input text-sm flex-1 min-w-0"
+                        value={editTitle}
+                        autoFocus
+                        disabled={loading === tc.id}
+                        onChange={e => setEditTitle(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Escape') cancelEdit()
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={loading === tc.id || !editTitle.trim()}
+                        className="btn-primary text-xs py-1 px-2 shrink-0"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        disabled={loading === tc.id}
+                        className="btn-secondary text-xs py-1 px-2 shrink-0"
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{tc.title}</div>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(tc)}
+                          disabled={loading === tc.id}
+                          aria-label="Edit test case"
+                          title="Edit test case"
+                          className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {tc.testedAt && tc.testedBy && editingId !== tc.id && (
                     <div className="text-xs text-gray-400 mt-0.5">
                       {tc.testedBy.name} · {fmtDate(tc.testedAt)}
                     </div>
                   )}
                 </div>
-                {canEdit && (
+                {canEdit && editingId !== tc.id && (
                   <select
                     value={tc.status}
                     disabled={loading === tc.id}
