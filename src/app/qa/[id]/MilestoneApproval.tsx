@@ -5,7 +5,7 @@ import { fmtDate } from '@/lib/utils'
 import MilestoneTestCaseEditor from './MilestoneTestCaseEditor'
 import MilestoneBugEditor from './MilestoneBugEditor'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import { openBugCount } from '@/lib/milestone-qa'
+import { allTestCasesPassed, MILESTONE_STATUS_CONFIG, openBugCount } from '@/lib/milestone-qa'
 
 type TestCase = {
   id: string
@@ -53,14 +53,13 @@ export default function MilestoneApproval({
   const [loading, setLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  async function toggleMilestone(milestoneId: string, currentStatus: string) {
+  async function setMilestoneStatus(milestoneId: string, status: 'done' | 'testing' | 'in_progress') {
     setLoading(milestoneId)
     try {
-      const newStatus = currentStatus === 'done' ? 'testing' : 'done'
       const res = await fetch(`/api/projects/milestones/${milestoneId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status }),
       })
 
       if (!res.ok) {
@@ -103,7 +102,7 @@ export default function MilestoneApproval({
           )}
           {readyForQACount > 0 && (
             <span className="ml-2 text-blue-600 font-medium">
-              · {readyForQACount} ready to test
+              · {readyForQACount} in QA
             </span>
           )}
           {inProgressCount > 0 && (
@@ -147,13 +146,17 @@ export default function MilestoneApproval({
           const isPending = m.status === 'pending'
           const isExpanded = expanded === m.id
           const openBugs = openBugCount(m.bugs)
-          const canToggleApproval = m.status === 'testing' || m.status === 'done'
+          const allPassed = allTestCasesPassed(m.testCases)
+          const canApprove = isTesting && allPassed
+          const canReturnToInProgress = isReadyForQA || isTesting
+          const isApproved = m.status === 'done'
+          const doneCfg = MILESTONE_STATUS_CONFIG.done
 
           return (
             <div
               key={m.id}
               className={`rounded-lg border ${
-                m.status === 'done'
+                isApproved
                   ? 'bg-green-50 border-green-200'
                   : isTesting
                   ? 'bg-teal-50 border-teal-200'
@@ -169,32 +172,9 @@ export default function MilestoneApproval({
               }`}
             >
               <div className="flex items-center gap-3 p-3">
-                {!readOnly ? (
-                  <input
-                    type="checkbox"
-                    data-testid="milestone-checkbox"
-                    checked={m.status === 'done'}
-                    onChange={() => toggleMilestone(m.id, m.status)}
-                    disabled={loading === m.id || isPending || isInProgress || !canToggleApproval}
-                    className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
-                    title={
-                      isPending || isInProgress
-                        ? 'Waiting for developer to send this milestone to QA'
-                        : !canToggleApproval
-                        ? 'Start testing before approving'
-                        : 'Toggle QA approval'
-                    }
-                  />
-                ) : (
-                  <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
-                    m.status === 'done' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-gray-200 text-transparent'
-                  }`}>
-                    ✓
-                  </span>
-                )}
                 <div className="flex-1 min-w-0">
                   <div className={`text-sm font-medium ${
-                    m.status === 'done' ? 'text-gray-500 line-through' : 'text-gray-900'
+                    isApproved ? 'text-gray-500 line-through' : 'text-gray-900'
                   }`}>
                     {m.title}
                   </div>
@@ -207,34 +187,73 @@ export default function MilestoneApproval({
                       <span className="badge bg-amber-100 text-amber-800">In progress</span>
                     )}
                     {isReadyForQA && (
-                      <span className="badge bg-blue-100 text-blue-700">Ready to test</span>
+                      <span className="badge bg-blue-100 text-blue-700">In QA</span>
                     )}
                     {isTesting && (
                       <span className="badge bg-teal-100 text-teal-800">
                         In testing{m.testCases.length > 0 ? ` · ${m.testCases.length} cases` : ''}
                       </span>
                     )}
+                    {isApproved && (
+                      <span className={`badge ${doneCfg.cls}`}>{doneCfg.label}</span>
+                    )}
                     {openBugs > 0 && (
                       <span className="badge bg-red-100 text-red-700">{openBugs} open bug(s)</span>
                     )}
                     {isOverdue && <span className="text-red-600">⚠ Overdue</span>}
                     {m.completedAt && (
-                      <span className="text-green-600">✓ Approved {fmtDate(m.completedAt)}</span>
+                      <span className="text-green-600">✓ {fmtDate(m.completedAt)}</span>
                     )}
                   </div>
                 </div>
-                {(isTesting || m.status === 'done' || isReadyForQA) && (
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(isExpanded ? null : m.id)}
-                    className="text-xs text-gray-500 hover:text-gray-800 shrink-0"
-                  >
-                    {isExpanded ? 'Hide cases' : 'Test cases'}
-                  </button>
-                )}
-                {loading === m.id && (
-                  <div className="text-xs text-gray-400 shrink-0">Updating...</div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {!readOnly && canApprove && (
+                    <button
+                      type="button"
+                      data-testid="milestone-approve"
+                      onClick={() => setMilestoneStatus(m.id, 'done')}
+                      disabled={loading === m.id}
+                      className="btn-primary text-xs py-1.5 px-3"
+                    >
+                      {loading === m.id ? 'Approving…' : 'Approve'}
+                    </button>
+                  )}
+                  {!readOnly && canReturnToInProgress && (
+                    <button
+                      type="button"
+                      data-testid="milestone-return-in-progress"
+                      onClick={() => setMilestoneStatus(m.id, 'in_progress')}
+                      disabled={loading === m.id}
+                      className="btn-secondary text-xs py-1.5 px-3"
+                      title="Send this milestone back to the developer as In progress"
+                    >
+                      {loading === m.id ? 'Updating…' : '← In progress'}
+                    </button>
+                  )}
+                  {!readOnly && isApproved && (
+                    <button
+                      type="button"
+                      data-testid="milestone-unapprove"
+                      onClick={() => setMilestoneStatus(m.id, 'testing')}
+                      disabled={loading === m.id}
+                      className="btn-secondary text-xs py-1.5 px-3"
+                    >
+                      {loading === m.id ? 'Updating…' : 'Undo'}
+                    </button>
+                  )}
+                  {(isTesting || isApproved || isReadyForQA) && (
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isExpanded ? null : m.id)}
+                      className="text-xs text-gray-500 hover:text-gray-800"
+                    >
+                      {isExpanded ? 'Hide cases' : 'Test cases'}
+                    </button>
+                  )}
+                  {loading === m.id && !canApprove && !isApproved && !canReturnToInProgress && (
+                    <div className="text-xs text-gray-400">Updating...</div>
+                  )}
+                </div>
               </div>
 
               {isExpanded && (
@@ -272,7 +291,7 @@ export default function MilestoneApproval({
       <p className="text-xs text-gray-400 mt-3">
         {readOnly
           ? 'Expand a milestone to review test cases and bugs logged by QA.'
-          : 'Start testing on ready milestones, log test cases and bugs, then approve when complete. Failed test cases auto-create bugs for the developer.'}
+          : 'Start testing on ready milestones, mark all test cases as Pass, then Approve the milestone. Failed test cases auto-create bugs for the developer.'}
       </p>
     </div>
   )

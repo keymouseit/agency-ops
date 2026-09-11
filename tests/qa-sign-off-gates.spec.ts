@@ -13,12 +13,23 @@ test.describe('QA Sign-Off Gates', () => {
       // Setup: Create project with milestones ready for QA
       const users = await prisma.teamMember.findMany()
       const dev = users.find(u => u.role === 'Dev')!
+      const qa = users.find(u => u.role === 'QA')!
       const project = await createTestProject(dev.id)
+      const milestone = project.milestones[0]
 
-      // Mark first milestone as ready for QA (developer completed it)
+      // Put milestone in testing with all cases passing so Approve is available
       await prisma.milestone.update({
-        where: { id: project.milestones[0].id },
-        data: { status: 'ready_for_qa' },
+        where: { id: milestone.id },
+        data: { status: 'testing', qaStartedAt: new Date() },
+      })
+      await prisma.milestoneTestCase.create({
+        data: {
+          milestoneId: milestone.id,
+          title: 'Happy path',
+          status: 'pass',
+          testedById: qa.id,
+          testedAt: new Date(),
+        },
       })
 
       // Login as QA
@@ -28,11 +39,8 @@ test.describe('QA Sign-Off Gates', () => {
       await page.goto(`/qa/${project.id}`)
       await page.waitForLoadState('networkidle')
 
-      // Find first milestone checkbox
-      const firstMilestoneCheckbox = page.locator('[data-testid="milestone-checkbox"]').first()
-
-      // Click to mark as complete
-      await firstMilestoneCheckbox.click()
+      // Approve milestone when all test cases pass
+      await page.locator('[data-testid="milestone-approve"]').first().click()
 
       // Wait for update
       await page.waitForTimeout(1000)
@@ -41,8 +49,9 @@ test.describe('QA Sign-Off Gates', () => {
       await page.reload()
       await page.waitForLoadState('networkidle')
 
-      // Should show 1 of 3 milestones completed
+      // Should show 1 of 3 milestones completed and QA approved badge
       await expect(page.locator('text=1 of 3 milestones')).toBeVisible()
+      await expect(page.locator('text=QA approved').first()).toBeVisible()
 
       // Progress should be updated
       const progressText = page.locator('text=/\\d+%/').first()

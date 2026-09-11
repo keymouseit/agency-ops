@@ -104,6 +104,12 @@ export function testCaseSummary(testCases: { status: string }[]) {
   return { total, completed, failed, blocked, pending, passed: completed, pct }
 }
 
+/** True when every test case is pass or skipped (and at least one exists). */
+export function allTestCasesPassed(testCases: { status: string }[]) {
+  if (testCases.length === 0) return false
+  return testCases.every(t => t.status === 'pass' || t.status === 'skipped')
+}
+
 export function milestoneHasTestingVisibility(
   status: string,
   testCaseCount: number,
