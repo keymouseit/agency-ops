@@ -1,11 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
+import { istYearAndMonth } from '@/lib/ist'
 import {
   BIRTHDAY_LEAVE_YEARLY_CAP,
+  MAX_ANNUAL_LEAVE_DAYS,
   SHORT_LEAVE_MONTHLY_CAP,
   accrualMonthsForYear,
   leaveRequestDayCost,
-  leaveUnpaidDays,
+  monthlyAccrualStep,
   splitPaidUnpaid,
 } from '@/lib/leave-math'
 
@@ -20,11 +22,12 @@ export {
 } from '@/lib/leave-math'
 
 /**
- * Accrue 1 leave day per calendar month so far this year.
- * Catch-up on access so Total keeps growing each month (Jan = 1 … current month).
- * Never lowers Total — HR extra grants and mid-year raises are kept.
+ * Accrue 1 leave day per calendar month.
+ * New rows start at months-so-far. Existing Totals are never reset — from the
+ * 1st of each later month we add +1 (max 12). HR edits to Total are kept.
  */
-export async function ensureMonthlyAccrual(memberId: string, year = new Date().getFullYear()) {
+export async function ensureMonthlyAccrual(memberId: string, year = istYearAndMonth().year) {
+  const { month: istMonth } = istYearAndMonth()
   const monthTarget = accrualMonthsForYear(new Date(), year)
 
   const existing = await prisma.leaveBalance.findUnique({
@@ -33,85 +36,63 @@ export async function ensureMonthlyAccrual(memberId: string, year = new Date().g
 
   if (!existing) {
     return prisma.leaveBalance.create({
-      data: { memberId, year, accrued: monthTarget, used: 0, shortLeaves: 0 },
+      data: {
+        memberId,
+        year,
+        accrued: monthTarget,
+        used: 0,
+        shortLeaves: 0,
+        accruedThroughMonth: year === istYearAndMonth().year ? istMonth : monthTarget,
+      },
     })
   }
 
-  if (existing.accrued >= monthTarget) return existing
+  const step = monthlyAccrualStep(existing.accruedThroughMonth, year)
+  if (step.initialize) {
+    return prisma.leaveBalance.update({
+      where: { id: existing.id },
+      data: { accruedThroughMonth: step.month },
+    })
+  }
+  if (step.monthsDue <= 0) return existing
 
-  await prisma.leaveBalance.update({
+  if (existing.accrued >= MAX_ANNUAL_LEAVE_DAYS) {
+    return prisma.leaveBalance.update({
+      where: { id: existing.id },
+      data: { accruedThroughMonth: step.month },
+    })
+  }
+
+  const nextAccrued = Math.min(
+    MAX_ANNUAL_LEAVE_DAYS,
+    Number((existing.accrued + step.monthsDue).toFixed(2))
+  )
+  return prisma.leaveBalance.update({
     where: { id: existing.id },
-    data: { accrued: monthTarget },
-  })
-  await applyAvailableToUnpaidApprovedLeaves(memberId, year)
-
-  return prisma.leaveBalance.findUniqueOrThrow({
-    where: { memberId_year: { memberId, year } },
+    data: {
+      accrued: nextAccrued,
+      accruedThroughMonth: step.month,
+    },
   })
 }
 
-/**
- * When monthly accrual catches up, convert leftover unpaid days to paid if
- * there is now enough balance (oldest approved leave first).
- */
-async function applyAvailableToUnpaidApprovedLeaves(memberId: string, year: number) {
-  const bal = await prisma.leaveBalance.findUnique({
-    where: { memberId_year: { memberId, year } },
+export async function accrueMonthlyLeaveForAllActive() {
+  const { year } = istYearAndMonth()
+  const members = await prisma.teamMember.findMany({
+    where: { active: true },
+    select: { id: true },
   })
-  if (!bal) return
-
-  let available = Math.max(0, Number((bal.accrued - bal.used).toFixed(2)))
-  if (available <= 0) return
-
-  const yearStart = startOfYear(new Date(year, 0, 1))
-  const yearEnd = endOfYear(new Date(year, 0, 1))
-  const leaves = await prisma.leaveRequest.findMany({
-    where: {
-      memberId,
-      status: 'approved',
-      unpaid: true,
-      startDate: { gte: yearStart, lte: yearEnd },
-      leaveType: { notIn: ['short_leave', 'birthday_leave', 'work_from_home'] },
-    },
-    orderBy: [{ startDate: 'asc' }, { appliedAt: 'asc' }],
-  })
-
-  let used = bal.used
-  for (const leave of leaves) {
-    if (available <= 0) break
-    const unpaidDays = leaveUnpaidDays(leave)
-    if (unpaidDays <= 0) continue
-
-    const shift = Math.min(unpaidDays, available)
-    const paidDays = Number((Number(leave.paidDays ?? 0) + shift).toFixed(2))
-    const remainingUnpaid = Number((unpaidDays - shift).toFixed(2))
-
-    await prisma.leaveRequest.update({
-      where: { id: leave.id },
-      data: {
-        paidDays,
-        unpaidDays: remainingUnpaid,
-        unpaid: remainingUnpaid > 0,
-      },
-    })
-
-    used = Number((used + shift).toFixed(2))
-    available = Number((available - shift).toFixed(2))
+  for (const m of members) {
+    await ensureMonthlyAccrual(m.id, year)
   }
-
-  if (used !== bal.used) {
-    await prisma.leaveBalance.update({
-      where: { id: bal.id },
-      data: { used },
-    })
-  }
+  return { year, members: members.length }
 }
 
 /**
  * Ensure short leaves are tracked as a count (not days in `used`).
  * One-time correction: move previously deducted 0.25/day short leaves out of `used`.
  */
-export async function syncShortLeaveBalance(memberId: string, year = new Date().getFullYear()) {
+export async function syncShortLeaveBalance(memberId: string, year = istYearAndMonth().year) {
   await ensureMonthlyAccrual(memberId, year)
 
   const yearStart = startOfYear(new Date(year, 0, 1))
@@ -138,6 +119,7 @@ export async function syncShortLeaveBalance(memberId: string, year = new Date().
   })
 
   if (!existing) {
+    const { month } = istYearAndMonth()
     return prisma.leaveBalance.create({
       data: {
         memberId,
@@ -145,6 +127,7 @@ export async function syncShortLeaveBalance(memberId: string, year = new Date().
         shortLeaves: shortLeaveCount,
         used: 0,
         accrued: monthTarget,
+        accruedThroughMonth: year === istYearAndMonth().year ? month : monthTarget,
       },
     })
   }
@@ -168,7 +151,7 @@ export async function syncShortLeaveBalance(memberId: string, year = new Date().
 }
 
 /** Remaining paid leave days after accrual sync (does not reserve pending). */
-export async function getAvailableLeaveDays(memberId: string, year = new Date().getFullYear()) {
+export async function getAvailableLeaveDays(memberId: string, year = istYearAndMonth().year) {
   const balance = await syncShortLeaveBalance(memberId, year)
   return {
     balance,

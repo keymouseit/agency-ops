@@ -904,13 +904,14 @@ model AuditLog {
 // ─── LEAVE MANAGEMENT ────────────────────────────────────────
 
 model LeaveBalance {
-  id          String     @id @default(cuid())
-  memberId    String
-  member      TeamMember @relation("EmployeeLeaveBalance", fields: [memberId], references: [id])
-  year        Int        // e.g., 2026
-  accrued     Float      @default(0) // Max 12 (1 added per month)
-  used        Float      @default(0) // Half-day + full-day only (not short leave)
-  shortLeaves Int        @default(0) // Count of approved short leaves (2 hours)
+  id                  String     @id @default(cuid())
+  memberId            String
+  member              TeamMember @relation("EmployeeLeaveBalance", fields: [memberId], references: [id])
+  year                Int        // e.g., 2026
+  accrued             Float      @default(0) // Max 12 (1 added per month)
+  used                Float      @default(0) // Half-day + full-day only (not short leave)
+  shortLeaves         Int        @default(0) // Count of approved short leaves (2 hours)
+  accruedThroughMonth Int        @default(0) // Last IST month (1–12) that received the +1; 0 = not stamped yet
 
   @@unique([memberId, year])
 }

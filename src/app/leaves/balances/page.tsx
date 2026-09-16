@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import LeaveBalancesClient from './LeaveBalancesClient'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
+import { istYearAndMonth } from '@/lib/ist'
 import { sortByEmployeeNo } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export default async function LeaveBalancesPage() {
     redirect('/leaves')
   }
 
-  const year = new Date().getFullYear()
+  const year = istYearAndMonth().year
 
   const members = sortByEmployeeNo(
     await prisma.teamMember.findMany({

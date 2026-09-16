@@ -4,12 +4,13 @@ import { auth, checkRole } from '@/lib/auth'
 import { logAudit, getClientIP } from '@/lib/audit'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
 import { sortByEmployeeNo } from '@/lib/employee-order'
+import { istYearAndMonth } from '@/lib/ist'
 
 export async function GET() {
   const deny = await checkRole(['Founder', 'HR'])
   if (deny) return deny
 
-  const year = new Date().getFullYear()
+  const year = istYearAndMonth().year
 
   const members = sortByEmployeeNo(
     await prisma.teamMember.findMany({
@@ -64,7 +65,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'memberId is required' }, { status: 400 })
   }
 
-  const year = typeof yearInput === 'number' ? yearInput : new Date().getFullYear()
+  const year = typeof yearInput === 'number' ? yearInput : istYearAndMonth().year
   const accruedNum = Number(accrued)
   const usedNum = Number(used)
 
@@ -87,9 +88,16 @@ export async function PUT(req: Request) {
     where: { memberId_year: { memberId, year } },
   })
 
+  const { month: istMonth } = istYearAndMonth()
   const balance = await prisma.leaveBalance.upsert({
     where: { memberId_year: { memberId, year } },
-    create: { memberId, year, accrued: accruedNum, used: usedNum },
+    create: {
+      memberId,
+      year,
+      accrued: accruedNum,
+      used: usedNum,
+      accruedThroughMonth: istMonth,
+    },
     update: { accrued: accruedNum, used: usedNum },
   })
 

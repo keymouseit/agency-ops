@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import LeaveDashboardClient from './LeaveDashboardClient'
 import { syncShortLeaveBalance } from '@/lib/leave-balance'
 import { sortByEmployeeNo } from '@/lib/employee-order'
+import { istYearAndMonth } from '@/lib/ist'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export default async function LeavesPage() {
 
   const isAdmin = ['Founder', 'Manager', 'HR'].includes(member.role)
   const canManageBalances = ['Founder', 'HR'].includes(member.role)
-  const currentYear = new Date().getFullYear()
+  const currentYear = istYearAndMonth().year
 
   const myLeaves = await prisma.leaveRequest.findMany({
     where: { memberId: member.id },
