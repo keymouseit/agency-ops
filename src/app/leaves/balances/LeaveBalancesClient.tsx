@@ -87,9 +87,8 @@ export default function LeaveBalancesClient({
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Employee Leave Balances</h1>
         <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-          Set Total and Used for {year}. People who joined mid-year should have a lower Total
-          (not 1 day for every month of the year). Saved values are kept after refresh.
-          Available = Total − Used.
+          Set Total and Used for {year}. Saved values stay on refresh. On the 1st of each
+          month, 1 day is added automatically (max 12). Mid-year joiners can have a lower Total.
         </p>
       </div>
 

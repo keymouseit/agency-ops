@@ -71,6 +71,27 @@ export function accrualMonthsForYear(
   return asOfMonth
 }
 
+export const MAX_ANNUAL_LEAVE_DAYS = 12
+
+/**
+ * How many +1 monthly days are due. `initialize: true` means stamp the current
+ * month without changing Total (legacy / HR-edited rows).
+ */
+export function monthlyAccrualStep(
+  accruedThroughMonth: number | null | undefined,
+  year: number,
+  asOf = new Date()
+) {
+  const { year: asOfYear, month } = istYearAndMonth(asOf)
+  if (year !== asOfYear) {
+    return { month, monthsDue: 0, initialize: false }
+  }
+  const through = Number(accruedThroughMonth ?? 0)
+  if (through < 1) return { month, monthsDue: 0, initialize: true }
+  if (month <= through) return { month, monthsDue: 0, initialize: false }
+  return { month, monthsDue: month - through, initialize: false }
+}
+
 /** Unpaid working-day portion of a request (supports legacy rows). */
 export function leaveUnpaidDays(leave: {
   leaveType: string
