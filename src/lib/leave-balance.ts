@@ -5,6 +5,7 @@ import {
   SHORT_LEAVE_MONTHLY_CAP,
   accrualMonthsForYear,
   leaveRequestDayCost,
+  leaveUnpaidDays,
   splitPaidUnpaid,
 } from '@/lib/leave-math'
 
@@ -19,25 +20,91 @@ export {
 } from '@/lib/leave-math'
 
 /**
- * Accrue 1 leave day per calendar month so far this year when a balance row is first created.
- * Do not overwrite Total after that — HR may set a lower value for mid-year joiners.
+ * Accrue 1 leave day per calendar month so far this year.
+ * Catch-up on access so Total keeps growing each month (Jan = 1 … current month).
+ * Never lowers Total — HR extra grants and mid-year raises are kept.
  */
 export async function ensureMonthlyAccrual(memberId: string, year = new Date().getFullYear()) {
+  const monthTarget = accrualMonthsForYear(new Date(), year)
+
   const existing = await prisma.leaveBalance.findUnique({
     where: { memberId_year: { memberId, year } },
   })
-  if (existing) return existing
 
-  const member = await prisma.teamMember.findUnique({
-    where: { id: memberId },
-    select: { createdAt: true },
-  })
-  const joinedAt = member?.createdAt ?? new Date()
-  const monthTarget = accrualMonthsForYear(joinedAt, year)
+  if (!existing) {
+    return prisma.leaveBalance.create({
+      data: { memberId, year, accrued: monthTarget, used: 0, shortLeaves: 0 },
+    })
+  }
 
-  return prisma.leaveBalance.create({
-    data: { memberId, year, accrued: monthTarget, used: 0, shortLeaves: 0 },
+  if (existing.accrued >= monthTarget) return existing
+
+  await prisma.leaveBalance.update({
+    where: { id: existing.id },
+    data: { accrued: monthTarget },
   })
+  await applyAvailableToUnpaidApprovedLeaves(memberId, year)
+
+  return prisma.leaveBalance.findUniqueOrThrow({
+    where: { memberId_year: { memberId, year } },
+  })
+}
+
+/**
+ * When monthly accrual catches up, convert leftover unpaid days to paid if
+ * there is now enough balance (oldest approved leave first).
+ */
+async function applyAvailableToUnpaidApprovedLeaves(memberId: string, year: number) {
+  const bal = await prisma.leaveBalance.findUnique({
+    where: { memberId_year: { memberId, year } },
+  })
+  if (!bal) return
+
+  let available = Math.max(0, Number((bal.accrued - bal.used).toFixed(2)))
+  if (available <= 0) return
+
+  const yearStart = startOfYear(new Date(year, 0, 1))
+  const yearEnd = endOfYear(new Date(year, 0, 1))
+  const leaves = await prisma.leaveRequest.findMany({
+    where: {
+      memberId,
+      status: 'approved',
+      unpaid: true,
+      startDate: { gte: yearStart, lte: yearEnd },
+      leaveType: { notIn: ['short_leave', 'birthday_leave', 'work_from_home'] },
+    },
+    orderBy: [{ startDate: 'asc' }, { appliedAt: 'asc' }],
+  })
+
+  let used = bal.used
+  for (const leave of leaves) {
+    if (available <= 0) break
+    const unpaidDays = leaveUnpaidDays(leave)
+    if (unpaidDays <= 0) continue
+
+    const shift = Math.min(unpaidDays, available)
+    const paidDays = Number((Number(leave.paidDays ?? 0) + shift).toFixed(2))
+    const remainingUnpaid = Number((unpaidDays - shift).toFixed(2))
+
+    await prisma.leaveRequest.update({
+      where: { id: leave.id },
+      data: {
+        paidDays,
+        unpaidDays: remainingUnpaid,
+        unpaid: remainingUnpaid > 0,
+      },
+    })
+
+    used = Number((used + shift).toFixed(2))
+    available = Number((available - shift).toFixed(2))
+  }
+
+  if (used !== bal.used) {
+    await prisma.leaveBalance.update({
+      where: { id: bal.id },
+      data: { used },
+    })
+  }
 }
 
 /**

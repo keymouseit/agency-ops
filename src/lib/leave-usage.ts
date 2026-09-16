@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { countWorkingDays } from '@/lib/leave-math'
+import { countWorkingDays, leavePaidDeduction, leaveUnpaidDays } from '@/lib/leave-math'
 
 export type LeaveUsageSummary = {
   fullDayCount: number
@@ -11,6 +11,8 @@ export type LeaveUsageSummary = {
   workFromHomeCount: number
   unpaidCount: number
   totalDayBalance: number
+  unpaidDayBalance: number
+  takenDays: number
   totalRequests: number
   leaves: {
     id: string
@@ -49,12 +51,22 @@ export function summarizeLeaveUsage(
   let workFromHomeCount = 0
   let unpaidCount = 0
   let totalDayBalance = 0
+  let unpaidDayBalance = 0
 
   const rows = leaves.map(l => {
     const unpaid = l.unpaid === true || (l.unpaidDays ?? 0) > 0
     const paidDays = Number(l.paidDays ?? 0)
-    const unpaidDays = Number(l.unpaidDays ?? 0)
+    const storedUnpaidDays = Number(l.unpaidDays ?? 0)
     if (unpaid) unpaidCount += 1
+
+    const splitLeave = {
+      leaveType: l.leaveType,
+      startDate: l.startDate,
+      endDate: l.endDate,
+      unpaid,
+      paidDays,
+      unpaidDays: storedUnpaidDays,
+    }
 
     let days = 0
     if (l.leaveType === 'short_leave') {
@@ -69,13 +81,14 @@ export function summarizeLeaveUsage(
     } else if (l.leaveType === 'half_day') {
       halfDayCount += 1
       days = 0.5
-      totalDayBalance += paidDays > 0 || unpaidDays > 0 || unpaid ? paidDays : 0.5
+      totalDayBalance += leavePaidDeduction({ ...splitLeave, leaveType: 'half_day' })
+      unpaidDayBalance += leaveUnpaidDays({ ...splitLeave, leaveType: 'half_day' })
     } else {
       fullDayCount += 1
       days = countWorkingDays(new Date(l.startDate), new Date(l.endDate))
-      const balanceDays = paidDays > 0 || unpaidDays > 0 || unpaid ? paidDays : days
-      totalDayBalance += balanceDays
-      fullDayDays += balanceDays
+      totalDayBalance += leavePaidDeduction({ ...splitLeave, leaveType: l.leaveType })
+      unpaidDayBalance += leaveUnpaidDays({ ...splitLeave, leaveType: l.leaveType })
+      fullDayDays += days
     }
 
     return {
@@ -88,22 +101,26 @@ export function summarizeLeaveUsage(
       status: l.status,
       unpaid,
       paidDays,
-      unpaidDays,
+      unpaidDays: storedUnpaidDays || leaveUnpaidDays(splitLeave),
       days,
     }
   })
 
   const halfDayDays = halfDayCount * 0.5
+  const paid = Number(totalDayBalance.toFixed(2))
+  const unpaidTaken = Number(unpaidDayBalance.toFixed(2))
   return {
     fullDayCount,
-    fullDayDays,
+    fullDayDays: Number(fullDayDays.toFixed(2)),
     halfDayCount,
     halfDayDays,
     shortLeaveCount,
     birthdayLeaveCount,
     workFromHomeCount,
     unpaidCount,
-    totalDayBalance: Number(totalDayBalance.toFixed(2)),
+    totalDayBalance: paid,
+    unpaidDayBalance: unpaidTaken,
+    takenDays: Number((fullDayDays + halfDayDays).toFixed(2)),
     totalRequests: leaves.length,
     leaves: rows,
   }

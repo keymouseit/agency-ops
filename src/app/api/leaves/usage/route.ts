@@ -80,7 +80,9 @@ export async function GET(request: Request) {
     lines.push('Usage Summary (approved in period)')
     lines.push(
       [
-        'Day Balance Used',
+        'Days Taken',
+        'Paid Days Deducted',
+        'Unpaid Days',
         'Full Day Count',
         'Full Day Days',
         'Half Day Count',
@@ -96,7 +98,9 @@ export async function GET(request: Request) {
     )
     lines.push(
       [
+        usage.takenDays,
         usage.totalDayBalance,
+        usage.unpaidDayBalance,
         usage.fullDayCount,
         usage.fullDayDays,
         usage.halfDayCount,

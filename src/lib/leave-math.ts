@@ -71,6 +71,32 @@ export function accrualMonthsForYear(
   return asOfMonth
 }
 
+/** Unpaid working-day portion of a request (supports legacy rows). */
+export function leaveUnpaidDays(leave: {
+  leaveType: string
+  startDate: Date
+  endDate: Date
+  unpaid: boolean
+  paidDays?: number | null
+  unpaidDays?: number | null
+}): number {
+  if (
+    leave.leaveType === 'short_leave' ||
+    leave.leaveType === 'birthday_leave' ||
+    leave.leaveType === 'work_from_home'
+  ) {
+    return 0
+  }
+  const paid = Number(leave.paidDays ?? 0)
+  const unpaidPart = Number(leave.unpaidDays ?? 0)
+  if (unpaidPart > 0) return Number(unpaidPart.toFixed(2))
+  if (leave.unpaid) {
+    const cost = leaveRequestDayCost(leave.leaveType, new Date(leave.startDate), new Date(leave.endDate))
+    return Number(Math.max(0, cost - paid).toFixed(2))
+  }
+  return 0
+}
+
 /** Paid days actually deducted on approval (supports legacy rows). */
 export function leavePaidDeduction(leave: {
   leaveType: string

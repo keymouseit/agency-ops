@@ -30,6 +30,8 @@ type UsagePayload = {
     workFromHomeCount?: number
     unpaidCount?: number
     totalDayBalance: number
+    unpaidDayBalance?: number
+    takenDays?: number
     totalRequests: number
     leaves: {
       id: string
@@ -272,12 +274,18 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.available}</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Total</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  Total ({data.balance.year})
+                </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.accrued}</p>
+                <p className="text-xs text-gray-400 mt-1">1 day accrued per month</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Used</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  Used ({data.balance.year})
+                </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.used}</p>
+                <p className="text-xs text-gray-400 mt-1">paid days deducted this year</p>
               </div>
               <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
@@ -293,14 +301,21 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Day balance used</p>
-              <p className="text-3xl font-bold mt-1">{data.usage.totalDayBalance}</p>
-              <p className="text-xs text-slate-400 mt-1">full + half days</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Days taken</p>
+              <p className="text-3xl font-bold mt-1">
+                {data.usage.takenDays ?? data.usage.fullDayDays + data.usage.halfDayDays}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {data.usage.totalDayBalance} paid
+                {(data.usage.unpaidDayBalance ?? 0) > 0
+                  ? ` · ${data.usage.unpaidDayBalance} unpaid`
+                  : ' · full + half days'}
+              </p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Full day</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{data.usage.fullDayCount}</p>
-              <p className="text-xs text-gray-500 mt-1">{data.usage.fullDayDays} day(s) total</p>
+              <p className="text-xs text-gray-500 mt-1">{data.usage.fullDayDays} day(s) taken</p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Half day</p>
@@ -374,8 +389,8 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                         ? 'Not counted in day balance'
                         : l.unpaid
                           ? Number(l.paidDays || 0) > 0
-                            ? `${l.paidDays} paid + ${l.unpaidDays} unpaid`
-                            : 'Unpaid — not deducted'
+                            ? `${l.days} days · ${l.paidDays} paid + ${l.unpaidDays} unpaid`
+                            : `${l.days} day${l.days === 1 ? '' : 's'} · unpaid`
                           : `${l.days} day${l.days === 1 ? '' : 's'}`}
                     </div>
                   </div>
