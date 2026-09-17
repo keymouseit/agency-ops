@@ -23,13 +23,13 @@ export default function OnLeaveTodayCard({
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-gray-900">On leave today</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Today's attendance</h2>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {people.length}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            Approved for {dateLabel ?? 'today'} · leave & work from home
+            {dateLabel ?? 'Today'} · who’s on leave, short leave, or working from home
           </p>
         </div>
         <Link href="/leaves" className="text-xs text-blue-600 hover:underline shrink-0">
@@ -38,7 +38,7 @@ export default function OnLeaveTodayCard({
       </div>
 
       {people.length === 0 ? (
-        <p className="text-sm text-gray-500">Nobody is on approved leave today.</p>
+        <p className="text-sm text-gray-500">No one is on leave or working from home today.</p>
       ) : (
         <ul className="space-y-2">
           {people.map(p => (
