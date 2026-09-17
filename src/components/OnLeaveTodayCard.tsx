@@ -23,7 +23,7 @@ export default function OnLeaveTodayCard({
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-gray-900">Today's attendance</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Today's Attendance</h2>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {people.length}
             </span>
