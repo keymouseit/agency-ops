@@ -35,17 +35,18 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     prisma.dailyTask.findMany({
       where: { projectId: params.id },
       orderBy: [{ dailyLog: { date: 'desc' } }, { createdAt: 'desc' }],
-      take: 50,
       select: {
         id: true,
         title: true,
+        taskType: true,
         estimatedHours: true,
         actualHours: true,
         status: true,
+        eodNotes: true,
         dailyLog: {
           select: {
             date: true,
-            member: { select: { name: true } },
+            member: { select: { id: true, name: true } },
           },
         },
       },
@@ -82,14 +83,33 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const completedMilestones = project.milestones.filter(m => m.status === 'done').length
   const inProgressMilestones = project.milestones.filter(m => m.status === 'in_progress').length
   const calculatedProgress = calculateMilestoneProgress(project.milestones)
-  const workMemos = workMemoRows.map(t => ({
+  const timesheetEntries = workMemoRows.map(t => ({
     id: t.id,
     date: t.dailyLog.date.toISOString(),
     title: t.title,
+    memberId: t.dailyLog.member.id,
     memberName: t.dailyLog.member.name,
+    taskType: t.taskType,
+    status: t.status,
+    estimatedHours: t.estimatedHours,
+    actualHours: t.actualHours,
+    eodNotes: t.eodNotes,
+  }))
+  const workMemos = timesheetEntries.slice(0, 50).map(t => ({
+    id: t.id,
+    date: t.date,
+    title: t.title,
+    memberName: t.memberName,
     estimatedHours: t.estimatedHours,
     actualHours: t.actualHours,
     status: t.status,
+  }))
+  const timesheetMilestones = project.milestones.map(m => ({
+    id: m.id,
+    title: m.title,
+    status: m.status,
+    dueDate: m.dueDate?.toISOString() ?? null,
+    completedAt: m.completedAt?.toISOString() ?? null,
   }))
 
   const allMilestonesReadyForQA = totalMilestones > 0 &&
@@ -195,6 +215,16 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           totalScopeHours,
         }}
         workMemos={workMemos}
+        timesheet={{
+          projectName: project.name,
+          estimatedHours: project.estimatedHours,
+          contractValue: project.contractValue,
+          currency: project.currency,
+          startDate: project.startDate?.toISOString() ?? null,
+          estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
+          entries: timesheetEntries,
+          milestones: timesheetMilestones,
+        }}
         project={{
           id: project.id,
           status: project.status,

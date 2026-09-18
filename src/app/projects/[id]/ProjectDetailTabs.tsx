@@ -9,8 +9,10 @@ import QASignOffStatus from '@/components/QASignOffStatus'
 import QAActivityFeed from '@/components/QAActivityFeed'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
 import ProjectWorkMemos from './ProjectWorkMemos'
+import ProjectTimesheet from './ProjectTimesheet'
+import type { TimesheetEntry, TimesheetMilestone } from '@/lib/project-timesheet'
 
-type TabId = 'overview' | 'qa' | 'scope' | 'checkins' | 'history'
+type TabId = 'overview' | 'timesheet' | 'qa' | 'scope' | 'checkins' | 'history'
 
 type Member = { id: string; name: string; role: string }
 
@@ -167,11 +169,22 @@ type Props = {
     actualHours: number | null
     status: string
   }>
+  timesheet?: {
+    projectName: string
+    estimatedHours: number | null
+    contractValue: number | null
+    currency: string
+    startDate: string | null
+    estimatedEnd: string | null
+    entries: TimesheetEntry[]
+    milestones: TimesheetMilestone[]
+  }
 }
 
 const TAB_HASH: Record<string, TabId> = {
   overview: 'overview',
   milestones: 'overview', // milestones live on overview
+  timesheet: 'timesheet',
   qa: 'qa',
   'qa-updates': 'qa',
   scope: 'scope',
@@ -189,6 +202,7 @@ export default function ProjectDetailTabs({
   project,
   stats,
   workMemos = [],
+  timesheet,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
 
@@ -200,6 +214,7 @@ export default function ProjectDetailTabs({
   ).length
   const qaTabCount = qaMilestoneCount + project.testCycles.length + (project.releaseSignOff ? 1 : 0)
   const pendingScopeCount = project.scopeChanges.filter(s => s.approvalStatus === 'pending').length
+  const timesheetCount = timesheet?.entries.filter(e => e.status !== 'skipped').length ?? 0
 
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview' },
@@ -207,6 +222,7 @@ export default function ProjectDetailTabs({
     { id: 'scope', label: 'Scope', badge: pendingScopeCount || undefined },
     { id: 'checkins', label: 'Check-ins', badge: project.checkIns.length || undefined },
     { id: 'history', label: 'History' },
+    { id: 'timesheet', label: 'Timesheet', badge: timesheetCount || undefined },
   ]
 
   useEffect(() => {
@@ -324,10 +340,27 @@ export default function ProjectDetailTabs({
                 </p>
               </div>
 
-              <ProjectWorkMemos memos={workMemos} />
+              <ProjectWorkMemos
+                memos={workMemos}
+                onOpenTimesheet={() => selectTab('timesheet')}
+              />
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'timesheet' && timesheet && (
+        <ProjectTimesheet
+          projectName={timesheet.projectName}
+          estimatedHours={timesheet.estimatedHours}
+          contractValue={timesheet.contractValue}
+          currency={timesheet.currency}
+          showValue={isBD}
+          startDate={timesheet.startDate}
+          estimatedEnd={timesheet.estimatedEnd}
+          entries={timesheet.entries}
+          milestones={timesheet.milestones}
+        />
       )}
 
       {activeTab === 'qa' && (

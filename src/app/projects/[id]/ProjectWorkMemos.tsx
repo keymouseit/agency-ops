@@ -45,7 +45,13 @@ function HoursBadge({
   return null
 }
 
-export default function ProjectWorkMemos({ memos }: { memos: WorkMemo[] }) {
+export default function ProjectWorkMemos({
+  memos,
+  onOpenTimesheet,
+}: {
+  memos: WorkMemo[]
+  onOpenTimesheet?: () => void
+}) {
   const loggedTotal = memos.reduce((sum, m) => sum + (m.actualHours ?? 0), 0)
   const plannedOnly = memos
     .filter(m => m.actualHours == null)
@@ -61,9 +67,20 @@ export default function ProjectWorkMemos({ memos }: { memos: WorkMemo[] }) {
               From morning plans linked to this project
             </p>
           </div>
-          <span className="shrink-0 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
-            {memos.length} {memos.length === 1 ? 'entry' : 'entries'}
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenTimesheet && (
+              <button
+                type="button"
+                onClick={onOpenTimesheet}
+                className="text-[11px] font-medium text-gray-500 hover:text-gray-900"
+              >
+                Full timesheet →
+              </button>
+            )}
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
+              {memos.length} {memos.length === 1 ? 'entry' : 'entries'}
+            </span>
+          </div>
         </div>
 
         {memos.length > 0 && (loggedTotal > 0 || plannedOnly > 0) && (
