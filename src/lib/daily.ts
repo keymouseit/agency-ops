@@ -290,6 +290,7 @@ export function carryOverTasksToPlanRows(tasks: CarryOverMovedTask[]) {
     taskType: t.taskType,
     priority: t.priority || 'medium',
     projectId: t.projectId ?? '',
+    milestoneId: '',
     estimatedHours: t.estimatedHours != null ? String(t.estimatedHours) : '',
   }))
 }

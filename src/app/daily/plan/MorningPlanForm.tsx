@@ -1,19 +1,22 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { MAX_DAILY_PLAN_HOURS, defaultDailyTaskType, dailyTaskTypeGroupsForRole } from '@/lib/daily'
 import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDailyTaskTypeGroups'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
+import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
+type MilestoneOption = { id: string; title: string; projectId: string; status: string }
 type Task = {
   title: string
   taskType: string
   priority: string
   projectId: string
+  milestoneId: string
   estimatedHours: string
 }
 
@@ -45,6 +48,7 @@ const emptyTask = (role: string): Task => ({
   taskType: defaultDailyTaskType(role),
   priority: 'medium',
   projectId: '',
+  milestoneId: '',
   estimatedHours: '',
 })
 
@@ -90,6 +94,7 @@ function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount
 export default function MorningPlanForm({
   member,
   projects,
+  milestones = [],
   replanAfterEod = false,
   isEdit = false,
   initialTasks,
@@ -98,6 +103,7 @@ export default function MorningPlanForm({
 }: {
   member: Member
   projects: Project[]
+  milestones?: MilestoneOption[]
   replanAfterEod?: boolean
   isEdit?: boolean
   initialTasks?: Task[]
@@ -105,7 +111,13 @@ export default function MorningPlanForm({
   carryOverFromDate?: string
 }) {
   const [tasks, setTasks] = useState<Task[]>(
-    initialTasks?.length ? initialTasks : [emptyTask(member.role)]
+    initialTasks?.length
+      ? initialTasks.map(t => ({
+          ...emptyTask(member.role),
+          ...t,
+          milestoneId: t.milestoneId ?? '',
+        }))
+      : [emptyTask(member.role)]
   )
   const [planNotes, setPlanNotes] = useState(initialPlanNotes)
   const [loading, setLoading] = useState(false)
@@ -113,9 +125,44 @@ export default function MorningPlanForm({
   const catalog = useDailyTaskTypeCatalog()
   const router = useRouter()
 
+  const milestonesByProject = useMemo(() => {
+    const map = new Map<string, MilestoneOption[]>()
+    for (const m of milestones) {
+      const list = map.get(m.projectId) ?? []
+      list.push(m)
+      map.set(m.projectId, list)
+    }
+    return map
+  }, [milestones])
+
   const updateTask = useCallback((i: number, field: keyof Task, value: string) => {
-    setTasks(prev => prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)))
+    setTasks(prev =>
+      prev.map((t, idx) => {
+        if (idx !== i) return t
+        if (field === 'projectId') {
+          return { ...t, projectId: value, milestoneId: '' }
+        }
+        return { ...t, [field]: value }
+      })
+    )
   }, [])
+
+  const selectMilestone = useCallback((i: number, milestoneId: string) => {
+    setTasks(prev =>
+      prev.map((t, idx) => {
+        if (idx !== i) return t
+        if (!milestoneId) return { ...t, milestoneId: '' }
+        const milestone = milestones.find(m => m.id === milestoneId)
+        if (!milestone) return { ...t, milestoneId: '' }
+        return {
+          ...t,
+          milestoneId,
+          projectId: milestone.projectId,
+          title: milestone.title,
+        }
+      })
+    )
+  }, [milestones])
 
   const totalHours = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0)
   const canSubmit = tasks.every(t => t.title.trim() && parseFloat(t.estimatedHours) > 0) && tasks.length > 0
@@ -233,20 +280,6 @@ export default function MorningPlanForm({
 
                 <div className="p-5 space-y-4">
                   <div>
-                    <label className="label">What will you do? *</label>
-                    <textarea
-                      value={task.title}
-                      onChange={e => updateTask(i, 'title', e.target.value)}
-                      onKeyDown={e => insertNewlineOnEnter(e, next => updateTask(i, 'title', next))}
-                      required
-                      rows={3}
-                      className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
-                      placeholder={'Be specific — use Enter for new lines\ne.g. 1. Fix DOB picker\n2. Test dark mode'}
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1">Enter = new line</p>
-                  </div>
-
-                  <div>
                     <label className="label mb-2">Priority</label>
                     <div className="flex flex-wrap gap-2">
                       {PRIORITIES.map(priority => {
@@ -268,7 +301,77 @@ export default function MorningPlanForm({
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="label">Project</label>
+                      <select
+                        value={task.projectId}
+                        onChange={e => updateTask(i, 'projectId', e.target.value)}
+                        className="input bg-gray-50/50 focus:bg-white"
+                      >
+                        <option value="">— None —</option>
+                        {projects.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Milestone</label>
+                      <select
+                        value={task.milestoneId}
+                        onChange={e => selectMilestone(i, e.target.value)}
+                        disabled={!task.projectId}
+                        className="input bg-gray-50/50 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!task.projectId
+                            ? 'Select a project first'
+                            : (milestonesByProject.get(task.projectId)?.length ?? 0) === 0
+                              ? 'No open milestones'
+                              : '— Select milestone —'}
+                        </option>
+                        {(milestonesByProject.get(task.projectId) ?? []).map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.title}
+                            {MILESTONE_STATUS_CONFIG[m.status]
+                              ? ` · ${MILESTONE_STATUS_CONFIG[m.status].label}`
+                              : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {task.projectId && (milestonesByProject.get(task.projectId)?.length ?? 0) === 0 && (
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          This project has no open milestones — type your task below.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">What will you do? *</label>
+                    <textarea
+                      value={task.title}
+                      onChange={e => updateTask(i, 'title', e.target.value)}
+                      onKeyDown={e => insertNewlineOnEnter(e, next => updateTask(i, 'title', next))}
+                      required
+                      rows={3}
+                      className="input min-h-[88px] bg-gray-50/50 focus:bg-white"
+                      placeholder={
+                        task.milestoneId
+                          ? 'Milestone selected — add extra notes if needed'
+                          : 'Select a milestone above, or write your own task'
+                      }
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {task.milestoneId
+                        ? 'Filled from the selected milestone — you can edit it'
+                        : 'Pick a milestone to fill this, or write freely'}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="label">Type</label>
                       <select
@@ -284,21 +387,6 @@ export default function MorningPlanForm({
                               </option>
                             ))}
                           </optgroup>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">Project</label>
-                      <select
-                        value={task.projectId}
-                        onChange={e => updateTask(i, 'projectId', e.target.value)}
-                        className="input bg-gray-50/50 focus:bg-white"
-                      >
-                        <option value="">— None —</option>
-                        {projects.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
                         ))}
                       </select>
                     </div>

@@ -429,7 +429,16 @@ function UserMenuDropdown({
   )
 }
 
-export default function Nav({ branding }: { branding: Branding }) {
+type NavUser = { name: string; email: string; role: string }
+
+export default function Nav({
+  branding,
+  initialUser = null,
+}: {
+  branding: Branding
+  /** Server session — keeps header visible if client useSession is briefly empty (common on local). */
+  initialUser?: NavUser | null
+}) {
   const path = usePathname()
   const router = useRouter()
   const { data: session } = useSession()
@@ -437,9 +446,16 @@ export default function Nav({ branding }: { branding: Branding }) {
   const [signingOut, setSigningOut] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
 
-  const role = session?.user?.role ?? ''
-  const firstName = (session?.user?.name ?? '').split(' ')[0]
-  const fullName = session?.user?.name ?? ''
+  const user = session?.user
+    ? {
+        name: session.user.name ?? '',
+        email: session.user.email ?? '',
+        role: session.user.role ?? '',
+      }
+    : initialUser
+  const role = user?.role ?? ''
+  const firstName = (user?.name ?? '').split(' ')[0]
+  const fullName = user?.name ?? ''
   const navItems = NAV_STRUCTURE[role as keyof typeof NAV_STRUCTURE] || []
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
   const roleLabel = role === 'SocialMedia' ? 'Social' : role
@@ -492,7 +508,7 @@ export default function Nav({ branding }: { branding: Branding }) {
     await signOut({ callbackUrl: '/login' })
   }
 
-  if (!session?.user) return null
+  if (!user) return null
 
   return (
     <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2">
@@ -579,7 +595,7 @@ export default function Nav({ branding }: { branding: Branding }) {
                 open={userDropdownOpen}
                 onClose={() => setUserDropdownOpen(false)}
                 name={fullName}
-                email={session.user.email}
+                email={user.email}
                 role={role}
                 signingOut={signingOut}
                 onSignOut={() => {

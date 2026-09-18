@@ -3,6 +3,8 @@ import { revalidatePath } from 'next/cache'
 import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { businessDayStart } from '@/lib/daily'
+import { syncProjectLoggedHours } from '@/lib/project-hours'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 export async function POST(req: Request) {
   const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
@@ -91,6 +93,16 @@ export async function POST(req: Request) {
   revalidatePath('/daily')
   revalidatePath('/daily/plan')
   revalidatePath('/daily/eod')
+  const linkedProjectIds = [
+    ...new Set(taskRows.map(t => t.projectId).filter((id): id is string => !!id)),
+  ]
+  if (linkedProjectIds.length > 0) {
+    await syncProjectLoggedHours(linkedProjectIds)
+    invalidateProjectsListCache()
+    for (const projectId of linkedProjectIds) {
+      revalidatePath(`/projects/${projectId}`)
+    }
+  }
 
   return NextResponse.json(log)
 }
