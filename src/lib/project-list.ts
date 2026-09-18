@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { CACHE_TAGS } from '@/lib/cache-tags'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
+import { getLoggedHoursByProjectIds } from '@/lib/project-hours'
 
 const projectListSelect = {
   id: true,
@@ -35,11 +36,17 @@ const projectListSelect = {
 export type ProjectListItem = Awaited<ReturnType<typeof fetchProjectList>>[number]
 
 async function fetchProjectList(developerId?: string) {
-  return prisma.project.findMany({
+  const projects = await prisma.project.findMany({
     where: developerId ? assignedToMemberWhere(developerId) : undefined,
     select: projectListSelect,
     orderBy: { createdAt: 'desc' },
   })
+
+  const hoursMap = await getLoggedHoursByProjectIds(projects.map(p => p.id))
+  return projects.map(p => ({
+    ...p,
+    actualHours: hoursMap.has(p.id) ? hoursMap.get(p.id)! : p.actualHours,
+  }))
 }
 
 /** Project list for /projects — 30s cache, scoped by developer when needed. */
@@ -47,7 +54,7 @@ export function getProjectListCached(developerId?: string) {
   const scope = developerId ?? 'all'
   return unstable_cache(
     () => fetchProjectList(developerId),
-    ['projects-list-v4', scope],
+    ['projects-list-v5', scope],
     { revalidate: 30, tags: [CACHE_TAGS.projectsList] },
   )()
 }

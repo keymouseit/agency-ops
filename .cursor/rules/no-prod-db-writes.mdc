@@ -1,0 +1,14 @@
+---
+description: Do not change production or staging databases unless explicitly asked
+alwaysApply: true
+---
+
+# No live / staging DB changes
+
+Unless the user **explicitly** asks to update production or staging data (or names a specific prod/staging `DATABASE_URL`):
+
+- Do **not** run SQL, Prisma writes, scripts, or migrations against live or staging databases
+- Do **not** use the wispy-resonance (prod) or other non-local Neon URLs for writes
+- Prefer code-only fixes, local/dev DB, or ask before any remote DB mutation
+
+Schema-only / read-only checks on remote DBs still need an explicit user request.

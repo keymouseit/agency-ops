@@ -3,6 +3,8 @@ import { revalidatePath } from 'next/cache'
 import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canEditEod } from '@/lib/daily'
+import { syncProjectLoggedHours } from '@/lib/project-hours'
+import { invalidateProjectsListCache } from '@/lib/cache-tags'
 
 const ALLOWED_TASK_STATUSES = new Set(['done', 'partial', 'blocked', 'moved', 'skipped'])
 
@@ -19,15 +21,6 @@ type NewTaskPayload = {
   actualHours?: string
   eodNotes?: string
   status?: string
-}
-
-function projectHourDelta(
-  deltas: Map<string, number>,
-  projectId: string | null | undefined,
-  delta: number,
-) {
-  if (!projectId || delta === 0) return
-  deltas.set(projectId, (deltas.get(projectId) ?? 0) + delta)
 }
 
 export async function POST(
@@ -84,26 +77,14 @@ export async function POST(
   })
 
   const existingById = new Map(existingTasks.map(task => [task.id, task]))
-  const projectDeltas = new Map<string, number>()
-
-  for (const [taskId, update] of Object.entries(taskUpdates)) {
-    const prev = existingById.get(taskId)
-    if (!prev) continue
-
-    const newHours =
-      update.status === 'skipped'
-        ? null
-        : update.actualHours
-          ? parseFloat(update.actualHours)
-          : null
-    projectHourDelta(projectDeltas, prev.projectId, -(prev.actualHours ?? 0))
-    projectHourDelta(projectDeltas, prev.projectId, newHours ?? 0)
-  }
-
-  for (const task of newTasks) {
-    const hours = task.status === 'skipped' ? null : task.actualHours
-    projectHourDelta(projectDeltas, task.projectId, hours ?? 0)
-  }
+  const linkedProjectIds = [
+    ...new Set(
+      [
+        ...existingTasks.map(t => t.projectId),
+        ...newTasks.map(t => t.projectId),
+      ].filter((id): id is string => !!id)
+    ),
+  ]
 
   const log = await prisma.$transaction(async tx => {
     await Promise.all(
@@ -155,10 +136,11 @@ export async function POST(
       t => t.estimatedHours && t.actualHours && t.estimatedHours > 0 && t.status !== 'skipped'
     )
     const estimationScore = tasksWithBothHours.length > 0
-      ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) / tasksWithBothHours.length
+      ? tasksWithBothHours.reduce((sum, t) => sum + (t.actualHours! / t.estimatedHours!), 0) /
+        tasksWithBothHours.length
       : null
 
-    const updatedLog = await tx.dailyLog.update({
+    return tx.dailyLog.update({
       where: { id: params.logId },
       data: {
         eodSubmittedAt: existingLog.eodSubmittedAt ?? new Date(),
@@ -170,24 +152,21 @@ export async function POST(
         estimationScore,
       },
     })
-
-    await Promise.all(
-      [...projectDeltas.entries()].map(([projectId, delta]) =>
-        tx.project.update({
-          where: { id: projectId },
-          data: { actualHours: { increment: delta } },
-        })
-      )
-    )
-
-    return updatedLog
   })
+
+  if (linkedProjectIds.length > 0) {
+    await syncProjectLoggedHours(linkedProjectIds)
+    invalidateProjectsListCache()
+  }
 
   revalidatePath('/me')
   revalidatePath('/daily')
   revalidatePath('/daily/plan')
   revalidatePath('/daily/eod')
   revalidatePath('/')
+  for (const projectId of linkedProjectIds) {
+    revalidatePath(`/projects/${projectId}`)
+  }
 
   return NextResponse.json(log)
 }

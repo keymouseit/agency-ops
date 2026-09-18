@@ -10,6 +10,7 @@ import ProjectActions from './ProjectActions'
 import ProjectHeader from './ProjectHeader'
 import ProjectDetailTabs from './ProjectDetailTabs'
 import { canDeleteProject, canEditProject, projectEditFields } from '@/lib/projects'
+import { getLoggedHoursByProjectIds } from '@/lib/project-hours'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const isBD = userRole && ['BD', 'Founder', 'Both'].includes(userRole)
   const isDev = userRole === 'Dev'
 
-  const [project, members, wonLeads] = await Promise.all([
+  const [project, members, wonLeads, workMemoRows, loggedHoursMap] = await Promise.all([
     fetchProjectForDetailPage(params.id),
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } }),
     prisma.lead.findMany({
@@ -31,6 +32,25 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       select: { id: true, clientName: true },
       orderBy: { clientName: 'asc' },
     }),
+    prisma.dailyTask.findMany({
+      where: { projectId: params.id },
+      orderBy: [{ dailyLog: { date: 'desc' } }, { createdAt: 'desc' }],
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        estimatedHours: true,
+        actualHours: true,
+        status: true,
+        dailyLog: {
+          select: {
+            date: true,
+            member: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    getLoggedHoursByProjectIds([params.id]),
   ])
 
   if (!project) notFound()
@@ -50,8 +70,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const showDelete = canDeleteProject(userRole)
   const editableFields = Array.from(projectEditFields(assignment, userId, userRole))
 
-  const estAccuracy = project.actualHours && project.estimatedHours
-    ? Math.round((project.actualHours / project.estimatedHours) * 100)
+  const loggedHours = loggedHoursMap.get(project.id) ?? project.actualHours
+  const estAccuracy = loggedHours && project.estimatedHours
+    ? Math.round((loggedHours / project.estimatedHours) * 100)
     : null
   const activeScopeChanges = project.scopeChanges.filter(s => s.approvalStatus !== 'declined')
   const totalScopeHours = activeScopeChanges.reduce((s, c) => s + (c.hoursAdded || 0), 0)
@@ -61,6 +82,15 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const completedMilestones = project.milestones.filter(m => m.status === 'done').length
   const inProgressMilestones = project.milestones.filter(m => m.status === 'in_progress').length
   const calculatedProgress = calculateMilestoneProgress(project.milestones)
+  const workMemos = workMemoRows.map(t => ({
+    id: t.id,
+    date: t.dailyLog.date.toISOString(),
+    title: t.title,
+    memberName: t.dailyLog.member.name,
+    estimatedHours: t.estimatedHours,
+    actualHours: t.actualHours,
+    status: t.status,
+  }))
 
   const allMilestonesReadyForQA = totalMilestones > 0 &&
     project.milestones.every(m =>
@@ -87,7 +117,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         startDate={project.startDate}
         estimatedEnd={project.estimatedEnd}
         estimatedHours={project.estimatedHours}
-        actualHours={project.actualHours}
+        actualHours={loggedHours}
         progressPct={calculatedProgress}
         completedMilestones={completedMilestones}
         inProgressMilestones={inProgressMilestones}
@@ -164,6 +194,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           estAccuracy,
           totalScopeHours,
         }}
+        workMemos={workMemos}
         project={{
           id: project.id,
           status: project.status,
@@ -177,7 +208,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           qaAreasChanged: project.qaAreasChanged,
           qaHandoffAt: project.qaHandoffAt?.toISOString() ?? null,
           estimatedHours: project.estimatedHours,
-          actualHours: project.actualHours,
+          actualHours: loggedHours,
           releaseSignOff: project.releaseSignOff ? {
             signedOffAt: project.releaseSignOff.signedOffAt.toISOString(),
             signedOffBy: { name: project.releaseSignOff.signedOffBy.name },

@@ -22,7 +22,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-gray-50 min-h-screen">
         <SessionProvider session={session}>
           <NavigationProvider>
-            <Nav branding={branding} />
+            <Nav
+              branding={branding}
+              initialUser={
+                session?.user
+                  ? {
+                      name: session.user.name ?? '',
+                      email: session.user.email ?? '',
+                      role: session.user.role ?? '',
+                    }
+                  : null
+              }
+            />
             <main className={session?.user ? 'app-main px-4 py-8' : ''}>
               {children}
             </main>

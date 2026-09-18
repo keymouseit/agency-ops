@@ -9,6 +9,8 @@ import TestCyclesList from '@/components/TestCyclesList'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
 import {
+  BUG_SEVERITY_CONFIG,
+  BUG_STATUS_CONFIG,
   MILESTONE_STATUS_CONFIG,
   milestoneHasTestingVisibility,
   openBugCount,
@@ -150,9 +152,16 @@ export default function QAActivityFeed({
   const inQaCount = milestones.filter(m => m.status === 'ready_for_qa').length
   const testingCount = milestones.filter(m => m.status === 'testing').length
   const approvedCount = milestones.filter(m => m.status === 'done').length
-  const qaMilestones = milestones.filter(m =>
-    m.status === 'ready_for_qa' || m.status === 'testing' || m.status === 'done'
-  )
+  // Include QA-stage milestones, plus any milestone that still has bugs (e.g. back in progress for fixes)
+  const qaMilestones = milestones.filter(m => {
+    const hasBugs = (m.bugs?.length ?? 0) > 0
+    return (
+      m.status === 'ready_for_qa' ||
+      m.status === 'testing' ||
+      m.status === 'done' ||
+      hasBugs
+    )
+  })
   const openIssues = postDeliveryIssues.filter(i => !i.resolvedAt).length
   const hasHandoff = !!(qaModulesDelivered || qaSuggestedTestType || qaTestingNotes || qaAreasChanged)
   const waitingForTestCycles =
@@ -223,6 +232,9 @@ export default function QAActivityFeed({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900">{m.title}</div>
+                      {m.notes ? (
+                        <p className="mt-1 text-sm text-gray-500 whitespace-pre-wrap">{m.notes}</p>
+                      ) : null}
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                         <span>{m.dueDate ? `Due ${fmtDate(m.dueDate)}` : 'No due date'}</span>
                         {m.status === 'done' && m.completedAt && (
@@ -245,13 +257,50 @@ export default function QAActivityFeed({
                       {statusCfg.label}
                     </span>
                   </div>
-                  {showCases && (
+
+                  {bugs.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                        Bugs ({bugs.length})
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {bugs.map(bug => {
+                          const statusBug = BUG_STATUS_CONFIG[bug.status] ?? BUG_STATUS_CONFIG.open
+                          const severityCfg = BUG_SEVERITY_CONFIG[bug.severity] ?? BUG_SEVERITY_CONFIG.medium
+                          return (
+                            <li
+                              key={bug.id}
+                              className={`rounded-lg px-2.5 py-2 text-xs border ${
+                                bug.status === 'open'
+                                  ? 'bg-red-50 border-red-100'
+                                  : 'bg-gray-50 border-gray-100'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2 flex-wrap">
+                                <span className={`badge shrink-0 ${severityCfg.cls}`}>{severityCfg.label}</span>
+                                <span className={`badge shrink-0 ${statusBug.cls}`}>{statusBug.label}</span>
+                                <span className="flex-1 min-w-0 font-medium text-gray-800">{bug.title}</span>
+                              </div>
+                              {bug.description && (
+                                <p className="text-gray-600 mt-1 whitespace-pre-wrap">{bug.description}</p>
+                              )}
+                              <p className="text-gray-400 mt-1">
+                                {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
+                              </p>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  {showCases && testCases.length > 0 && (
                     <MilestoneTestProgress
                       milestoneTitle={m.title}
                       milestoneStatus={m.status}
                       qaStartedAt={m.qaStartedAt}
                       testCases={testCases}
-                      bugs={bugs}
+                      bugs={[]}
                       compact
                     />
                   )}

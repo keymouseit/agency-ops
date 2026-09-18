@@ -8,6 +8,7 @@ import ScopeChangesCard from './ScopeChangesCard'
 import QASignOffStatus from '@/components/QASignOffStatus'
 import QAActivityFeed from '@/components/QAActivityFeed'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
+import ProjectWorkMemos from './ProjectWorkMemos'
 
 type TabId = 'overview' | 'qa' | 'scope' | 'checkins' | 'history'
 
@@ -157,6 +158,15 @@ type Props = {
     estAccuracy: number | null
     totalScopeHours: number
   }
+  workMemos?: Array<{
+    id: string
+    date: string
+    title: string
+    memberName: string
+    estimatedHours: number | null
+    actualHours: number | null
+    status: string
+  }>
 }
 
 const TAB_HASH: Record<string, TabId> = {
@@ -169,11 +179,24 @@ const TAB_HASH: Record<string, TabId> = {
   history: 'history',
 }
 
-export default function ProjectDetailTabs({ projectId, projectStatus, userRole, userId, isBD, members, project, stats }: Props) {
+export default function ProjectDetailTabs({
+  projectId,
+  projectStatus,
+  userRole,
+  userId,
+  isBD,
+  members,
+  project,
+  stats,
+  workMemos = [],
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
 
   const qaMilestoneCount = project.milestones.filter(m =>
-    m.status === 'ready_for_qa' || m.status === 'testing' || m.status === 'done'
+    m.status === 'ready_for_qa' ||
+    m.status === 'testing' ||
+    m.status === 'done' ||
+    (m.bugs?.length ?? 0) > 0
   ).length
   const qaTabCount = qaMilestoneCount + project.testCycles.length + (project.releaseSignOff ? 1 : 0)
   const pendingScopeCount = project.scopeChanges.filter(s => s.approvalStatus === 'pending').length
@@ -253,7 +276,7 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: 'Estimated hours', value: project.estimatedHours?.toString() ?? '—' },
-                  { label: 'Actual hours', value: project.actualHours?.toString() ?? '—' },
+                  { label: 'Logged hours', value: project.actualHours != null ? String(project.actualHours) : '—' },
                   {
                     label: 'Est. accuracy',
                     value: stats.estAccuracy != null ? `${stats.estAccuracy}%` : '—',
@@ -300,6 +323,8 @@ export default function ProjectDetailTabs({ projectId, projectStatus, userRole, 
                   )}
                 </p>
               </div>
+
+              <ProjectWorkMemos memos={workMemos} />
             </div>
           </div>
         </div>

@@ -58,19 +58,36 @@ export default async function MorningPlanPage() {
     member?.role ?? session.user.role,
   )
 
+  const milestones = projects.length
+    ? await prisma.milestone.findMany({
+        where: {
+          projectId: { in: projects.map(p => p.id) },
+          status: { not: 'done' },
+        },
+        select: { id: true, title: true, projectId: true, status: true },
+        orderBy: [{ dueDate: 'asc' }, { title: 'asc' }],
+      })
+    : []
+
   if (!member) redirect('/login')
 
   const isEditMode = !!(todayLog?.planSubmittedAt && !todayLog?.eodSubmittedAt)
   const missingPastEOD = !!pendingPastEodLog
   const replanAfterEod = !!(todayLog?.planSubmittedAt && todayLog?.eodSubmittedAt)
 
-  const initialTasks = todayLog?.tasks.map(t => ({
-    title: t.title,
-    taskType: t.taskType,
-    priority: t.priority,
-    projectId: t.projectId ?? '',
-    estimatedHours: t.estimatedHours?.toString() ?? '',
-  }))
+  const initialTasks = todayLog?.tasks.map(t => {
+    const matchedMilestone = t.projectId
+      ? milestones.find(m => m.projectId === t.projectId && m.title === t.title)
+      : undefined
+    return {
+      title: t.title,
+      taskType: t.taskType,
+      priority: t.priority,
+      projectId: t.projectId ?? '',
+      milestoneId: matchedMilestone?.id ?? '',
+      estimatedHours: t.estimatedHours?.toString() ?? '',
+    }
+  })
   const alreadyPlannedToday = !!todayLog?.planSubmittedAt
 
   const carryInTasks =
@@ -139,6 +156,7 @@ export default async function MorningPlanPage() {
     <MorningPlanForm
       member={{ id: member.id, name: member.name, role: member.role }}
       projects={projects}
+      milestones={milestones}
       replanAfterEod={replanAfterEod}
       isEdit={isEditMode}
       initialTasks={isEditMode ? initialTasks : carryInTasks}
