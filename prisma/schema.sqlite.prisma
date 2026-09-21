@@ -96,7 +96,7 @@ model MeetingMinute {
   meetingVideoUrl        String?
   leadSource             String?
   nextActionItem         String?
-  finalStatus            String     @default("Active") // Active | Hold | Closed
+  finalStatus            String     @default("Active") // Active | Waiting Response | Demo Given / Committed / Prepared | Hold | Closed
   parentId               String?
   parent                 MeetingMinute?  @relation("MomFollowUps", fields: [parentId], references: [id], onDelete: SetNull)
   followUps              MeetingMinute[] @relation("MomFollowUps")
@@ -919,4 +919,136 @@ model DailyTaskTypeRoleAccess {
 
   @@unique([typeId, role])
   @@index([role])
+}
+
+// ─── SALESROBOT ANALYTICS INTEGRATION ────────────────────────
+
+model SalesRobotAccount {
+  id                  String               @id @default(cuid())
+  salesrobotAccountId String               @unique
+  name                String?
+  email               String?
+  healthStatus        String?
+  licenceStatus       String?
+  lastSyncedAt        DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  campaigns           SalesRobotCampaign[]
+}
+
+model SalesRobotCampaign {
+  id                   String                       @id @default(cuid())
+  salesrobotCampaignId String                       @unique
+  name                 String
+  linkedinAccountId    String?
+  account              SalesRobotAccount?           @relation(fields: [linkedinAccountId], references: [salesrobotAccountId])
+  status               String?
+  source               String?
+  isArchived           Boolean                      @default(false)
+  totalProspectCount   Int                          @default(0)
+  lastSyncedAt         DateTime?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  prospects            SalesRobotProspect[]
+  weeklyAnalytics      SalesRobotWeeklyAnalytics[]
+  events               SalesRobotEvent[]
+
+  @@index([linkedinAccountId])
+  @@index([status])
+}
+
+model SalesRobotProspect {
+  id                    String              @id @default(cuid())
+  salesrobotProspectId  String              @unique
+  campaignId            String?
+  campaign              SalesRobotCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  salesrobotCampaignId  String?
+  linkedinAccountId     String?
+  linkedinUrl           String?
+  firstName             String?
+  lastName              String?
+  company               String?
+  jobTitle              String?
+  status                String?
+  isConnected           Boolean             @default(false)
+  isReplied             Boolean             @default(false)
+  addedAt               DateTime?
+  connectionRequestedAt DateTime?
+  connectedAt           DateTime?
+  firstMessageSentAt    DateTime?
+  repliedAt             DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([campaignId])
+  @@index([salesrobotCampaignId])
+  @@index([linkedinAccountId])
+}
+
+model SalesRobotEvent {
+  id                   String              @id @default(cuid())
+  externalEventId      String?             @unique
+  dedupeKey            String              @unique
+  eventType            String
+  campaignId           String?
+  campaign             SalesRobotCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  salesrobotCampaignId String?
+  campaignName         String?
+  linkedinAccountId    String?
+  prospectId           String?
+  prospectLinkedinUrl  String?
+  occurredAt           DateTime
+  receivedAt           DateTime            @default(now())
+  rawPayload           String
+  processed            Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+
+  @@index([eventType, occurredAt])
+  @@index([salesrobotCampaignId, occurredAt])
+  @@index([linkedinAccountId, occurredAt])
+}
+
+model SalesRobotWeeklyAnalytics {
+  id                     String              @id @default(cuid())
+  campaignId             String?
+  campaign               SalesRobotCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  salesrobotCampaignId   String              @default("")
+  linkedinAccountId      String              @default("")
+  weekStart              DateTime
+  weekEnd                DateTime
+  prospectsAdded         Int                 @default(0)
+  connectionRequestsSent Int                 @default(0)
+  connectionsAccepted    Int                 @default(0)
+  messagesSent           Int                 @default(0)
+  repliesReceived        Int                 @default(0)
+  acceptanceRate         Float               @default(0)
+  replyRate              Float               @default(0)
+  source                 String              @default("sync")
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([salesrobotCampaignId, linkedinAccountId, weekStart])
+  @@index([weekStart])
+  @@index([linkedinAccountId, weekStart])
+}
+
+model SalesRobotDailyStat {
+  id                     String   @id @default(cuid())
+  date                   DateTime
+  salesrobotCampaignId   String
+  campaignName           String?
+  linkedinAccountId      String   @default("")
+  prospectsAdded         Int      @default(0)
+  connectionRequestsSent Int      @default(0)
+  connectionsAccepted    Int      @default(0)
+  messagesSent           Int      @default(0)
+  repliesReceived        Int      @default(0)
+  viewedCount            Int      @default(0)
+  rawPayload             String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([date, salesrobotCampaignId, linkedinAccountId])
+  @@index([date])
+  @@index([linkedinAccountId, date])
 }

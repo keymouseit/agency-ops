@@ -464,7 +464,9 @@ export default function MomForm({
             >
               {MOM_FINAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            <p className="text-xs text-gray-400 mt-1">Current outcome of this MOM: Active, Hold, or Closed.</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Active, Waiting Response, Demo Given / Committed / Prepared, Hold, or Closed.
+            </p>
           </div>
           <div>
             <label className="label">Lead source</label>

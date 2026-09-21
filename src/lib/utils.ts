@@ -3,7 +3,38 @@ import { formatIstDate, formatIstDateTime, istHour } from '@/lib/ist'
 
 export const LEAD_SOURCES = ['Upwork', 'LinkedIn', 'Referral', 'Inbound', 'Direct'] as const
 export const MOM_MEETING_TYPES = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal Discussion'] as const
-export const MOM_FINAL_STATUSES = ['Active', 'Hold', 'Closed'] as const
+export const MOM_FINAL_STATUSES = [
+  'Active',
+  'Waiting Response',
+  'Demo Given / Committed / Prepared',
+  'Hold',
+  'Closed',
+] as const
+
+export type MomFinalStatus = (typeof MOM_FINAL_STATUSES)[number]
+
+export function isMomFinalStatus(value: string): value is MomFinalStatus {
+  return (MOM_FINAL_STATUSES as readonly string[]).includes(value)
+}
+
+/** Map stored/legacy values onto the current status set. */
+export function normalizeMomFinalStatus(value: string | null | undefined): MomFinalStatus {
+  if (!value) return 'Active'
+  if (isMomFinalStatus(value)) return value
+  // Legacy / loose variants
+  const lower = value.trim().toLowerCase()
+  if (lower === 'waiting response' || lower === 'waiting for response') return 'Waiting Response'
+  if (
+    lower.includes('demo given') ||
+    lower.includes('committed') ||
+    lower.includes('prepared')
+  ) {
+    return 'Demo Given / Committed / Prepared'
+  }
+  if (lower === 'hold' || lower === 'on hold') return 'Hold'
+  if (lower === 'closed' || lower === 'close') return 'Closed'
+  return 'Active'
+}
 
 export const INDUSTRIES = [
   'Healthcare',
@@ -42,6 +73,8 @@ export const MOM_MEETING_TYPE_COLORS: Record<string, string> = {
 
 export const MOM_FINAL_STATUS_COLORS: Record<string, string> = {
   Active: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  'Waiting Response': 'bg-blue-50 text-blue-800 border-blue-200',
+  'Demo Given / Committed / Prepared': 'bg-violet-50 text-violet-800 border-violet-200',
   Hold: 'bg-amber-50 text-amber-800 border-amber-200',
   Closed: 'bg-slate-100 text-slate-700 border-slate-200',
 }

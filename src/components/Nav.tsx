@@ -53,6 +53,7 @@ const NAV_STRUCTURE = {
       items: [
         { href: '/intelligence', label: 'Intel' },
         { href: '/analytics', label: 'Analytics' },
+        { href: '/salesrobot', label: 'SalesRobot' },
       ],
     },
     { href: '/settings', label: 'Settings' },
@@ -87,6 +88,7 @@ const NAV_STRUCTURE = {
       items: [
         { href: '/intelligence', label: 'Intel' },
         { href: '/analytics', label: 'Analytics' },
+        { href: '/salesrobot', label: 'SalesRobot' },
       ],
     },
     { href: '/settings', label: 'Settings' },
@@ -99,6 +101,7 @@ const NAV_STRUCTURE = {
         { href: '/pipeline', label: 'Pipeline' },
         { href: '/mom', label: 'MOM' },
         { href: '/campaigns', label: 'Campaigns' },
+        { href: '/salesrobot', label: 'SalesRobot' },
         { href: '/projects', label: 'Projects' },
         { href: '/qa', label: 'QA' },
         { href: '/qa/activity', label: 'QA activity' },
@@ -145,6 +148,7 @@ const NAV_STRUCTURE = {
         { href: '/pipeline', label: 'Pipeline' },
         { href: '/mom', label: 'MOM' },
         { href: '/campaigns', label: 'Campaigns' },
+        { href: '/salesrobot', label: 'SalesRobot' },
         { href: '/projects', label: 'Projects' },
         { href: '/qa', label: 'QA' },
         { href: '/qa/activity', label: 'QA activity' },

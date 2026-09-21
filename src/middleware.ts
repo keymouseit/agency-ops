@@ -30,6 +30,14 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
+  // Public integration webhook + cron (auth handled inside the route)
+  if (
+    pathname === '/api/integrations/salesrobot/webhook' ||
+    pathname.startsWith('/api/cron/')
+  ) {
+    return NextResponse.next()
+  }
+
   // Not logged in → redirect to login
   if (!session?.user) {
     const loginUrl = new URL('/login', req.url)
@@ -137,6 +145,11 @@ function checkApiAccess(path: string, role: string): boolean {
   }
   // Founder/Manager employee reports
   if (['Founder', 'Manager'].includes(role) && path.startsWith('/api/reports')) return true
+
+  // SalesRobot analytics / sync
+  if (['Founder', 'Manager', 'BD', 'Both'].includes(role)) {
+    if (path.startsWith('/api/integrations/salesrobot')) return true
+  }
 
   // Everyone can access scores, notifications, apply for leaves, and project check-ins
   if (
