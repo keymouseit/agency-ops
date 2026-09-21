@@ -13,7 +13,7 @@ function isAuthorized(request: Request) {
   return request.headers.get('x-vercel-cron') === '1' || ua.includes('vercel-cron')
 }
 
-/** Reconcile SalesRobot campaigns/stats every 6 hours. */
+/** Reconcile SalesRobot campaigns/stats once daily (Hobby plan allows daily crons only). */
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
