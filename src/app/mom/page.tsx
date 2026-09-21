@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { isFollowUpPending } from '@/lib/mom'
 import { getMomFinalStatusMap } from '@/lib/mom-form'
+import { MOM_FINAL_STATUSES, MOM_FINAL_STATUS_COLORS, normalizeMomFinalStatus } from '@/lib/utils'
 import Link from 'next/link'
 import MomAnalytics from './MomAnalytics'
 import MomExportButton from './MomExportButton'
@@ -29,7 +30,7 @@ export default async function MomPage() {
   const statusMap = await getMomFinalStatusMap(listRecords.map(r => r.id))
   const listWithStatus = listRecords.map(r => ({
     ...r,
-    finalStatus: statusMap[r.id] || r.finalStatus || 'Active',
+    finalStatus: normalizeMomFinalStatus(statusMap[r.id] || r.finalStatus),
   }))
 
   const today = startOfDay(new Date())
@@ -43,10 +44,9 @@ export default async function MomPage() {
     return d >= 0 && d <= 7
   }).length
 
-  const statusCounts = { Active: 0, Hold: 0, Closed: 0 }
+  const statusCounts = Object.fromEntries(MOM_FINAL_STATUSES.map(s => [s, 0])) as Record<string, number>
   for (const r of listWithStatus) {
-    const status = r.finalStatus === 'Hold' || r.finalStatus === 'Closed' ? r.finalStatus : 'Active'
-    statusCounts[status] += 1
+    statusCounts[r.finalStatus] = (statusCounts[r.finalStatus] ?? 0) + 1
   }
 
   return (
@@ -66,24 +66,21 @@ export default async function MomPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
         <div className="card p-3">
           <div className="text-2xl font-bold text-gray-900">{records.length}</div>
           <div className="text-xs text-gray-500 mt-0.5">Total meetings</div>
           <div className="text-xs text-gray-400 mt-1">{thisMonth} this month</div>
         </div>
-        <div className="card p-3 border-emerald-200 bg-emerald-50/40">
-          <div className="text-2xl font-bold text-emerald-800">{statusCounts.Active}</div>
-          <div className="text-xs text-emerald-800/70 mt-0.5">Active</div>
-        </div>
-        <div className="card p-3 border-amber-200 bg-amber-50/40">
-          <div className="text-2xl font-bold text-amber-800">{statusCounts.Hold}</div>
-          <div className="text-xs text-amber-800/70 mt-0.5">Hold</div>
-        </div>
-        <div className="card p-3 border-slate-200 bg-slate-50">
-          <div className="text-2xl font-bold text-slate-700">{statusCounts.Closed}</div>
-          <div className="text-xs text-slate-500 mt-0.5">Closed</div>
-        </div>
+        {MOM_FINAL_STATUSES.map(status => {
+          const tone = MOM_FINAL_STATUS_COLORS[status] ?? 'bg-gray-50 text-gray-800 border-gray-200'
+          return (
+            <div key={status} className={`card p-3 border ${tone}`}>
+              <div className="text-2xl font-bold tabular-nums">{statusCounts[status] ?? 0}</div>
+              <div className="text-xs mt-0.5 leading-snug opacity-80">{status}</div>
+            </div>
+          )
+        })}
         <div className={`card p-3 ${followUpsOverdue > 0 ? 'border-red-200 bg-red-50/40' : ''}`}>
           <div className={`text-2xl font-bold ${followUpsOverdue > 0 ? 'text-red-700' : 'text-gray-900'}`}>
             {followUpsOverdue}

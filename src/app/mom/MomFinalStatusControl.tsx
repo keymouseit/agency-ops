@@ -52,7 +52,7 @@ export default function MomFinalStatusControl({
         value={value}
         disabled={loading}
         onChange={e => onChange(e.target.value)}
-        className={`inline-flex items-center h-[30px] pl-2.5 pr-7 text-xs font-semibold rounded-lg border cursor-pointer disabled:opacity-60 ${tone}`}
+        className={`inline-flex items-center h-[30px] max-w-[16rem] pl-2.5 pr-7 text-xs font-semibold rounded-lg border cursor-pointer disabled:opacity-60 ${tone}`}
         aria-label="Update final status"
       >
         {MOM_FINAL_STATUSES.map(s => (

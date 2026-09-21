@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/leave-accrual",
       "schedule": "30 18 * * *"
+    },
+    {
+      "path": "/api/cron/salesrobot-reconcile",
+      "schedule": "0 1 * * *"
     }
   ]
 }
