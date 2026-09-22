@@ -22,6 +22,7 @@ import {
   getSalesRobotSyncStatus,
   isSalesRobotSyncRunning,
   type SalesRobotSyncMode,
+  type SalesRobotSyncState,
 } from './sync-status'
 import type {
   SalesRobotApiAccount,
@@ -401,24 +402,24 @@ export type SyncResult = {
 }
 
 /** Start sync in the background and return immediately (UI can keep navigating). */
-export function startSalesRobotSync(options?: {
+export async function startSalesRobotSync(options?: {
   daysBack?: number
   syncProspects?: boolean
   syncRepliedProspects?: boolean
   maxProspectPagesPerCampaign?: number
-}): { started: boolean; status: ReturnType<typeof getSalesRobotSyncStatus> } {
+}): Promise<{ started: boolean; status: SalesRobotSyncState; promise?: Promise<SyncResult> }> {
   const mode: SalesRobotSyncMode = options?.syncProspects ? 'full' : 'quick'
-  const began = beginSalesRobotSync(mode)
+  const began = await beginSalesRobotSync(mode)
   if (!began.started) return began
 
   if (!isSalesRobotConfigured()) {
-    failSalesRobotSync('SALESROBOT_API_KEY is not configured')
-    return { started: false, status: getSalesRobotSyncStatus() }
+    await failSalesRobotSync('SALESROBOT_API_KEY is not configured')
+    return { started: false, status: await getSalesRobotSyncStatus() }
   }
 
   const promise = runSalesRobotSyncInner(options)
   attachSalesRobotSyncPromise(promise)
-  return began
+  return { ...began, promise }
 }
 
 /** Await the sync (cron / scripts). Uses the same lock as background sync. */
@@ -428,7 +429,7 @@ export async function runSalesRobotSync(options?: {
   syncRepliedProspects?: boolean
   maxProspectPagesPerCampaign?: number
 }): Promise<SyncResult> {
-  if (isSalesRobotSyncRunning()) {
+  if (await isSalesRobotSyncRunning()) {
     return {
       ok: false,
       configured: isSalesRobotConfigured(),
@@ -442,7 +443,7 @@ export async function runSalesRobotSync(options?: {
   }
 
   const mode: SalesRobotSyncMode = options?.syncProspects ? 'full' : 'quick'
-  beginSalesRobotSync(mode)
+  await beginSalesRobotSync(mode)
   const promise = runSalesRobotSyncInner(options)
   attachSalesRobotSyncPromise(promise)
   return promise

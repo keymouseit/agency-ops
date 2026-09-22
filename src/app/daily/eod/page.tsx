@@ -7,11 +7,35 @@ import {
   isEodReadOnly,
 } from '@/lib/daily'
 import { listDailyProjectsForMember } from '@/lib/project-assignees'
+import {
+  getLinkedInBdActivityForDay,
+  isLinkedInOutreachTask,
+  mergeBdActivity,
+  parseBdActivityJson,
+} from '@/lib/salesrobot'
 import { redirect, notFound } from 'next/navigation'
 import EODClient from './EODClient'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
+
+async function loadLinkedInBdActivity(
+  log: {
+    date: Date
+    tasks: Array<{
+      taskType: string
+      bdActivityJson?: string | null
+      project: { name: string } | null
+    }>
+  }
+) {
+  const needsLinkedIn = log.tasks.some(t => isLinkedInOutreachTask(t))
+  if (!needsLinkedIn) return []
+  const live = await getLinkedInBdActivityForDay(log.date)
+  const savedTask = log.tasks.find(t => isLinkedInOutreachTask(t) && t.bdActivityJson)
+  const saved = parseBdActivityJson(savedTask?.bdActivityJson)
+  return mergeBdActivity(saved, live)
+}
 
 export default async function EODPage({ searchParams }: { searchParams: { logId?: string } }) {
   const session = await auth()
@@ -29,16 +53,23 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
       redirect('/daily/eod')
     }
 
-    const readOnly = log.memberId === memberId
-      ? isEodReadOnly(log.eodSubmittedAt)
-      : true
+    const readOnly =
+      log.memberId === memberId ? isEodReadOnly(log.eodSubmittedAt) : true
     const projects = await listDailyProjectsForMember(
       log.memberId,
       log.tasks.map(t => t.projectId ?? ''),
-      session.user.role,
+      session.user.role
     )
+    const linkedInBdActivity = await loadLinkedInBdActivity(log)
 
-    return <EODClient log={log} projects={projects} readOnly={readOnly} />
+    return (
+      <EODClient
+        log={log}
+        projects={projects}
+        readOnly={readOnly}
+        linkedInBdActivity={linkedInBdActivity}
+      />
+    )
   }
 
   const openLog = await findOpenDailyLog(memberId)
@@ -46,9 +77,12 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const projects = await listDailyProjectsForMember(
       memberId,
       openLog.tasks.map(t => t.projectId ?? ''),
-      session.user.role,
+      session.user.role
     )
-    return <EODClient log={openLog} projects={projects} />
+    const linkedInBdActivity = await loadLinkedInBdActivity(openLog)
+    return (
+      <EODClient log={openLog} projects={projects} linkedInBdActivity={linkedInBdActivity} />
+    )
   }
 
   const editableLog = await findTodayEditableEodLog(memberId)
@@ -56,9 +90,16 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
     const projects = await listDailyProjectsForMember(
       memberId,
       editableLog.tasks.map(t => t.projectId ?? ''),
-      session.user.role,
+      session.user.role
     )
-    return <EODClient log={editableLog} projects={projects} />
+    const linkedInBdActivity = await loadLinkedInBdActivity(editableLog)
+    return (
+      <EODClient
+        log={editableLog}
+        projects={projects}
+        linkedInBdActivity={linkedInBdActivity}
+      />
+    )
   }
 
   return (

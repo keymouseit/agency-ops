@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation'
 import { canEditEod } from '@/lib/daily'
 import { createClientId } from '@/lib/utils'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
+import { isLinkedInOutreachTask, parseBdActivityJson, type BdAccountActivityRow } from '@/lib/salesrobot'
 import EODHeader from './EODHeader'
+import EODBdLinkedInActivity from './EODBdLinkedInActivity'
+import EODManualBdActivity from './EODManualBdActivity'
+import { parseManualBdActivityJson, type ManualBdActivityRow } from '@/lib/bd-activity-manual'
 
 type Task = {
   id: string
@@ -17,6 +21,7 @@ type Task = {
   actualHours: number | null
   eodNotes: string | null
   blockedReason: string | null
+  bdActivityJson?: string | null
   project: { name: string } | null
 }
 
@@ -55,6 +60,7 @@ type TaskUpdate = {
   actualHours: string
   eodNotes: string
   blockedReason: string
+  bdActivity: any[] | null
 }
 
 type NewTask = {
@@ -69,17 +75,67 @@ function emptyNewTask(): NewTask {
   return { clientId: createClientId(), title: '', projectId: '', actualHours: '', eodNotes: '' }
 }
 
-function buildTaskUpdates(tasks: Task[], forEdit: boolean): Record<string, TaskUpdate> {
+function buildTaskUpdates(
+  tasks: Task[],
+  forEdit: boolean,
+  linkedInBdActivity: BdAccountActivityRow[]
+): Record<string, TaskUpdate> {
   return Object.fromEntries(
-    tasks.map(t => [
-      t.id,
-      {
-        status: forEdit ? t.status : t.status === 'planned' ? 'done' : t.status,
-        actualHours: (forEdit ? t.actualHours : t.estimatedHours)?.toString() ?? '',
-        eodNotes: forEdit ? (t.eodNotes ?? '') : '',
-        blockedReason: forEdit ? (t.blockedReason ?? '') : '',
-      },
-    ])
+    tasks.map(t => {
+      let bdActivity: any[] | null = null
+      
+      if (t.taskType === 'bd_outreach') {
+        const parsed = parseManualBdActivityJson(t.bdActivityJson)
+        if (parsed.length > 0) {
+          bdActivity = parsed
+        } else if (linkedInBdActivity.length > 0) {
+          // Pre-fill from SalesRobot if no manual entries yet
+          const prefilled: any[] = []
+          for (const account of linkedInBdActivity) {
+            const baseId = Math.random().toString(36).slice(2)
+            prefilled.push({
+              id: `${baseId}-Email`,
+              personName: account.accountName,
+              channel: 'Email',
+              newOutreach: 0,
+              followUps: 0,
+              replies: 0,
+              meetingsBooked: 0,
+            })
+            prefilled.push({
+              id: `${baseId}-WhatsApp`,
+              personName: account.accountName,
+              channel: 'WhatsApp',
+              newOutreach: 0,
+              followUps: 0,
+              replies: 0,
+              meetingsBooked: 0,
+            })
+            prefilled.push({
+              id: `${baseId}-LinkedIn`,
+              personName: account.accountName,
+              channel: 'LinkedIn',
+              newOutreach: 0,
+              followUps: 0,
+              replies: 0,
+              meetingsBooked: 0,
+            })
+          }
+          bdActivity = prefilled
+        }
+      }
+
+      return [
+        t.id,
+        {
+          status: forEdit ? t.status : t.status === 'planned' ? 'done' : t.status,
+          actualHours: (forEdit ? t.actualHours : t.estimatedHours)?.toString() ?? '',
+          eodNotes: forEdit ? (t.eodNotes ?? '') : '',
+          blockedReason: forEdit ? (t.blockedReason ?? '') : '',
+          bdActivity,
+        },
+      ]
+    })
   )
 }
 
@@ -202,14 +258,16 @@ export default function EODClient({
   log,
   projects = [],
   readOnly = false,
+  linkedInBdActivity = [],
 }: {
   log: Log
   projects?: Project[]
   readOnly?: boolean
+  linkedInBdActivity?: BdAccountActivityRow[]
 }) {
   const isEditMode = !!log.eodSubmittedAt && !readOnly
   const [taskUpdates, setTaskUpdates] = useState<Record<string, TaskUpdate>>(() =>
-    buildTaskUpdates(log.tasks, isEditMode)
+    buildTaskUpdates(log.tasks, isEditMode, linkedInBdActivity)
   )
   const [newTasks, setNewTasks] = useState<NewTask[]>([])
   const [blockers, setBlockers] = useState(log.blockers ?? '')
@@ -231,6 +289,13 @@ export default function EODClient({
       }
       return { ...prev, [id]: next }
     })
+  }
+
+  function updateTaskBdActivity(id: string, rows: any[]) {
+    setTaskUpdates(prev => ({
+      ...prev,
+      [id]: { ...prev[id], bdActivity: rows },
+    }))
   }
 
   function updateNewTask(clientId: string, field: keyof Omit<NewTask, 'clientId'>, value: string) {
@@ -273,7 +338,18 @@ export default function EODClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskUpdates,
+          taskUpdates: Object.fromEntries(
+            Object.entries(taskUpdates).map(([id, update]) => [
+              id,
+              {
+                status: update.status,
+                actualHours: update.actualHours,
+                eodNotes: update.eodNotes,
+                blockedReason: update.blockedReason,
+                bdActivity: update.bdActivity,
+              },
+            ])
+          ),
           newTasks: newTasks
             .filter(t => t.title.trim())
             .map(t => ({
@@ -323,6 +399,7 @@ export default function EODClient({
           doneCount={log.tasks.filter(t => t.status === 'done').length}
           skippedCount={log.tasks.filter(t => t.status === 'skipped').length}
           blockedCount={log.tasks.filter(t => t.status === 'blocked').length}
+          linkedInBdActivity={linkedInBdActivity}
         />
       </div>
     )
@@ -491,6 +568,13 @@ export default function EODClient({
                         )}
                       </div>
                     </div>
+                  )}
+
+                  {!isSkipped && task.taskType === 'bd_outreach' && (
+                    <EODManualBdActivity
+                      rows={update.bdActivity ?? []}
+                      onChange={rows => updateTaskBdActivity(task.id, rows)}
+                    />
                   )}
 
                   {isSkipped && (
@@ -709,11 +793,13 @@ function ReadOnlySummary({
   doneCount,
   skippedCount,
   blockedCount,
+  linkedInBdActivity = [],
 }: {
   log: Log
   doneCount: number
   skippedCount: number
   blockedCount: number
+  linkedInBdActivity?: BdAccountActivityRow[]
 }) {
   const totalActual = log.tasks.reduce((s, t) => s + (t.actualHours ?? 0), 0)
   const totalEst = log.tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
@@ -732,8 +818,10 @@ function ReadOnlySummary({
       <div className="space-y-4">
         {log.tasks.map((task, i) => {
           const status = TASK_STATUSES.find(s => s.value === task.status)
+          const savedBd = parseManualBdActivityJson(task.bdActivityJson)
+          const bdRows = savedBd
           return (
-            <div key={task.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div key={task.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-start gap-2 min-w-0">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 shrink-0">
@@ -758,6 +846,7 @@ function ReadOnlySummary({
               {task.blockedReason && (
                 <p className="text-xs text-red-600 mt-2 whitespace-pre-wrap">Blocked: {task.blockedReason}</p>
               )}
+              {bdRows.length > 0 && task.taskType === 'bd_outreach' && <EODManualBdActivity rows={bdRows} readOnly />}
             </div>
           )
         })}
