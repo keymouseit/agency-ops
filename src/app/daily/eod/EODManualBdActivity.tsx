@@ -46,6 +46,35 @@ export default function EODManualBdActivity({
     chunks.push(rows.slice(i, i + 3))
   }
 
+  useEffect(() => {
+    if (!readOnly && rows.length === 0 && onChange) {
+      const defaultPersons = [
+        'Kanika Sharma',
+        'Shiven Juneja',
+        'Sushant Sharma',
+        'Vishal Ghangale'
+      ]
+      
+      const defaultRows: ManualBdActivityRow[] = []
+      for (const name of defaultPersons) {
+        const baseId = Math.random().toString(36).slice(2)
+        CHANNELS.forEach(channel => {
+          defaultRows.push({
+            id: `${baseId}-${channel}`,
+            personName: name,
+            channel,
+            newOutreach: 0,
+            followUps: 0,
+            replies: 0,
+            meetingsBooked: 0,
+          })
+        })
+      }
+      // Use setTimeout to avoid synchronous state updates during initial render if this is a child
+      setTimeout(() => onChange(defaultRows), 0)
+    }
+  }, [readOnly, rows.length]) // Intentionally not including onChange to prevent loops if it's unstable
+
   function addPerson() {
     if (!onChange) return
     const baseId = Math.random().toString(36).slice(2)
