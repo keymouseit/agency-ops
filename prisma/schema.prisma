@@ -449,6 +449,8 @@ model DailyTask {
   actualHours  Float?
   eodNotes     String?   // what happened with this task
   blockedReason String?  // if status = blocked, why
+  // LinkedIn outreach BD activity (per SalesRobot account) — JSON array
+  bdActivityJson String?
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -993,6 +995,19 @@ model SalesRobotAccount {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   campaigns           SalesRobotCampaign[]
+}
+
+// Singleton row tracking the latest SalesRobot sync job (works across Vercel instances).
+model SalesRobotSyncJob {
+  id           String    @id @default("default")
+  state        String    @default("idle") // idle | running | done | error
+  mode         String?   // quick | full
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  lastSyncedAt DateTime?
+  message      String?
+  resultJson   String?
+  updatedAt    DateTime  @updatedAt
 }
 
 model SalesRobotCampaign {

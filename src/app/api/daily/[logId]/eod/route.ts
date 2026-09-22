@@ -13,6 +13,48 @@ type TaskUpdatePayload = {
   actualHours: string
   eodNotes: string
   blockedReason: string
+  bdActivity?: unknown
+}
+
+function serializeBdActivity(raw: unknown): string | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const rows = raw
+    .map(item => {
+      if (!item || typeof item !== 'object') return null
+      const row = item as Record<string, unknown>
+      
+      // Support manual BD activity row format
+      if (row.channel || row.personName) {
+        return {
+          id: typeof row.id === 'string' ? row.id : Math.random().toString(36).slice(2),
+          personName: typeof row.personName === 'string' ? row.personName.trim() : 'Unknown',
+          channel: row.channel === 'Email' || row.channel === 'WhatsApp' ? row.channel : 'LinkedIn',
+          newOutreach: Math.max(0, Math.floor(Number(row.newOutreach) || 0)),
+          followUps: Math.max(0, Math.floor(Number(row.followUps) || 0)),
+          replies: Math.max(0, Math.floor(Number(row.replies) || 0)),
+          meetingsBooked: Math.max(0, Math.floor(Number(row.meetingsBooked) || 0)),
+        }
+      }
+
+      // Legacy support for SalesRobot linkedin format
+      const linkedinAccountId =
+        typeof row.linkedinAccountId === 'string' ? row.linkedinAccountId.trim() : ''
+      if (!linkedinAccountId) return null
+      return {
+        linkedinAccountId,
+        accountName:
+          typeof row.accountName === 'string' && row.accountName.trim()
+            ? row.accountName.trim()
+            : linkedinAccountId,
+        newOutreach: Math.max(0, Math.floor(Number(row.newOutreach) || 0)),
+        followUps: Math.max(0, Math.floor(Number(row.followUps) || 0)),
+        replies: Math.max(0, Math.floor(Number(row.replies) || 0)),
+        meetingsBooked: Math.max(0, Math.floor(Number(row.meetingsBooked) || 0)),
+        source: row.source === 'manual' ? 'manual' : 'salesrobot',
+      }
+    })
+    .filter(Boolean)
+  return rows.length ? JSON.stringify(rows) : null
 }
 
 type NewTaskPayload = {
@@ -102,6 +144,7 @@ export async function POST(
                 : null,
             eodNotes: update.eodNotes || null,
             blockedReason: update.status === 'blocked' ? update.blockedReason || null : null,
+            bdActivityJson: isSkipped ? null : serializeBdActivity(update.bdActivity),
           },
         })
       })
