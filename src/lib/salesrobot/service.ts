@@ -25,6 +25,10 @@ function metricDelta(eventType: SalesRobotEventType): Partial<MetricTotals> | nu
 async function applyProspectSideEffects(event: NormalizedWebhookEvent) {
   if (!event.prospectId) return
 
+  const existing = await prisma.salesRobotProspect.findUnique({
+    where: { salesrobotProspectId: event.prospectId },
+  })
+
   const data: Prisma.SalesRobotProspectUpdateInput = {}
   if (event.eventType === 'connection_request_sent') {
     data.connectionRequestedAt = event.occurredAt
@@ -38,12 +42,12 @@ async function applyProspectSideEffects(event: NormalizedWebhookEvent) {
   }
   if (event.eventType === 'reply_received') {
     data.isReplied = true
-    data.repliedAt = event.occurredAt
+    // Keep first repliedAt; reopen follow-up if BD had marked it done
+    if (!existing?.repliedAt) {
+      data.repliedAt = event.occurredAt
+    }
+    data.followUpCompletedAt = null
   }
-
-  const existing = await prisma.salesRobotProspect.findUnique({
-    where: { salesrobotProspectId: event.prospectId },
-  })
 
   if (existing) {
     if (Object.keys(data).length) {

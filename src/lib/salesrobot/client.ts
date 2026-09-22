@@ -3,6 +3,7 @@ import type {
   SalesRobotApiCampaign,
   SalesRobotApiProspect,
   SalesRobotDailyActivity,
+  SalesRobotSyncedConversation,
 } from './types'
 
 export class SalesRobotApiError extends Error {
@@ -188,19 +189,65 @@ export async function listProspects(
   linkedinAccountUuid: string,
   campaignUuid: string,
   page = 0,
-  size = 100
+  size = 100,
+  searchParams: Record<string, QueryValue> = {}
 ) {
   const payload = await salesRobotFetch<unknown>('/api/campaign/prospects', {
     query: {
       linkedinAccountUuid,
       campaignUuid,
       p: { page, size },
-      params: {},
+      params: searchParams,
     },
   })
   return {
     items: unwrapList<SalesRobotApiProspect>(payload),
     ...unwrapPageMeta(payload),
+  }
+}
+
+/** Inbox conversations (includes threaded messages + prospect reply state). */
+export async function listSyncedMessages(
+  linkedinAccountUuid: string,
+  options: {
+    page?: number
+    size?: number
+    campaignUuid?: string
+    unreadOnly?: boolean
+  } = {}
+) {
+  const page = options.page ?? 0
+  const size = options.size ?? 50
+  const payload = await salesRobotFetch<{
+    success?: boolean
+    data?: Array<{
+      data?: SalesRobotSyncedConversation[] | null
+      currentPage?: number
+      totalPages?: number
+    }>
+  }>('/api/syncedMessages', {
+    method: 'POST',
+    query: {
+      linkedinAccountUuid,
+      page,
+      size,
+    },
+    body: {
+      campaignUuid: options.campaignUuid ?? 'ALL',
+      ...(options.unreadOnly ? { isUnread: true } : {}),
+    },
+  })
+
+  const blocks = Array.isArray(payload.data) ? payload.data : []
+  const pageBlock =
+    blocks.find(b => Array.isArray(b.data)) ||
+    blocks.find(b => typeof b.totalPages === 'number') ||
+    blocks[0]
+  const items = Array.isArray(pageBlock?.data) ? pageBlock.data : []
+  return {
+    items,
+    currentPage: Number(pageBlock?.currentPage ?? page),
+    totalPages: Math.max(1, Number(pageBlock?.totalPages ?? 1)),
   }
 }
 

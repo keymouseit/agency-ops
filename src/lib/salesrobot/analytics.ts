@@ -227,7 +227,7 @@ export async function getAnalyticsDashboard(filters: {
         : { salesrobotCampaignId: '__none__' }
       : {}
 
-  const [weekly, daily, recentEvents] = await Promise.all([
+  const [weekly, daily, recentEvents, waitingProspects] = await Promise.all([
     prisma.salesRobotWeeklyAnalytics.findMany({
       where: {
         weekStart: { lte: filters.to },
@@ -257,6 +257,26 @@ export async function getAnalyticsDashboard(filters: {
       },
       orderBy: { occurredAt: 'desc' },
       take: 25,
+    }),
+    prisma.salesRobotProspect.findMany({
+      where: {
+        isReplied: true,
+        followUpCompletedAt: null,
+        lastClientMessage: { not: null },
+        ...(filters.campaignId ? { salesrobotCampaignId: filters.campaignId } : {}),
+        ...(filters.linkedinAccountId ? { linkedinAccountId: filters.linkedinAccountId } : {}),
+        ...(hasCampaignScope && !filters.campaignId && campaignIds.length > 0
+          ? { salesrobotCampaignId: { in: campaignIds } }
+          : {}),
+        ...(hasCampaignScope && campaignIds.length === 0
+          ? { salesrobotCampaignId: '__none__' }
+          : {}),
+      },
+      include: {
+        campaign: { select: { name: true, status: true } },
+      },
+      orderBy: [{ lastClientMessageAt: 'desc' }, { repliedAt: 'desc' }, { updatedAt: 'desc' }],
+      take: 100,
     }),
   ])
 
@@ -404,6 +424,23 @@ export async function getAnalyticsDashboard(filters: {
       .map(c => withRates(c))
       .sort((a, b) => b.connectionRequestsSent - a.connectionRequestsSent),
     recentEvents,
+    waitingForUs: waitingProspects.map(p => {
+      const account = allAccounts.find(a => a.salesrobotAccountId === p.linkedinAccountId)
+      return {
+        id: p.id,
+        name: [p.firstName, p.lastName].filter(Boolean).join(' ') || 'Unknown',
+        company: p.company,
+        jobTitle: p.jobTitle,
+        linkedinUrl: p.linkedinUrl,
+        campaignName: p.campaign?.name || p.salesrobotCampaignId || '—',
+        accountName: account?.name || account?.email || p.linkedinAccountId || '—',
+        repliedAt: p.repliedAt,
+        lastClientMessage: p.lastClientMessage,
+        lastClientMessageAt: p.lastClientMessageAt,
+        isConnected: p.isConnected,
+      }
+    }),
+    waitingForUsCount: waitingProspects.length,
     lastSyncedAt,
   }
 }

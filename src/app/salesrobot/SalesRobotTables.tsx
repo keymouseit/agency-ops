@@ -40,7 +40,7 @@ export function SalesRobotKpiGrid({
   kpis: Array<{ label: string; value: string; hint?: string; accent?: string }>
 }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
       {kpis.map(k => (
         <div
           key={k.label}

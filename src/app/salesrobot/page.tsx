@@ -16,6 +16,9 @@ import {
   SalesRobotKpiGrid,
   SalesRobotWeeklyTable,
 } from './SalesRobotTables'
+import SalesRobotWaitingList from './SalesRobotWaitingList'
+import SalesRobotTabs from './SalesRobotTabs'
+import { resolveSalesRobotTab } from './salesrobot-tabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +32,7 @@ export default async function SalesRobotPage({
     campaignId?: string
     accountId?: string
     status?: string
+    tab?: string
   }
 }) {
   const session = await auth()
@@ -36,6 +40,7 @@ export default async function SalesRobotPage({
   const canSync =
     role === 'Founder' || role === 'Manager' || role === 'BD' || role === 'Both'
   const configured = isSalesRobotConfigured()
+  const activeTab = resolveSalesRobotTab(searchParams.tab)
 
   const range = resolveDateRange({
     preset: searchParams.preset,
@@ -50,6 +55,21 @@ export default async function SalesRobotPage({
     linkedinAccountId: searchParams.accountId || null,
     status: searchParams.status || null,
   })
+
+  const waitingRows = (data.waitingForUs ?? []).map(p => ({
+    id: p.id,
+    name: p.name,
+    company: p.company,
+    jobTitle: p.jobTitle,
+    linkedinUrl: p.linkedinUrl,
+    campaignName: p.campaignName,
+    accountName: p.accountName,
+    repliedAt: p.repliedAt ? p.repliedAt.toISOString() : null,
+    lastClientMessage: p.lastClientMessage ?? null,
+    lastClientMessageAt: p.lastClientMessageAt ? p.lastClientMessageAt.toISOString() : null,
+    isConnected: p.isConnected,
+  }))
+  const waitingCount = data.waitingForUsCount ?? waitingRows.length
 
   const rangeLabel =
     searchParams.preset === 'custom' && searchParams.from && searchParams.to
@@ -113,6 +133,12 @@ export default async function SalesRobotPage({
       hint: 'Replies ÷ messages',
       accent: 'bg-orange-500',
     },
+    {
+      label: 'Waiting for us',
+      value: String(waitingCount),
+      hint: 'Replied, need follow-up',
+      accent: 'bg-rose-500',
+    },
   ]
 
   return (
@@ -165,12 +191,19 @@ export default async function SalesRobotPage({
         </div>
       )}
 
-      {configured && data.filterOptions.campaigns.length > 0 && !hasActivity && (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          No activity for <strong>{rangeLabel}</strong> with the current filters. Try another date
-          range, account, or campaign.
-        </div>
-      )}
+      {configured &&
+        activeTab === 'analytics' &&
+        data.filterOptions.campaigns.length > 0 &&
+        !hasActivity && (
+          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            No activity for <strong>{rangeLabel}</strong> with the current filters. Try another date
+            range, account, or campaign.
+          </div>
+        )}
+
+      <Suspense fallback={<div className="mb-6 h-11 w-72 rounded-xl bg-gray-100 animate-pulse" />}>
+        <SalesRobotTabs active={activeTab} waitingCount={waitingCount} />
+      </Suspense>
 
       <SalesRobotClientShell
         filters={
@@ -189,45 +222,51 @@ export default async function SalesRobotPage({
           </Suspense>
         }
       >
-        <SalesRobotKpiGrid kpis={kpis} />
+        {activeTab === 'waiting' ? (
+          <SalesRobotWaitingList canMarkDone={canSync} rows={waitingRows} />
+        ) : (
+          <>
+            <SalesRobotKpiGrid kpis={kpis} />
 
-        <div className="mb-6">
-          <SalesRobotCharts
-            trend={data.trend.map(t => ({
-              label: t.label,
-              connectionRequestsSent: t.connectionRequestsSent,
-              connectionsAccepted: t.connectionsAccepted,
-              repliesReceived: t.repliesReceived,
-              acceptanceRate: t.acceptanceRate,
-              replyRate: t.replyRate,
-            }))}
-          />
-        </div>
+            <div className="mb-6">
+              <SalesRobotCharts
+                trend={data.trend.map(t => ({
+                  label: t.label,
+                  connectionRequestsSent: t.connectionRequestsSent,
+                  connectionsAccepted: t.connectionsAccepted,
+                  repliesReceived: t.repliesReceived,
+                  acceptanceRate: t.acceptanceRate,
+                  replyRate: t.replyRate,
+                }))}
+              />
+            </div>
 
-        <div className="space-y-4 mb-6">
-          <SalesRobotCampaignTable
-            rows={data.campaignComparison.map(row => ({
-              campaignId: row.campaignId,
-              name: row.name,
-              connectionRequestsSent: row.connectionRequestsSent,
-              connectionsAccepted: row.connectionsAccepted,
-              messagesSent: row.messagesSent,
-              repliesReceived: row.repliesReceived,
-            }))}
-          />
-          <SalesRobotWeeklyTable
-            rows={data.weekRows.map(row => ({
-              id: row.id,
-              weekLabel: `${fmtDate(row.weekStart)} – ${fmtDate(row.weekEnd)}`,
-              campaignName: row.campaignName,
-              prospectsAdded: row.prospectsAdded,
-              connectionRequestsSent: row.connectionRequestsSent,
-              connectionsAccepted: row.connectionsAccepted,
-              messagesSent: row.messagesSent,
-              repliesReceived: row.repliesReceived,
-            }))}
-          />
-        </div>
+            <div className="space-y-4 mb-6">
+              <SalesRobotCampaignTable
+                rows={data.campaignComparison.map(row => ({
+                  campaignId: row.campaignId,
+                  name: row.name,
+                  connectionRequestsSent: row.connectionRequestsSent,
+                  connectionsAccepted: row.connectionsAccepted,
+                  messagesSent: row.messagesSent,
+                  repliesReceived: row.repliesReceived,
+                }))}
+              />
+              <SalesRobotWeeklyTable
+                rows={data.weekRows.map(row => ({
+                  id: row.id,
+                  weekLabel: `${fmtDate(row.weekStart)} – ${fmtDate(row.weekEnd)}`,
+                  campaignName: row.campaignName,
+                  prospectsAdded: row.prospectsAdded,
+                  connectionRequestsSent: row.connectionRequestsSent,
+                  connectionsAccepted: row.connectionsAccepted,
+                  messagesSent: row.messagesSent,
+                  repliesReceived: row.repliesReceived,
+                }))}
+              />
+            </div>
+          </>
+        )}
       </SalesRobotClientShell>
     </div>
   )

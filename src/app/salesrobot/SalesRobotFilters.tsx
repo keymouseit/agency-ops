@@ -86,7 +86,11 @@ export default function SalesRobotFilters({
 
   function clearFilters() {
     run(() => {
-      router.push('/salesrobot')
+      const params = new URLSearchParams()
+      const tab = searchParams.get('tab')
+      if (tab === 'waiting') params.set('tab', 'waiting')
+      const q = params.toString()
+      router.push(q ? `/salesrobot?${q}` : '/salesrobot')
     })
   }
 
