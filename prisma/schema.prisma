@@ -1036,12 +1036,16 @@ model SalesRobotProspect {
   connectedAt           DateTime?
   firstMessageSentAt    DateTime?
   repliedAt             DateTime?
+  lastClientMessage     String?
+  lastClientMessageAt   DateTime?
+  followUpCompletedAt   DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
   @@index([campaignId])
   @@index([salesrobotCampaignId])
   @@index([linkedinAccountId])
+  @@index([isReplied, followUpCompletedAt])
 }
 
 model SalesRobotEvent {

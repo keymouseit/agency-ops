@@ -44,10 +44,21 @@ export interface SalesRobotApiAccount {
   paymentStatus?: string
 }
 
+export interface SalesRobotApiProspectStep {
+  stepNumber?: number
+  stepType?: string
+  messageSent?: string
+  sentAt?: string
+  status?: string
+  connectedAt?: string | null
+  repliedAt?: string | null
+}
+
 export interface SalesRobotApiProspect {
   prospectUuid?: string
   uuid?: string
   id?: number | string
+  fullName?: string
   profileUrl?: string
   firstName?: string
   lastName?: string
@@ -56,10 +67,38 @@ export interface SalesRobotApiProspect {
   campaignUUID?: string
   campaignUuid?: string
   linkedinAccountUuid?: string
-  isConnected?: boolean
-  isReplied?: boolean
+  isConnected?: boolean | null
+  isReplied?: boolean | null
+  isEmailReplied?: boolean | null
+  lastActivity?: string | null
+  firstReplyAt?: string | null
+  connectionRequestSentAt?: string | null
+  connectionAcceptedAt?: string | null
+  lastExecutionTime?: string | null
   createdTime?: string
   currentExecutionStep?: number
+  messageThreadId?: string | null
+  isUnread?: boolean | null
+  stepExportData?: SalesRobotApiProspectStep[] | null
+}
+
+export interface SalesRobotSyncedMessage {
+  messageId?: string
+  messageText?: string
+  sentTime?: string
+  messageSentByMe?: boolean
+}
+
+export interface SalesRobotSyncedConversation {
+  linkedinAccountUuid?: string
+  campaignName?: string
+  campaignUuid?: string
+  nameOfPerson?: string
+  isUnread?: boolean
+  prospectData?: SalesRobotApiProspect | null
+  threadedMessages?: {
+    messages?: SalesRobotSyncedMessage[]
+  } | null
 }
 
 export interface SalesRobotDailyActivity {
