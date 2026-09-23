@@ -114,6 +114,25 @@ export default function SalesRobotSyncButton({
     }
   }, [status, router])
 
+  async function clearStuckSync() {
+    setStarting(true)
+    try {
+      const res = await fetch('/api/integrations/salesrobot/sync', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || data.message || 'Could not clear sync')
+        return
+      }
+      setStatus(data)
+      toast.success('Stuck sync cleared — you can Sync again')
+      router.refresh()
+    } catch {
+      toast.error('Could not clear sync')
+    } finally {
+      setStarting(false)
+    }
+  }
+
   async function sync(syncProspects: boolean) {
     setStarting(true)
     try {
@@ -183,6 +202,16 @@ export default function SalesRobotSyncButton({
               <div className="text-[11px] text-gray-500 mt-1">
                 Started {fmtDateTime(status.startedAt)}
               </div>
+            )}
+            {canSync && (
+              <button
+                type="button"
+                disabled={starting}
+                onClick={() => clearStuckSync()}
+                className="mt-2 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60"
+              >
+                Stuck? Clear sync
+              </button>
             )}
           </>
         ) : status?.state === 'done' && status.message ? (

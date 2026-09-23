@@ -18,9 +18,11 @@ import {
 import {
   attachSalesRobotSyncPromise,
   beginSalesRobotSync,
+  clearSalesRobotSyncLock,
   failSalesRobotSync,
   getSalesRobotSyncStatus,
   isSalesRobotSyncRunning,
+  touchSalesRobotSyncProgress,
   type SalesRobotSyncMode,
   type SalesRobotSyncState,
 } from './sync-status'
@@ -30,6 +32,28 @@ import type {
   SalesRobotApiProspect,
   SalesRobotSyncedConversation,
 } from './types'
+
+
+/** Vercel Hobby caps functions (~60s). Local Node can run much longer. */
+function isVercelRuntime() {
+  return Boolean(process.env.VERCEL)
+}
+
+function syncPageBudget(full: boolean) {
+  if (!isVercelRuntime()) {
+    return full
+      ? { unreadPages: 20, allPages: 8, maxProspectPagesPerCampaign: 3, deadlineMs: 0 }
+      : { unreadPages: 3, allPages: 0, maxProspectPagesPerCampaign: 3, deadlineMs: 0 }
+  }
+  // Stay under Hobby/Pro kill window so attachSalesRobotSyncPromise can mark done/error.
+  return full
+    ? { unreadPages: 6, allPages: 2, maxProspectPagesPerCampaign: 1, deadlineMs: 50_000 }
+    : { unreadPages: 2, allPages: 0, maxProspectPagesPerCampaign: 1, deadlineMs: 45_000 }
+}
+
+function deadlineReached(deadlineAt: number | null) {
+  return Boolean(deadlineAt && Date.now() >= deadlineAt)
+}
 
 function accountId(a: SalesRobotApiAccount) {
   return a.linkedinAccountUuid || a.uuid || ''
@@ -417,8 +441,22 @@ export async function startSalesRobotSync(options?: {
     return { started: false, status: await getSalesRobotSyncStatus() }
   }
 
+  const budget = syncPageBudget(Boolean(options?.syncProspects))
   const promise = runSalesRobotSyncInner(options)
   attachSalesRobotSyncPromise(promise)
+  if (budget.deadlineMs > 0) {
+    const failsafeMs = budget.deadlineMs + 15_000
+    setTimeout(() => {
+      void (async () => {
+        const status = await getSalesRobotSyncStatus()
+        if (status.state === 'running') {
+          await failSalesRobotSync(
+            'Sync hit the Vercel time limit and was stopped. Click Sync again to continue.'
+          )
+        }
+      })()
+    }, failsafeMs)
+  }
   return { ...began, promise }
 }
 
@@ -449,7 +487,7 @@ export async function runSalesRobotSync(options?: {
   return promise
 }
 
-export { getSalesRobotSyncStatus, isSalesRobotSyncRunning }
+export { getSalesRobotSyncStatus, isSalesRobotSyncRunning, clearSalesRobotSyncLock }
 
 async function runSalesRobotSyncInner(options?: {
   daysBack?: number
@@ -478,12 +516,21 @@ async function runSalesRobotSyncInner(options?: {
   // Full sync = + deeper inbox + campaign replied scan (slower, better messages)
   const syncProspectLists = Boolean(options?.syncProspects)
   const syncRepliedFromCampaigns = syncProspectLists
+  const budget = syncPageBudget(syncProspectLists)
+  const deadlineAt = budget.deadlineMs > 0 ? Date.now() + budget.deadlineMs : null
   const end = new Date()
   const start = subDays(end, daysBack)
   const startDate = toDateOnlyIso(start)
   const endDate = toDateOnlyIso(end)
+  let stoppedEarly = false
 
   try {
+    await touchSalesRobotSyncProgress(
+      syncProspectLists
+        ? 'Full sync running… pulling campaigns and inbox'
+        : 'Sync running… pulling campaigns and stats'
+    )
+
     // Remove stale false-positive "Waiting for us" rows from the slow sync bug
     try {
       const cleared = await clearFalseWaitingProspects()
@@ -522,19 +569,30 @@ async function runSalesRobotSyncInner(options?: {
     })
 
     for (const linkedinAccountId of accountIds) {
+      if (deadlineReached(deadlineAt)) {
+        stoppedEarly = true
+        result.errors.push('Stopped early to finish within the Vercel time limit — run Sync again for the rest')
+        break
+      }
       try {
         console.info('[salesrobot] syncing account', { linkedinAccountId })
+        await touchSalesRobotSyncProgress(`Syncing account ${linkedinAccountId.slice(0, 8)}…`)
         const campaigns = await fetchAllPages(page => listCampaigns(linkedinAccountId, page, 50))
         for (const campaign of campaigns) {
           const saved = await upsertCampaign(campaign, linkedinAccountId)
           if (saved) result.campaigns += 1
         }
 
-        const maxPages = options?.maxProspectPagesPerCampaign ?? 3
+        const maxPages =
+          options?.maxProspectPagesPerCampaign ?? budget.maxProspectPagesPerCampaign
 
         // Optional: also scan campaign replied lists (Full sync only). Messages still come from inbox.
         if (syncRepliedFromCampaigns) {
           for (const campaign of campaigns) {
+            if (deadlineReached(deadlineAt)) {
+              stoppedEarly = true
+              break
+            }
             const id = campaignUuid(campaign)
             if (!id) continue
             const saved = await prisma.salesRobotCampaign.findUnique({
@@ -559,12 +617,17 @@ async function runSalesRobotSyncInner(options?: {
           }
         }
 
+        if (deadlineReached(deadlineAt)) {
+          stoppedEarly = true
+          result.errors.push('Stopped early to finish within the Vercel time limit — run Sync again for the rest')
+          break
+        }
+
         // Inbox is the source of truth for client last message + waiting list
         try {
           result.prospects += await syncInboxMessagesForAccount(linkedinAccountId, {
-            // Sync now: recent unread only. Full sync: deeper unread + older threads.
-            unreadPages: syncProspectLists ? 20 : 3,
-            allPages: syncProspectLists ? 8 : 0,
+            unreadPages: budget.unreadPages,
+            allPages: budget.allPages,
           })
         } catch (err) {
           result.errors.push(
@@ -593,9 +656,20 @@ async function runSalesRobotSyncInner(options?: {
       }
     }
 
-    const rebuilt = await rebuildWeeklyFromDaily({ from: start, to: end })
-    result.weeksRebuilt = rebuilt.weeks
-    result.ok = result.errors.length === 0
+    if (!deadlineReached(deadlineAt)) {
+      const rebuilt = await rebuildWeeklyFromDaily({ from: start, to: end })
+      result.weeksRebuilt = rebuilt.weeks
+    }
+
+    // Partial sync on Vercel is still useful — treat as ok when we got campaigns/stats.
+    const hasUsefulData =
+      result.campaigns > 0 || result.dailyRows > 0 || result.prospects > 0
+    result.ok =
+      result.errors.length === 0 || (stoppedEarly && hasUsefulData && result.errors.every(e => e.startsWith('Stopped early')))
+    if (stoppedEarly && hasUsefulData) {
+      // Keep a soft warning but mark ok so UI shows done, not a hard error lock
+      result.ok = true
+    }
   } catch (err) {
     result.errors.push(err instanceof Error ? err.message : String(err))
   }

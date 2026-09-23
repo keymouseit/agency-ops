@@ -25,6 +25,15 @@ export type SalesRobotSyncState = {
 
 const JOB_ID = 'default'
 
+/**
+ * Vercel kills long waitUntil work (especially on Hobby). If the process dies,
+ * DB state can stay "running" forever. Treat locks older than this as dead so
+ * GET/UI and POST can recover without waiting for a redeploy.
+ * Keep above route maxDuration (60s on Hobby) so a live job is not marked dead early.
+ * Abandoned locks (killed serverless) clear after this window even if the process never finished.
+ */
+export const SALESROBOT_SYNC_STALE_MS = 2 * 60 * 1000
+
 type MemoryStore = {
   inFlight: Promise<SyncResultSummary> | null
 }
@@ -78,9 +87,39 @@ async function ensureJob() {
   })
 }
 
-export async function getSalesRobotSyncStatus(): Promise<SalesRobotSyncState> {
+function isStaleRunning(row: { state: string; startedAt: Date | null }) {
+  if (row.state !== 'running') return false
+  // This Node instance is still executing the sync — do not expire the lock here.
+  if (memory().inFlight) return false
+  // Missing start time or older than the serverless budget → abandoned lock.
+  if (!row.startedAt) return true
+  return Date.now() - row.startedAt.getTime() >= SALESROBOT_SYNC_STALE_MS
+}
+
+/** Mark abandoned serverless synces as timed out so UI/POST can move on. */
+export async function resolveStaleSalesRobotSync() {
   try {
     const row = await ensureJob()
+    if (!isStaleRunning(row)) return row
+
+    const finishedAt = new Date()
+    const ageMin = Math.round((Date.now() - (row.startedAt?.getTime() || Date.now())) / 60000)
+    return prisma.salesRobotSyncJob.update({
+      where: { id: JOB_ID },
+      data: {
+        state: 'error',
+        finishedAt,
+        message: `Sync timed out after ~${ageMin} min (server stopped the job). Click Sync again.`,
+      },
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function getSalesRobotSyncStatus(): Promise<SalesRobotSyncState> {
+  try {
+    const row = (await resolveStaleSalesRobotSync()) || (await ensureJob())
     return toState(row)
   } catch {
     return {
@@ -98,7 +137,7 @@ export async function getSalesRobotSyncStatus(): Promise<SalesRobotSyncState> {
 export async function isSalesRobotSyncRunning() {
   if (memory().inFlight) return true
   try {
-    const row = await ensureJob()
+    const row = (await resolveStaleSalesRobotSync()) || (await ensureJob())
     return row.state === 'running'
   } catch {
     return Boolean(memory().inFlight)
@@ -119,18 +158,14 @@ export async function beginSalesRobotSync(mode: SalesRobotSyncMode): Promise<{
     }
   }
 
-  const existing = await ensureJob()
-  if (existing.state === 'running' && existing.startedAt) {
-    const ageMs = Date.now() - existing.startedAt.getTime()
-    // Stale lock from a killed serverless function — allow restart after 12 min
-    if (ageMs < 12 * 60 * 1000) {
-      return {
-        started: false,
-        status: {
-          ...toState(existing),
-          message: existing.message || 'Sync already running in the background',
-        },
-      }
+  const existing = (await resolveStaleSalesRobotSync()) || (await ensureJob())
+  if (existing.state === 'running') {
+    return {
+      started: false,
+      status: {
+        ...toState(existing),
+        message: existing.message || 'Sync already running in the background',
+      },
     }
   }
 
@@ -215,6 +250,39 @@ export function attachSalesRobotSyncPromise(promise: Promise<SyncResultSummary>)
     .finally(() => {
       mem.inFlight = null
     })
+}
+
+export async function touchSalesRobotSyncProgress(message: string) {
+  try {
+    await prisma.salesRobotSyncJob.update({
+      where: { id: JOB_ID },
+      data: { message },
+    })
+  } catch {
+    // best-effort; sync can continue without UI heartbeat
+  }
+}
+
+export async function clearSalesRobotSyncLock(message = 'Sync lock cleared') {
+  memory().inFlight = null
+  const finishedAt = new Date()
+  const row = await prisma.salesRobotSyncJob.upsert({
+    where: { id: JOB_ID },
+    create: {
+      id: JOB_ID,
+      state: 'idle',
+      finishedAt,
+      message,
+    },
+    update: {
+      state: 'idle',
+      finishedAt,
+      message,
+      mode: null,
+      resultJson: null,
+    },
+  })
+  return toState(row)
 }
 
 export async function failSalesRobotSync(message: string) {
