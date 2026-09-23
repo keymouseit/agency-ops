@@ -122,6 +122,21 @@ function lastInboundFromConversation(conversation: SalesRobotSyncedConversation)
   }
 }
 
+/** Last message we sent in the thread (prefer ones with text). */
+function lastOutboundFromConversation(conversation: SalesRobotSyncedConversation) {
+  const messages = conversation.threadedMessages?.messages || []
+  const withText = messages.filter(m => m.messageSentByMe === true && m.messageText?.trim())
+  const outbound = withText.length
+    ? withText
+    : messages.filter(m => m.messageSentByMe === true)
+  if (!outbound.length) return null
+  const last = outbound[outbound.length - 1]
+  return {
+    text: (last.messageText || '').trim().slice(0, 2000),
+    at: parseFlexibleDate(last.sentTime),
+  }
+}
+
 async function upsertAccount(a: SalesRobotApiAccount) {
   const id = accountId(a)
   if (!id) return null
@@ -319,6 +334,7 @@ async function syncInboxMessagesForAccount(
         // Only keep threads where the client actually wrote something
         const inbound = lastInboundFromConversation(conversation)
         if (!inbound) continue
+        const outbound = lastOutboundFromConversation(conversation)
 
         const campaignId = prospect.campaignUuid || conversation.campaignUuid
         if (!campaignId) continue
@@ -333,7 +349,7 @@ async function syncInboxMessagesForAccount(
           campaignCache.set(campaignId, campaignLocalId)
         }
 
-        await upsertProspect(
+        const saved = await upsertProspect(
           {
             ...prospect,
             isReplied: true,
@@ -345,6 +361,30 @@ async function syncInboxMessagesForAccount(
           campaignId,
           { lastClientMessage: inbound.text, lastClientMessageAt: inbound.at }
         )
+        if (!saved) continue
+
+        // Auto-complete Waiting when we already replied after the client's last message;
+        // reopen Waiting if the client sent a newer message after a prior Mark done.
+        const inboundAt = inbound.at
+        const outboundAt = outbound?.at
+        if (inboundAt && outboundAt && outboundAt.getTime() > inboundAt.getTime()) {
+          if (!saved.followUpCompletedAt) {
+            await prisma.salesRobotProspect.update({
+              where: { id: saved.id },
+              data: { followUpCompletedAt: outboundAt },
+            })
+          }
+        } else if (
+          inboundAt &&
+          saved.followUpCompletedAt &&
+          inboundAt.getTime() > saved.followUpCompletedAt.getTime()
+        ) {
+          await prisma.salesRobotProspect.update({
+            where: { id: saved.id },
+            data: { followUpCompletedAt: null },
+          })
+        }
+
         updated += 1
       }
 

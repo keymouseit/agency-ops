@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { fmtDate } from '@/lib/utils'
+import { fmtDateTime } from '@/lib/utils'
 
 export type WaitingProspect = {
   id: string
@@ -95,13 +95,13 @@ export default function SalesRobotWaitingList({
       ) : (
         <div className="overflow-x-auto">
           <div className="max-h-[70vh] overflow-y-auto">
-            <table className="w-full min-w-[980px] text-sm border-collapse table-fixed">
+            <table className="w-full min-w-[1040px] text-sm border-collapse table-fixed">
               <colgroup>
                 <col className="w-[22%]" />
-                <col className="w-[16%]" />
+                <col className="w-[15%]" />
+                <col className="w-[13%]" />
+                <col className="w-[26%]" />
                 <col className="w-[14%]" />
-                <col className="w-[28%]" />
-                <col className="w-[10%]" />
                 <col className="w-[10%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
@@ -116,8 +116,8 @@ export default function SalesRobotWaitingList({
               </thead>
               <tbody>
                 {visible.map(row => {
-                  const days = daysWaiting(row.repliedAt || row.lastClientMessageAt)
-                  const replyDate = row.repliedAt || row.lastClientMessageAt
+                  const days = daysWaiting(row.lastClientMessageAt || row.repliedAt)
+                  const replyDate = row.lastClientMessageAt || row.repliedAt
                   const label = waitingLabel(days)
                   return (
                     <tr
@@ -164,7 +164,7 @@ export default function SalesRobotWaitingList({
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap align-top">
+                      <td className="px-3 py-2.5 text-right align-top">
                         {label == null ? (
                           <span className="text-gray-400">—</span>
                         ) : (
@@ -177,8 +177,8 @@ export default function SalesRobotWaitingList({
                               {label}
                             </div>
                             {replyDate && (
-                              <div className="text-[11px] text-gray-400 mt-0.5">
-                                since {fmtDate(replyDate)}
+                              <div className="text-[11px] text-gray-400 mt-0.5 whitespace-normal">
+                                since {fmtDateTime(replyDate)}
                               </div>
                             )}
                           </div>
