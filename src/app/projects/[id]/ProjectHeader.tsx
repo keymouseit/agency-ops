@@ -48,7 +48,7 @@ export default function ProjectHeader({
     !['delivered', 'cancelled'].includes(status)
 
   const metaParts = [
-    developerNames.length ? `Dev: ${developerNames.join(', ')}` : null,
+    developerNames.length ? `Assigned People: ${developerNames.join(', ')}` : null,
     bdName ? `BD: ${bdName}` : null,
     clientName ? `Client: ${clientName}` : null,
     showValue && contractValue != null ? fmtCurrency(contractValue, currency) : null,

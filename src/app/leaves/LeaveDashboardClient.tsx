@@ -24,6 +24,7 @@ import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInpu
 import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
 import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
+import SimpleSelect from '@/components/SimpleSelect'
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   status: 'Status',
@@ -1611,7 +1612,7 @@ export default function LeaveDashboardClient({
       {/* Log Leave Manually Modal */}
       {isManualLogModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Log Leave Manually</h2>
@@ -1627,11 +1628,15 @@ export default function LeaveDashboardClient({
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
-                <select value={adminMemberId} onChange={e => setAdminMemberId(e.target.value)} className="w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-white">
-                  {allMembers.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
+                <SimpleSelect
+                  aria-label="Employee"
+                  value={adminMemberId}
+                  onChange={setAdminMemberId}
+                  options={allMembers.map((m: { id: string; name: string }) => ({
+                    value: m.id,
+                    label: m.name,
+                  }))}
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
@@ -1642,7 +1647,7 @@ export default function LeaveDashboardClient({
                   if ((next === 'half_day' || next === 'short_leave') && startDate) {
                     setEndDate(startDate)
                   }
-                }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
+                }} className="input">
                   <option value="full_day">Full Day</option>
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
@@ -1654,7 +1659,7 @@ export default function LeaveDashboardClient({
               {leaveType === 'half_day' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
+                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="input bg-blue-50/30">
                     <option value="" disabled>Select a slot</option>
                     <option value="before_lunch">Before Lunch</option>
                     <option value="after_lunch">After Lunch</option>
@@ -1665,7 +1670,7 @@ export default function LeaveDashboardClient({
               {leaveType === 'short_leave' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
+                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="input bg-blue-50/30">
                     <option value="" disabled>Select a slot</option>
                     <option value="morning">Morning</option>
                     <option value="evening">Evening</option>
@@ -1685,7 +1690,7 @@ export default function LeaveDashboardClient({
                       setStartDate(next)
                       if (isSameDayLeave) setEndDate(next)
                     }}
-                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                    className="input"
                   />
                 </div>
                 <div>
@@ -1696,7 +1701,7 @@ export default function LeaveDashboardClient({
                     value={endDate}
                     onChange={e => setEndDate(e.target.value)}
                     disabled={isSameDayLeave}
-                    className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                    className={`input ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -1705,7 +1710,7 @@ export default function LeaveDashboardClient({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reason (Required)</label>
-                <textarea required value={reason} onChange={e => setReason(e.target.value)} rows={2} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5" placeholder="e.g., Sick leave" />
+                <textarea required value={reason} onChange={e => setReason(e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-y" placeholder="e.g., Sick leave" />
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

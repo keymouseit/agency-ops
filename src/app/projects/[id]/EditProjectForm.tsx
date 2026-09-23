@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
 import type { ProjectEditField } from '@/lib/projects'
 import AssigneeMultiSelect from '../AssigneeMultiSelect'
+import { parseHoursInput } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
@@ -81,18 +82,24 @@ export default function EditProjectForm({
       if (can('estimatedEnd')) data.estimatedEnd = (fd.get('estimatedEnd') as string) || null
 
       if (can('estimatedHours') && data.estimatedHours) {
-        const hours = parseFloat(data.estimatedHours)
-        if (Number.isNaN(hours) || hours <= 0) {
-          setError('Estimated hours must be greater than 0 when provided')
+        const hours = parseHoursInput(data.estimatedHours, {
+          label: 'Estimated hours',
+          minExclusive: 0,
+        })
+        if (!hours.ok) {
+          setError(hours.error)
           setLoading(false)
           return
         }
       }
 
       if (can('actualHours') && data.actualHours) {
-        const hours = parseFloat(data.actualHours)
-        if (Number.isNaN(hours) || hours < 0) {
-          setError('Actual hours cannot be negative')
+        const hours = parseHoursInput(data.actualHours, {
+          label: 'Actual hours',
+          min: 0,
+        })
+        if (!hours.ok) {
+          setError(hours.error)
           setLoading(false)
           return
         }
@@ -251,8 +258,10 @@ export default function EditProjectForm({
                       <input
                         name="estimatedHours"
                         type="number"
-                        min="0"
-                        step="1"
+                        min="0.5"
+                        step="0.5"
+                        max="999"
+                        inputMode="decimal"
                         className="input"
                         placeholder="Optional"
                         defaultValue={project.estimatedHours ?? ''}
@@ -280,7 +289,9 @@ export default function EditProjectForm({
                     name="actualHours"
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.5"
+                    max="999"
+                    inputMode="decimal"
                     className="input"
                     placeholder="Optional"
                     defaultValue={project.actualHours ?? ''}

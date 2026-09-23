@@ -95,3 +95,106 @@ export function validateRequiredSelect(
   if (!value?.trim()) return `${label} is required.`
   return null
 }
+
+/** Decimal hours only (e.g. 2, 2.5). Rejects HH:MM, letters, and partial parses. */
+const HOURS_PATTERN = /^-?\d+(\.\d+)?$/
+
+export type ParseHoursOk = { ok: true; value: number | null }
+export type ParseHoursErr = { ok: false; error: string }
+export type ParseHoursResult = ParseHoursOk | ParseHoursErr
+
+/**
+ * Parse optional decimal hours from form/API input.
+ * Empty → null. Non-empty must be a finite number within bounds.
+ * Rejects time-like strings (2:30), NaN, Infinity, and scientific notation.
+ */
+export function parseHoursInput(
+  raw: unknown,
+  opts: {
+    label?: string
+    /** Inclusive minimum. Default 0. Ignored when minExclusive is set. */
+    min?: number
+    /** When set, value must be strictly greater than this (typical: 0 for logged hours). */
+    minExclusive?: number
+    max?: number
+  } = {},
+): ParseHoursResult {
+  const label = opts.label ?? 'Hours'
+  const max = opts.max ?? 999
+
+  if (raw === null || raw === undefined) return { ok: true, value: null }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) return { ok: false, error: `${label} must be a valid number.` }
+    return finalizeHours(raw, label, opts, max)
+  }
+
+  const str = String(raw).trim()
+  if (str === '') return { ok: true, value: null }
+
+  if (str.includes(':')) {
+    return {
+      ok: false,
+      error: `${label} must be decimal hours (for example 2 or 2.5), not a time like 2:30.`,
+    }
+  }
+
+  if (!HOURS_PATTERN.test(str)) {
+    return {
+      ok: false,
+      error: `${label} must be a valid number (for example 2 or 2.5).`,
+    }
+  }
+
+  const num = Number(str)
+  if (!Number.isFinite(num)) {
+    return { ok: false, error: `${label} must be a valid number.` }
+  }
+
+  return finalizeHours(num, label, opts, max)
+}
+
+function finalizeHours(
+  num: number,
+  label: string,
+  opts: { min?: number; minExclusive?: number },
+  max: number,
+): ParseHoursResult {
+  if (opts.minExclusive !== undefined) {
+    if (!(num > opts.minExclusive)) {
+      return {
+        ok: false,
+        error:
+          opts.minExclusive === 0
+            ? `${label} must be greater than 0.`
+            : `${label} must be greater than ${opts.minExclusive}.`,
+      }
+    }
+  } else {
+    const min = opts.min ?? 0
+    if (num < min) {
+      return {
+        ok: false,
+        error: min === 0 ? `${label} cannot be negative.` : `${label} must be at least ${min}.`,
+      }
+    }
+  }
+
+  if (num > max) {
+    return { ok: false, error: `${label} cannot exceed ${max}.` }
+  }
+
+  return { ok: true, value: num }
+}
+
+/** Require a positive hours value (empty is an error). */
+export function parseRequiredPositiveHours(
+  raw: unknown,
+  label = 'Hours',
+): { ok: true; value: number } | ParseHoursErr {
+  const parsed = parseHoursInput(raw, { label, minExclusive: 0 })
+  if (!parsed.ok) return parsed
+  if (parsed.value === null) {
+    return { ok: false, error: `${label} is required.` }
+  }
+  return { ok: true, value: parsed.value }
+}

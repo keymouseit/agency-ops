@@ -7,6 +7,7 @@ import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDaily
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
+import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -164,11 +165,27 @@ export default function MorningPlanForm({
     )
   }, [milestones])
 
-  const totalHours = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0)
-  const canSubmit = tasks.every(t => t.title.trim() && parseFloat(t.estimatedHours) > 0) && tasks.length > 0
+  const totalHours = tasks.reduce((s, t) => {
+    const parsed = parseHoursInput(t.estimatedHours, { minExclusive: 0 })
+    return s + (parsed.ok && parsed.value != null ? parsed.value : 0)
+  }, 0)
+  const canSubmit =
+    tasks.length > 0 &&
+    tasks.every(t => t.title.trim() && parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours').ok)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    for (const t of tasks) {
+      if (!t.title.trim()) {
+        setError('Every task needs a description.')
+        return
+      }
+      const hours = parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours')
+      if (!hours.ok) {
+        setError(hours.error)
+        return
+      }
+    }
     if (!canSubmit) return
     setError('')
     setLoading(true)
@@ -396,6 +413,8 @@ export default function MorningPlanForm({
                         type="number"
                         step="0.5"
                         min="0.5"
+                        max="999"
+                        inputMode="decimal"
                         value={task.estimatedHours}
                         onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
                         required

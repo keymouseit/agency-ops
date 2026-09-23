@@ -375,7 +375,14 @@ export default function ProjectDetailTabs({
           postDeliveryIssues={project.postDeliveryIssues}
           milestones={project.milestones}
           projectStatus={project.status}
-          allowDevFix={userRole === 'Dev' || userRole === 'Both' || userRole === 'Founder'}
+          allowDevFix={
+            userRole === 'Founder' ||
+            ((userRole === 'Dev' || userRole === 'Both') &&
+              !!userId &&
+              (userId === project.developerId ||
+                (project.assigneeIds ?? []).includes(userId)))
+          }
+          allowQAReview={userRole === 'QA' || userRole === 'Both' || userRole === 'Founder'}
           qaDetailHref={showQADetailLink ? `/qa/${projectId}` : undefined}
         />
       )}

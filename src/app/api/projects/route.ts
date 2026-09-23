@@ -4,6 +4,7 @@ import { checkRole, auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { invalidateProjectsListCache } from '@/lib/cache-tags'
 import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
+import { parseHoursInput } from '@/lib/validation'
 
 export async function POST(req: Request) {
   const deny = await checkRole(['BD', 'Dev', 'Both', 'Founder', 'Manager'])
@@ -13,12 +14,12 @@ export async function POST(req: Request) {
   const session = await auth()
   const creatorId = session?.user?.id
 
-  // Validate estimated hours
-  if (data.estimatedHours && parseFloat(data.estimatedHours) <= 0) {
-    return NextResponse.json(
-      { error: 'Estimated hours must be greater than 0' },
-      { status: 400 }
-    )
+  const estimatedHoursParsed = parseHoursInput(data.estimatedHours, {
+    label: 'Estimated hours',
+    minExclusive: 0,
+  })
+  if (!estimatedHoursParsed.ok) {
+    return NextResponse.json({ error: estimatedHoursParsed.error }, { status: 400 })
   }
 
   const developerIds = uniqueMemberIds(data.developerIds ?? (data.developerId ? [data.developerId] : []))
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
       clientName: data.clientName || null,
       contractValue: data.contractValue ? parseFloat(data.contractValue) : null,
       currency: data.currency || 'USD',
-      estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : null,
+      estimatedHours: estimatedHoursParsed.value,
       techStack: data.techStack || null,
       startDate: data.startDate ? new Date(data.startDate) : null,
       estimatedEnd: data.estimatedEnd ? new Date(data.estimatedEnd) : null,

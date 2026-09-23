@@ -31,6 +31,7 @@ function initials(name: string) {
 }
 
 function formatHours(n: number) {
+  if (!Number.isFinite(n) || n <= 0) return '0'
   return Number.isInteger(n) ? String(n) : n.toFixed(1)
 }
 
