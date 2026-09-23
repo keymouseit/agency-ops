@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { leavePaidDeduction } from '@/lib/leave-balance'
+import { compOffRequestDayCost, leavePaidDeduction } from '@/lib/leave-balance'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
 import { revalidateLeavePages } from '@/lib/cache-tags'
@@ -41,7 +41,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const year = new Date(leave.startDate).getFullYear()
     const isShortLeave = leave.leaveType === 'short_leave'
-    const deduction = leavePaidDeduction(leave)
+    const isCompOff = leave.leaveType === 'comp_off_leave'
+    const deduction = isCompOff ? 0 : leavePaidDeduction(leave)
+    const compOffCost = isCompOff
+      ? compOffRequestDayCost(new Date(leave.startDate), new Date(leave.endDate), leave.timeSlot)
+      : 0
 
     const updated = await prisma.$transaction(async tx => {
       const revoked = await tx.leaveRequest.update({
@@ -82,6 +86,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
           await tx.leaveBalance.update({
             where: { id: bal.id },
             data: { shortLeaves: { decrement: 1 } },
+          })
+        }
+      } else if (isCompOff && compOffCost > 0) {
+        const bal = await tx.leaveBalance.findUnique({
+          where: { memberId_year: { memberId: leave.memberId, year } },
+        })
+        if (bal) {
+          await tx.leaveBalance.update({
+            where: { id: bal.id },
+            data: {
+              compOffUsed: Math.max(0, Number((Number(bal.compOffUsed ?? 0) - compOffCost).toFixed(2))),
+            },
           })
         }
       } else if (deduction > 0) {

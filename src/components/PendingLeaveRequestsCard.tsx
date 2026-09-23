@@ -13,6 +13,7 @@ function typeBadgeClass(leaveType: string) {
   if (leaveType === 'short_leave') return 'bg-sky-50 text-sky-700 ring-sky-600/15'
   if (leaveType === 'half_day') return 'bg-amber-50 text-amber-800 ring-amber-600/15'
   if (leaveType === 'birthday_leave') return 'bg-pink-50 text-pink-800 ring-pink-600/15'
+  if (leaveType === 'comp_off_leave') return 'bg-teal-50 text-teal-800 ring-teal-600/15'
   if (leaveType === 'work_from_home') return 'bg-emerald-50 text-emerald-800 ring-emerald-600/15'
   return 'bg-violet-50 text-violet-800 ring-violet-600/15'
 }

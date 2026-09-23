@@ -31,6 +31,8 @@ export default async function LeavesPage() {
   let accrued = balance.accrued || 0
   const used = balance.used || 0
   const shortLeaves = balance.shortLeaves || 0
+  const compOffAccrued = Number(balance.compOffAccrued || 0)
+  const compOffUsed = Number(balance.compOffUsed || 0)
 
   let allPendingLeaves: any[] = []
   let allMembers: any[] = []
@@ -63,6 +65,8 @@ export default async function LeavesPage() {
       accrued={accrued}
       used={used}
       shortLeaves={shortLeaves}
+      compOffAccrued={compOffAccrued}
+      compOffUsed={compOffUsed}
       allPendingLeaves={allPendingLeaves}
       allMembers={allMembers}
       allLeaves={allLeaves}

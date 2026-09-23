@@ -11,6 +11,8 @@ type BalanceRow = {
   role: string
   accrued: number
   used: number
+  compOffAccrued?: number
+  compOffUsed?: number
 }
 
 export default function LeaveBalancesClient({
@@ -107,6 +109,7 @@ export default function LeaveBalancesClient({
                 <th className="px-6 py-3 w-32">Total</th>
                 <th className="px-6 py-3 w-32">Used</th>
                 <th className="px-6 py-3 w-28">Available</th>
+                <th className="px-6 py-3 w-28">Comp Off</th>
                 <th className="px-6 py-3 text-right">Action</th>
               </tr>
             </thead>
@@ -168,6 +171,12 @@ export default function LeaveBalancesClient({
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-gray-900">{available}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-semibold text-teal-700 tabular-nums">
+                        {Number(row.compOffUsed || 0)}
+                      </span>
+                      <div className="text-[10px] text-gray-400 mt-0.5">taken this year</div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button

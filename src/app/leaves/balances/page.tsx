@@ -43,6 +43,8 @@ export default async function LeaveBalancesPage() {
     role: string
     accrued: number
     used: number
+    compOffAccrued: number
+    compOffUsed: number
   }[] = []
   for (const m of members) {
     const bal = await syncShortLeaveBalance(m.id, year)
@@ -53,6 +55,8 @@ export default async function LeaveBalancesPage() {
       role: m.role,
       accrued: bal.accrued,
       used: bal.used,
+      compOffAccrued: Number(bal.compOffAccrued || 0),
+      compOffUsed: Number(bal.compOffUsed || 0),
     })
   }
 

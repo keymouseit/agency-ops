@@ -42,8 +42,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const nextType = leaveType ?? existingLeave.leaveType
     const nextStart = startDate ? new Date(startDate) : existingLeave.startDate
     const nextEnd = endDate ? new Date(endDate) : existingLeave.endDate
-    if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime()) || nextEnd < nextStart) {
+    if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime())) {
       return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    }
+    if (nextEnd < nextStart) {
+      return NextResponse.json(
+        { error: 'End date cannot be before the start date' },
+        { status: 400 }
+      )
     }
 
     await assertNoOverlappingLeave({
@@ -57,6 +63,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       memberId: existingLeave.memberId,
       leaveType: nextType,
       startDate: nextStart,
+      endDate: nextEnd,
+      timeSlot: timeSlot ?? existingLeave.timeSlot,
       excludeId: id,
     })
 

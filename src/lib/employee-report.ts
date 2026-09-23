@@ -285,7 +285,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       const start = leave.startDate.slice(0, 10)
       const end = leave.endDate.slice(0, 10)
       if (dateKey < start || dateKey > end) continue
-      if (leave.leaveType === 'full_day') dayTarget = 0
+      if (leave.leaveType === 'full_day' || leave.leaveType === 'birthday_leave' || leave.leaveType === 'comp_off_leave') dayTarget = 0
       else if (leave.leaveType === 'half_day') dayTarget = 4
       else if (leave.leaveType === 'short_leave') dayTarget = Math.max(0, DAY_TARGET - 2)
     }

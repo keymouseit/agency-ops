@@ -50,6 +50,8 @@ model TeamMember {
   leaves                 LeaveRequest[]      @relation("EmployeeLeaves")
   leavesApproved         LeaveRequest[]      @relation("ApprovedLeaves")
   leaveBalances          LeaveBalance[]      @relation("EmployeeLeaveBalance")
+  compOffGrants          CompOffGrant[]      @relation("EmployeeCompOffGrants")
+  compOffGrantsGiven     CompOffGrant[]      @relation("GrantedCompOffBy")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -914,8 +916,26 @@ model LeaveBalance {
   used                Float      @default(0) // Half-day + full-day only (not short leave)
   shortLeaves         Int        @default(0) // Count of approved short leaves (2 hours)
   accruedThroughMonth Int        @default(0) // Last IST month (1–12) that received the +1; 0 = not stamped yet
+  compOffAccrued      Float      @default(0) // Comp Off days granted by HR (not from regular leave)
+  compOffUsed         Float      @default(0) // Comp Off days used via approved comp_off_leave
 
   @@unique([memberId, year])
+}
+
+// HR-granted Comp Off credits (company favour — does not deduct regular leave)
+model CompOffGrant {
+  id              String     @id @default(cuid())
+  memberId        String
+  member          TeamMember @relation("EmployeeCompOffGrants", fields: [memberId], references: [id])
+  days            Float      // duration granted (e.g. 1 or 0.5)
+  applicableFrom  DateTime?  // optional window start
+  applicableTo    DateTime?  // optional window end
+  note            String?
+  grantedById     String
+  grantedBy       TeamMember @relation("GrantedCompOffBy", fields: [grantedById], references: [id])
+  createdAt       DateTime   @default(now())
+
+  @@index([memberId, createdAt])
 }
 
 model LeaveRequest {
@@ -923,7 +943,7 @@ model LeaveRequest {
   memberId        String
   member          TeamMember @relation("EmployeeLeaves", fields: [memberId], references: [id])
   
-  leaveType       String     // "short_leave" | "half_day" | "full_day" | "birthday_leave" | "work_from_home"
+  leaveType       String     // "short_leave" | "half_day" | "full_day" | "birthday_leave" | "work_from_home" | "comp_off_leave"
   startDate       DateTime
   endDate         DateTime
   reason          String?
