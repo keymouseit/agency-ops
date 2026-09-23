@@ -4,6 +4,7 @@ import { upsertWeeklyAnalytics } from './analytics'
 import { emptyTotals, startOfWeekMonday } from './metrics'
 import type { MetricTotals, NormalizedWebhookEvent, SalesRobotEventType } from './types'
 import { buildDedupeKey, normalizeWebhookPayload } from './webhook'
+import { notifySalesRobotClientMessage } from '@/lib/slack/notify'
 
 function metricDelta(eventType: SalesRobotEventType): Partial<MetricTotals> | null {
   switch (eventType) {
@@ -47,6 +48,15 @@ async function applyProspectSideEffects(event: NormalizedWebhookEvent) {
       data.repliedAt = event.occurredAt
     }
     data.followUpCompletedAt = null
+    if (event.messageText?.trim()) {
+      data.lastClientMessage = event.messageText.trim()
+      data.lastClientMessageAt = event.occurredAt
+    }
+    if (event.prospectName && !existing?.firstName && !existing?.lastName) {
+      const parts = event.prospectName.trim().split(/\s+/)
+      if (parts[0]) data.firstName = parts[0]
+      if (parts.length > 1) data.lastName = parts.slice(1).join(' ')
+    }
   }
 
   if (existing) {
@@ -80,7 +90,88 @@ async function applyProspectSideEffects(event: NormalizedWebhookEvent) {
       repliedAt: event.eventType === 'reply_received' ? event.occurredAt : undefined,
       isConnected: event.eventType === 'connection_accepted',
       isReplied: event.eventType === 'reply_received',
+      lastClientMessage:
+        event.eventType === 'reply_received' && event.messageText?.trim()
+          ? event.messageText.trim()
+          : undefined,
+      lastClientMessageAt:
+        event.eventType === 'reply_received' && event.messageText?.trim()
+          ? event.occurredAt
+          : undefined,
+      firstName:
+        event.eventType === 'reply_received' && event.prospectName
+          ? event.prospectName.trim().split(/\s+/)[0]
+          : undefined,
+      lastName:
+        event.eventType === 'reply_received' && event.prospectName
+          ? event.prospectName.trim().split(/\s+/).slice(1).join(' ') || undefined
+          : undefined,
     },
+  })
+}
+
+/** True when this webhook event should fan out a Slack client-message alert. */
+function shouldNotifySlack(event: NormalizedWebhookEvent): boolean {
+  // Prefer explicit inbound reply events; never spam on connection/prospect metrics.
+  if (event.eventType === 'reply_received') return true
+  // Rare: unknown event that clearly marks an inbound client message.
+  if (event.eventType === 'unknown' && event.messageSentByMe === false && event.messageText?.trim()) {
+    return true
+  }
+  return false
+}
+
+async function resolveAccountName(event: NormalizedWebhookEvent): Promise<string> {
+  if (event.accountName?.trim()) return event.accountName.trim()
+  if (event.linkedinAccountId) {
+    const account = await prisma.salesRobotAccount.findUnique({
+      where: { salesrobotAccountId: event.linkedinAccountId },
+      select: { name: true, email: true },
+    })
+    if (account?.name?.trim()) return account.name.trim()
+    if (account?.email?.trim()) return account.email.trim()
+  }
+  return event.linkedinAccountId || 'Unknown account'
+}
+
+async function resolveClientName(event: NormalizedWebhookEvent): Promise<string> {
+  if (event.prospectName?.trim()) return event.prospectName.trim()
+  if (event.prospectId) {
+    const prospect = await prisma.salesRobotProspect.findUnique({
+      where: { salesrobotProspectId: event.prospectId },
+      select: { firstName: true, lastName: true },
+    })
+    const name = [prospect?.firstName, prospect?.lastName].filter(Boolean).join(' ').trim()
+    if (name) return name
+  }
+  return 'Unknown client'
+}
+
+async function maybeNotifySlackClientMessage(event: NormalizedWebhookEvent) {
+  if (!shouldNotifySlack(event)) return
+
+  const message = event.messageText?.trim()
+  // Keep webhook fast — do not invent text or fetch inbox APIs when body is missing.
+  if (!message) {
+    console.info('[salesrobot] skip Slack alert — reply_received without message text', {
+      prospectId: event.prospectId,
+      externalEventId: event.externalEventId,
+    })
+    return
+  }
+
+  const [clientName, accountName] = await Promise.all([
+    resolveClientName(event),
+    resolveAccountName(event),
+  ])
+
+  await notifySalesRobotClientMessage({
+    clientName,
+    message,
+    accountName,
+    accountId: event.linkedinAccountId,
+    campaignName: event.campaignName,
+    prospectUrl: event.prospectLinkedinUrl,
   })
 }
 
@@ -225,6 +316,9 @@ export async function processSalesRobotWebhook(payload: unknown) {
 
     await applyProspectSideEffects(event)
     await bumpWeeklyFromEvent(event)
+
+    // Only notify on newly inserted events (duplicates already continued above).
+    await maybeNotifySlackClientMessage(event)
 
     await prisma.salesRobotEvent.update({
       where: { dedupeKey },
