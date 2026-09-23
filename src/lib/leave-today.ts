@@ -23,6 +23,7 @@ export function leaveTypeLabel(leaveType: string, timeSlot: string | null): stri
     return slot ? `Half day leave · ${slot}` : 'Half day leave'
   }
   if (leaveType === 'birthday_leave') return 'Birthday leave'
+  if (leaveType === 'comp_off_leave') return 'Comp Off leave'
   if (leaveType === 'work_from_home') return 'Work from home'
   return 'Full day leave'
 }

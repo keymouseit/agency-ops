@@ -9,8 +9,12 @@ import { revalidateLeavePages } from '@/lib/cache-tags'
 import {
   assertLeaveTypePolicy,
   assertNoOverlappingLeave,
+  compOffRequestDayCost,
   computeLeaveBalanceSplit,
+  getAvailableCompOffDays,
+  syncShortLeaveBalance,
 } from '@/lib/leave-balance'
+import { istYearAndMonth } from '@/lib/ist'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -82,8 +86,14 @@ export async function POST(request: Request) {
 
     const start = new Date(startDate)
     const end = new Date(endDate)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    }
+    if (end < start) {
+      return NextResponse.json(
+        { error: 'End date cannot be before the start date' },
+        { status: 400 }
+      )
     }
 
     const today = new Date()
@@ -103,7 +113,45 @@ export async function POST(request: Request) {
     }
 
     await assertNoOverlappingLeave({ memberId, startDate: start, endDate: end, leaveType })
-    await assertLeaveTypePolicy({ memberId, leaveType, startDate: start })
+
+    // HR force-log of Comp Off: auto-grant any shortfall so the leave can be recorded.
+    if (leaveType === 'comp_off_leave' && wantsAdminLog && sessionIsAdmin) {
+      const year = istYearAndMonth().year
+      await syncShortLeaveBalance(memberId, year)
+      const cost = compOffRequestDayCost(start, end, timeSlot)
+      const { available } = await getAvailableCompOffDays(memberId, year)
+      const shortfall = Number(Math.max(0, cost - available).toFixed(2))
+      if (shortfall > 0) {
+        await prisma.$transaction(async tx => {
+          await tx.compOffGrant.create({
+            data: {
+              memberId,
+              days: shortfall,
+              applicableFrom: start,
+              applicableTo: end,
+              note: typeof reason === 'string' && reason.trim()
+                ? `Auto-granted with manual Comp Off log: ${reason.trim()}`
+                : 'Auto-granted with manual Comp Off log',
+              grantedById: session.user!.id,
+            },
+          })
+          await tx.leaveBalance.upsert({
+            where: { memberId_year: { memberId, year } },
+            update: { compOffAccrued: { increment: shortfall } },
+            create: {
+              memberId,
+              year,
+              accrued: 0,
+              used: 0,
+              compOffAccrued: shortfall,
+              compOffUsed: 0,
+            },
+          })
+        })
+      }
+    }
+
+    await assertLeaveTypePolicy({ memberId, leaveType, startDate: start, endDate: end, timeSlot })
 
     const split = await computeLeaveBalanceSplit(memberId, leaveType, start, end)
 

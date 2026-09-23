@@ -6,6 +6,7 @@ import {
   MAX_ANNUAL_LEAVE_DAYS,
   SHORT_LEAVE_MONTHLY_CAP,
   accrualMonthsForYear,
+  compOffRequestDayCost,
   leaveRequestDayCost,
   monthlyAccrualStep,
   splitPaidUnpaid,
@@ -15,6 +16,7 @@ export {
   BIRTHDAY_LEAVE_YEARLY_CAP,
   SHORT_LEAVE_MONTHLY_CAP,
   accrualMonthsForYear,
+  compOffRequestDayCost,
   countWorkingDays,
   leavePaidDeduction,
   leaveRequestDayCost,
@@ -159,6 +161,38 @@ export async function getAvailableLeaveDays(memberId: string, year = istYearAndM
   }
 }
 
+/** Remaining Comp Off days (HR-granted favour — separate from regular leave). */
+export async function getAvailableCompOffDays(memberId: string, year = istYearAndMonth().year) {
+  const balance = await syncShortLeaveBalance(memberId, year)
+  const accrued = Number(balance.compOffAccrued ?? 0)
+  const used = Number(balance.compOffUsed ?? 0)
+
+  const yearStart = startOfYear(new Date(year, 0, 1))
+  const yearEnd = endOfYear(new Date(year, 0, 1))
+  const pending = await prisma.leaveRequest.findMany({
+    where: {
+      memberId,
+      leaveType: 'comp_off_leave',
+      status: 'pending',
+      startDate: { gte: yearStart, lte: yearEnd },
+    },
+    select: { startDate: true, endDate: true, timeSlot: true },
+  })
+  const pendingCost = pending.reduce(
+    (sum, l) =>
+      sum + compOffRequestDayCost(new Date(l.startDate), new Date(l.endDate), l.timeSlot),
+    0
+  )
+
+  return {
+    balance,
+    accrued,
+    used,
+    pending: Number(pendingCost.toFixed(2)),
+    available: Math.max(0, Number((accrued - used - pendingCost).toFixed(2))),
+  }
+}
+
 export async function assertNoOverlappingLeave(opts: {
   memberId: string
   startDate: Date
@@ -193,6 +227,8 @@ export async function assertLeaveTypePolicy(opts: {
   memberId: string
   leaveType: string
   startDate: Date
+  endDate?: Date
+  timeSlot?: string | null
   excludeId?: string
 }) {
   if (opts.leaveType === 'birthday_leave') {
@@ -213,6 +249,17 @@ export async function assertLeaveTypePolicy(opts: {
         new Error(`Only ${BIRTHDAY_LEAVE_YEARLY_CAP} birthday leave allowed per year`),
         { status: 400 }
       )
+    }
+  }
+
+
+  if (opts.leaveType === 'comp_off_leave') {
+    // Same simple flow as birthday: employee applies, HR approves. No pre-assigned credit required.
+    const cost = compOffRequestDayCost(opts.startDate, opts.endDate ?? opts.startDate, opts.timeSlot)
+    if (cost <= 0) {
+      throw Object.assign(new Error('Comp Off leave must cover at least one working day'), {
+        status: 400,
+      })
     }
   }
 

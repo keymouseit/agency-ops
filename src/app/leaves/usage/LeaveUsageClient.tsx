@@ -27,6 +27,7 @@ type UsagePayload = {
     halfDayDays: number
     shortLeaveCount: number
     birthdayLeaveCount?: number
+    compOffLeaveCount?: number
     workFromHomeCount?: number
     unpaidCount?: number
     totalDayBalance: number
@@ -385,6 +386,7 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
                     <div className="text-xs font-semibold text-gray-600 shrink-0">
                       {l.leaveType === 'short_leave' ||
                       l.leaveType === 'birthday_leave' ||
+                      l.leaveType === 'comp_off_leave' ||
                       l.leaveType === 'work_from_home'
                         ? 'Not counted in day balance'
                         : l.unpaid

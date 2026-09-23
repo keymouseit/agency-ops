@@ -3,7 +3,7 @@ import { sendLeaveApprovalEmail, sendLeaveRejectedEmail } from '@/lib/notificati
 import { addEventToGoogleCalendar } from '@/lib/gcal'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
-import { leavePaidDeduction } from '@/lib/leave-balance'
+import { compOffRequestDayCost, leavePaidDeduction } from '@/lib/leave-balance'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { revalidateLeavePages } from '@/lib/cache-tags'
@@ -50,8 +50,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const notes = approvalNotes.trim()
     const isShortLeave = leave.leaveType === 'short_leave'
+    const isCompOff = leave.leaveType === 'comp_off_leave'
     const deduction =
-      status === 'approved' && !isShortLeave ? leavePaidDeduction(leave) : 0
+      status === 'approved' && !isShortLeave && !isCompOff ? leavePaidDeduction(leave) : 0
+    const compOffCost =
+      status === 'approved' && isCompOff
+        ? compOffRequestDayCost(new Date(leave.startDate), new Date(leave.endDate), leave.timeSlot)
+        : 0
     const year = new Date(leave.startDate).getFullYear()
 
     const updatedLeave = await prisma.$transaction(async tx => {
@@ -82,6 +87,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             paidDays: leave.paidDays,
             unpaidDays: leave.unpaidDays,
             deduction,
+            compOffCost,
           }),
         },
       })
@@ -92,6 +98,31 @@ export async function POST(request: Request, { params }: { params: { id: string 
             where: { memberId_year: { memberId: leave.memberId, year } },
             update: { shortLeaves: { increment: 1 } },
             create: { memberId: leave.memberId, year, shortLeaves: 1, used: 0, accrued: 0 },
+          })
+        } else if (isCompOff && compOffCost > 0) {
+          // Employee applied first; HR approval is the gate. Credit shortfall so Comp Off tracking stays consistent.
+          const bal = await tx.leaveBalance.findUnique({
+            where: { memberId_year: { memberId: leave.memberId, year } },
+            select: { compOffAccrued: true, compOffUsed: true },
+          })
+          const accrued = Number(bal?.compOffAccrued ?? 0)
+          const used = Number(bal?.compOffUsed ?? 0)
+          const available = Math.max(0, Number((accrued - used).toFixed(2)))
+          const shortfall = Math.max(0, Number((compOffCost - available).toFixed(2)))
+          await tx.leaveBalance.upsert({
+            where: { memberId_year: { memberId: leave.memberId, year } },
+            update: {
+              ...(shortfall > 0 ? { compOffAccrued: { increment: shortfall } } : {}),
+              compOffUsed: { increment: compOffCost },
+            },
+            create: {
+              memberId: leave.memberId,
+              year,
+              compOffAccrued: shortfall > 0 ? shortfall : compOffCost,
+              compOffUsed: compOffCost,
+              used: 0,
+              accrued: 0,
+            },
           })
         } else if (deduction > 0) {
           await tx.leaveBalance.upsert({

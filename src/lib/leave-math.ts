@@ -31,7 +31,8 @@ export function leaveRequestDayCost(
   if (
     leaveType === 'short_leave' ||
     leaveType === 'birthday_leave' ||
-    leaveType === 'work_from_home'
+    leaveType === 'work_from_home' ||
+    leaveType === 'comp_off_leave'
   ) {
     return 0
   }
@@ -104,7 +105,8 @@ export function leaveUnpaidDays(leave: {
   if (
     leave.leaveType === 'short_leave' ||
     leave.leaveType === 'birthday_leave' ||
-    leave.leaveType === 'work_from_home'
+    leave.leaveType === 'work_from_home' ||
+    leave.leaveType === 'comp_off_leave'
   ) {
     return 0
   }
@@ -130,7 +132,8 @@ export function leavePaidDeduction(leave: {
   if (
     leave.leaveType === 'short_leave' ||
     leave.leaveType === 'birthday_leave' ||
-    leave.leaveType === 'work_from_home'
+    leave.leaveType === 'work_from_home' ||
+    leave.leaveType === 'comp_off_leave'
   ) {
     return 0
   }
@@ -140,4 +143,26 @@ export function leavePaidDeduction(leave: {
     return Number(paid.toFixed(2))
   }
   return leaveRequestDayCost(leave.leaveType, new Date(leave.startDate), new Date(leave.endDate))
+}
+
+/** Working-day cost against Comp Off credit (not regular leave). */
+export function compOffRequestDayCost(
+  startDate: Date,
+  endDate: Date,
+  timeSlot?: string | null
+): number {
+  if (isSameDay(startDate, endDate)) {
+    const day = startDate.getDay()
+    if (day === 0 || day === 6) return 0
+    const halfSlots = new Set([
+      'morning',
+      'afternoon',
+      'before_lunch',
+      'after_lunch',
+      'half_day',
+    ])
+    if (timeSlot && halfSlots.has(timeSlot)) return 0.5
+    return 1
+  }
+  return countWorkingDays(startDate, endDate)
 }

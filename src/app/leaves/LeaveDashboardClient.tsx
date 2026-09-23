@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -19,7 +19,7 @@ import {
   parseISO
 } from 'date-fns'
 import toast, { Toaster } from 'react-hot-toast'
-import { leaveRequestDayCost, SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
+import { leaveRequestDayCost, compOffRequestDayCost, SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
 import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
@@ -73,6 +73,8 @@ export default function LeaveDashboardClient({
   accrued,
   used,
   shortLeaves = 0,
+  compOffAccrued: _compOffAccrued = 0,
+  compOffUsed: _compOffUsed = 0,
   allPendingLeaves,
   allMembers,
   allLeaves
@@ -84,6 +86,8 @@ export default function LeaveDashboardClient({
   accrued: number
   used: number
   shortLeaves?: number
+  compOffAccrued?: number
+  compOffUsed?: number
   allPendingLeaves: any[]
   allMembers: any[]
   allLeaves?: any[]
@@ -183,6 +187,15 @@ export default function LeaveDashboardClient({
   const [isManualLogModalOpen, setIsManualLogModalOpen] = useState(false)
   const [adminMemberId, setAdminMemberId] = useState(memberId)
 
+  // HR Assign Comp Off State
+  const [isCompOffModalOpen, setIsCompOffModalOpen] = useState(false)
+  const [compOffMemberId, setCompOffMemberId] = useState(memberId)
+  const [compOffDays, setCompOffDays] = useState('1')
+  const [compOffFrom, setCompOffFrom] = useState('')
+  const [compOffTo, setCompOffTo] = useState('')
+  const [compOffNote, setCompOffNote] = useState('')
+  const [compOffSubmitting, setCompOffSubmitting] = useState(false)
+
   // Confirm Approval/Rejection Modal State
   const [confirmModal, setConfirmModal] = useState<{ leaveId: string; status: 'approved' | 'rejected' } | null>(null)
   const [decisionNotes, setDecisionNotes] = useState('')
@@ -202,6 +215,24 @@ export default function LeaveDashboardClient({
       setEndDate(startDate)
     }
   }, [isSameDayLeave, startDate])
+
+
+  function onStartDateChange(next: string) {
+    setStartDate(next)
+    if (!next) return
+    if (isSameDayLeave || (endDate && endDate < next)) {
+      setEndDate(next)
+    }
+  }
+
+  function onEndDateChange(next: string) {
+    if (startDate && next && next < startDate) {
+      setEndDate(startDate)
+      return
+    }
+    setEndDate(next)
+  }
+
 
   function formatLeaveDates(start: string | Date, end: string | Date) {
     return formatIstLeaveRange(start, end)
@@ -410,6 +441,44 @@ export default function LeaveDashboardClient({
     }
   }
 
+  async function handleAssignCompOff(e: FormEvent) {
+    e.preventDefault()
+    setCompOffSubmitting(true)
+    setError('')
+    try {
+      const daysNum = Number(compOffDays)
+      if (!Number.isFinite(daysNum) || daysNum <= 0) {
+        throw new Error('Enter a valid Comp Off duration in days')
+      }
+      const res = await fetch('/api/leaves/comp-off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: compOffMemberId,
+          days: daysNum,
+          applicableFrom: compOffFrom || undefined,
+          applicableTo: compOffTo || undefined,
+          note: compOffNote.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to assign Comp Off')
+      toast.success('Comp Off assigned')
+      setIsCompOffModalOpen(false)
+      setCompOffDays('1')
+      setCompOffFrom('')
+      setCompOffTo('')
+      setCompOffNote('')
+      router.refresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to assign Comp Off'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setCompOffSubmitting(false)
+    }
+  }
+
   const formatLeaveType = (type: string, slot?: string) => {
     let base = type.replace(/_/g, ' ')
     if (slot) {
@@ -456,7 +525,7 @@ export default function LeaveDashboardClient({
     .filter(
       l =>
         l.status === 'pending' &&
-        !['short_leave', 'birthday_leave', 'work_from_home'].includes(l.leaveType)
+        !['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave'].includes(l.leaveType)
     )
     .reduce((total, l) => {
       const paid = Number(l.paidDays)
@@ -479,6 +548,21 @@ export default function LeaveDashboardClient({
     const ym = istYearAndMonth(new Date(l.startDate))
     return ym.year === istYearNow && ym.month === istMonthNow
   }).length
+
+  const compOffTakenThisYear = Number(
+    leaves
+      .filter(l => {
+        if (l.leaveType !== 'comp_off_leave' || l.status !== 'approved') return false
+        return istYearAndMonth(new Date(l.startDate)).year === istYearNow
+      })
+      .reduce(
+        (total, l) =>
+          total +
+          compOffRequestDayCost(new Date(l.startDate), new Date(l.endDate), l.timeSlot),
+        0
+      )
+      .toFixed(2)
+  )
 
   const approvedThisMonth = companyLeaves.filter(l => {
     if (l.status !== 'approved') return false
@@ -704,6 +788,7 @@ export default function LeaveDashboardClient({
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
                   <option value="birthday_leave">Birthday Leave</option>
+                  <option value="comp_off_leave">Comp Off Leave</option>
                   <option value="work_from_home">Work From Home</option>
                 </select>
                 {leaveType === 'half_day' ? (
@@ -746,11 +831,7 @@ export default function LeaveDashboardClient({
                     type="date"
                     required
                     value={startDate}
-                    onChange={e => {
-                      const next = e.target.value
-                      setStartDate(next)
-                      if (isSameDayLeave) setEndDate(next)
-                    }}
+                    onChange={e => onStartDateChange(e.target.value)}
                     min={istDateInputValue()}
                     className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                   />
@@ -761,7 +842,7 @@ export default function LeaveDashboardClient({
                     type="date"
                     required
                     value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
+                    onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || istDateInputValue()}
                     disabled={isSameDayLeave}
                     className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
@@ -960,7 +1041,7 @@ export default function LeaveDashboardClient({
       {tab === 'my_leaves' && (
         <div className="space-y-6">
           {/* Balance strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm col-span-2 lg:col-span-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Available</p>
               <p className="text-4xl font-bold mt-1 tracking-tight">{Math.max(0, accrued - used)}</p>
@@ -975,6 +1056,11 @@ export default function LeaveDashboardClient({
               <p className="text-[11px] font-semibold uppercase tracking-wider text-red-500">Used</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{used}</p>
               <p className="text-xs text-gray-500 mt-1">half / full days taken</p>
+            </div>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600">Comp Off</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">{compOffTakenThisYear}</p>
+              <p className="text-xs text-gray-500 mt-1">taken this year</p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
@@ -1026,6 +1112,7 @@ export default function LeaveDashboardClient({
                       <option value="half_day">Half Day</option>
                       <option value="short_leave">Short Leave (2 hours)</option>
                       <option value="birthday_leave">Birthday Leave</option>
+                      <option value="comp_off_leave">Comp Off Leave</option>
                       <option value="work_from_home">Work From Home</option>
                     </select>
                     {leaveType === 'half_day' ? (
@@ -1078,11 +1165,7 @@ export default function LeaveDashboardClient({
                         type="date"
                         required
                         value={startDate}
-                        onChange={e => {
-                          const next = e.target.value
-                          setStartDate(next)
-                          if (isSameDayLeave) setEndDate(next)
-                        }}
+                        onChange={e => onStartDateChange(e.target.value)}
                         min={istDateInputValue()}
                         className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       />
@@ -1093,7 +1176,7 @@ export default function LeaveDashboardClient({
                         type="date"
                         required
                         value={endDate}
-                        onChange={e => setEndDate(e.target.value)}
+                        onChange={e => onEndDateChange(e.target.value)}
                         min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
                         className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
@@ -1287,6 +1370,17 @@ export default function LeaveDashboardClient({
                     >
                       Edit balances
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('')
+                        setCompOffMemberId(allMembers[0]?.id || memberId)
+                        setIsCompOffModalOpen(true)
+                      }}
+                      className="text-sm font-semibold bg-teal-500/20 hover:bg-teal-500/30 text-teal-50 rounded-xl px-3 py-2 transition-colors"
+                    >
+                      Assign Comp Off
+                    </button>
                   </>
                 )}
                 <button
@@ -1652,6 +1746,7 @@ export default function LeaveDashboardClient({
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
                   <option value="birthday_leave">Birthday Leave</option>
+                  <option value="comp_off_leave">Comp Off Leave</option>
                   <option value="work_from_home">Work From Home</option>
                 </select>
               </div>
@@ -1685,11 +1780,7 @@ export default function LeaveDashboardClient({
                     type="date"
                     required
                     value={startDate}
-                    onChange={e => {
-                      const next = e.target.value
-                      setStartDate(next)
-                      if (isSameDayLeave) setEndDate(next)
-                    }}
+                    onChange={e => onStartDateChange(e.target.value)}
                     className="input"
                   />
                 </div>
@@ -1699,7 +1790,8 @@ export default function LeaveDashboardClient({
                     type="date"
                     required
                     value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
+                    onChange={e => onEndDateChange(e.target.value)}
+                    min={startDate || undefined}
                     disabled={isSameDayLeave}
                     className={`input ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
@@ -1717,6 +1809,110 @@ export default function LeaveDashboardClient({
                 <button type="button" onClick={() => setIsManualLogModalOpen(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
                 <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all bg-gray-900 hover:bg-gray-800 text-white border-none flex-1">
                   {isSubmitting ? 'Logging...' : 'Force Log Leave'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Comp Off Modal (HR / Founder) */}
+      {isCompOffModalOpen && canManageBalances && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Assign Comp Off</h2>
+                <p className="text-xs text-gray-500">
+                  Company favour credit — does not deduct from regular leave. Employee can apply it like Birthday Leave.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCompOffModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleAssignCompOff} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
+                <SimpleSelect
+                  aria-label="Employee"
+                  value={compOffMemberId}
+                  onChange={setCompOffMemberId}
+                  options={allMembers.map((m: { id: string; name: string }) => ({
+                    value: m.id,
+                    label: m.name,
+                  }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Duration (days)</label>
+                <input
+                  type="number"
+                  min={0.5}
+                  max={30}
+                  step={0.5}
+                  required
+                  value={compOffDays}
+                  onChange={e => setCompOffDays(e.target.value)}
+                  className="input"
+                  placeholder="e.g. 1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable from</label>
+                  <input
+                    type="date"
+                    value={compOffFrom}
+                    onChange={e => setCompOffFrom(e.target.value)}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable to</label>
+                  <input
+                    type="date"
+                    value={compOffTo}
+                    onChange={e => setCompOffTo(e.target.value)}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Note</label>
+                <textarea
+                  value={compOffNote}
+                  onChange={e => setCompOffNote(e.target.value)}
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-y"
+                  placeholder="e.g., Worked weekend on Project X"
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCompOffModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={compOffSubmitting}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all bg-teal-700 hover:bg-teal-800 text-white border-none flex-1"
+                >
+                  {compOffSubmitting ? 'Assigning...' : 'Assign Comp Off'}
                 </button>
               </div>
             </form>
