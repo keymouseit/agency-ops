@@ -346,7 +346,7 @@ export default function MorningPlanForm({
                           {!task.projectId
                             ? 'Select a project first'
                             : (milestonesByProject.get(task.projectId)?.length ?? 0) === 0
-                              ? 'No open milestones'
+                              ? 'No milestones'
                               : '— Select milestone —'}
                         </option>
                         {(milestonesByProject.get(task.projectId) ?? []).map(m => (
@@ -360,7 +360,7 @@ export default function MorningPlanForm({
                       </select>
                       {task.projectId && (milestonesByProject.get(task.projectId)?.length ?? 0) === 0 && (
                         <p className="text-[11px] text-gray-400 mt-1">
-                          This project has no open milestones — type your task below.
+                          This project has no milestones — type your task below.
                         </p>
                       )}
                     </div>
