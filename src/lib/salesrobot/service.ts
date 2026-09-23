@@ -40,6 +40,16 @@ async function applyProspectSideEffects(event: NormalizedWebhookEvent) {
   }
   if (event.eventType === 'message_sent') {
     data.firstMessageSentAt = event.occurredAt
+    // Real-time: clear Waiting when we send a LinkedIn reply after the client message
+    if (
+      existing &&
+      existing.isReplied &&
+      existing.lastClientMessage &&
+      existing.followUpCompletedAt == null &&
+      (!existing.lastClientMessageAt || event.occurredAt.getTime() >= existing.lastClientMessageAt.getTime())
+    ) {
+      data.followUpCompletedAt = event.occurredAt
+    }
   }
   if (event.eventType === 'reply_received') {
     data.isReplied = true
