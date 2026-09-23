@@ -30,7 +30,22 @@ const EVENT_ALIASES: Record<string, SalesRobotEventType> = {
   clientmessage: 'reply_received',
   new_message_received: 'reply_received',
   reply: 'reply_received',
+  contact_replies: 'reply_received',
+  contact_reply: 'reply_received',
+  contactreplies: 'reply_received',
+  when_a_contact_replies: 'reply_received',
+  new_message: 'reply_received',
+  prospect_replied: 'reply_received',
+  prospectreplied: 'reply_received',
 }
+
+/** Metric / non-reply event types — never coerce these to reply_received. */
+const KNOWN_NON_REPLY_TYPES = new Set<SalesRobotEventType>([
+  'prospect_added',
+  'connection_request_sent',
+  'connection_accepted',
+  'message_sent',
+])
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -73,6 +88,9 @@ function pickProspectName(merged: Record<string, unknown>) {
     merged.clientName,
     merged.client_name,
     merged.personName,
+    merged.PersonName,
+    merged.contactName,
+    merged.contact_name,
     prospect.nameOfPerson,
     prospect.fullName,
     prospect.full_name,
@@ -86,24 +104,48 @@ function pickProspectName(merged: Record<string, unknown>) {
 }
 
 function pickMessageText(merged: Record<string, unknown>) {
-  const messageObj = asRecord(merged.message) ?? asRecord(merged.reply) ?? {}
+  const messageObj =
+    asRecord(merged.message) ??
+    asRecord(merged.reply) ??
+    asRecord(merged.lastMessage) ??
+    asRecord(merged.LastMessage) ??
+    {}
+  // SalesRobot inbox-style: threadedMessages.messages[last]
+  const threaded = asRecord(merged.threadedMessages)
+  const threadMsgs = Array.isArray(threaded?.messages) ? threaded!.messages : null
+  const lastThread = threadMsgs?.length
+    ? asRecord(threadMsgs[threadMsgs.length - 1])
+    : null
+
   return pickString(
     merged.messageText,
     merged.message_text,
+    merged.MessageText,
+    merged.Message,
     merged.messageBody,
     merged.message_body,
     merged.replyText,
     merged.reply_text,
+    merged.replyMessage,
+    merged.reply_message,
+    merged.lastMessage,
+    merged.last_message,
+    merged.LastMessage,
     merged.text,
     merged.content,
     merged.body,
     // plain string fields named message / reply (not objects)
     typeof merged.message === 'string' ? merged.message : undefined,
     typeof merged.reply === 'string' ? merged.reply : undefined,
+    typeof merged.Message === 'string' ? merged.Message : undefined,
     messageObj.text,
     messageObj.messageText,
+    messageObj.MessageText,
     messageObj.content,
-    messageObj.body
+    messageObj.body,
+    lastThread?.messageText,
+    lastThread?.text,
+    lastThread?.content
   )
 }
 
@@ -111,6 +153,64 @@ function normalizeEventType(raw?: string): SalesRobotEventType {
   if (!raw) return 'unknown'
   const key = raw.trim().toLowerCase().replace(/[\s-]+/g, '_')
   return EVENT_ALIASES[key] ?? EVENT_ALIASES[key.replace(/_/g, '')] ?? 'unknown'
+}
+
+/**
+ * SalesRobot "When a contact replies" webhooks often omit event_type.
+ * Coerce unknown → reply_received when the payload looks like an inbound message,
+ * but never override an already-known non-reply metric type.
+ */
+function coerceReplyReceivedIfNeeded(
+  eventType: SalesRobotEventType,
+  merged: Record<string, unknown>,
+  messageText: string | undefined,
+  messageSentByMe: boolean | undefined
+): SalesRobotEventType {
+  if (eventType !== 'unknown') return eventType
+  if (KNOWN_NON_REPLY_TYPES.has(eventType)) return eventType
+
+  // Clear outbound-only signal — leave as unknown (no Slack spam).
+  if (messageSentByMe === true) return 'unknown'
+
+  const hasReplyishFields = Boolean(
+    pickString(
+      merged.replyText,
+      merged.reply_text,
+      merged.replyMessage,
+      merged.reply_message,
+      merged.lastClientMessage,
+      merged.last_client_message
+    ) ||
+      merged.isReplied === true ||
+      merged.is_replied === true ||
+      merged.isUnread === true ||
+      merged.is_unread === true
+  )
+
+  const hasProspect =
+    Boolean(
+      pickString(
+        merged.prospect_id,
+        merged.prospectId,
+        merged.prospectUuid,
+        merged.nameOfPerson,
+        merged.personName,
+        merged.prospectName
+      )
+    ) || Boolean(asRecord(merged.prospect) || asRecord(merged.prospectData))
+
+  // Prefer reply_received when: inbound flag, message body, reply-ish fields,
+  // or (for this contact-replies webhook endpoint) any prospect identity with no outbound flag.
+  if (
+    messageSentByMe === false ||
+    Boolean(messageText?.trim()) ||
+    hasReplyishFields ||
+    hasProspect
+  ) {
+    return 'reply_received'
+  }
+
+  return 'unknown'
 }
 
 export function buildDedupeKey(input: {
@@ -128,6 +228,22 @@ export function buildDedupeKey(input: {
     input.occurredAt.toISOString(),
   ].join('|')
   return `hash:${createHash('sha256').update(base).digest('hex').slice(0, 40)}`
+}
+
+/** Safe shape summary for Vercel logs — keys only, no secrets / full PII. */
+export function summarizeWebhookPayloadShape(payload: unknown): {
+  topKeys: string[]
+  nestedKeys: Record<string, string[]>
+} {
+  const root = asRecord(payload)
+  if (!root) return { topKeys: [], nestedKeys: {} }
+  const topKeys = Object.keys(root).slice(0, 40)
+  const nestedKeys: Record<string, string[]> = {}
+  for (const nest of ['data', 'event', 'payload', 'message', 'prospect', 'prospectData'] as const) {
+    const child = asRecord(root[nest])
+    if (child) nestedKeys[nest] = Object.keys(child).slice(0, 40)
+  }
+  return { topKeys, nestedKeys }
 }
 
 /** Normalize flexible SalesRobot / Zapier-style webhook payloads. */
@@ -149,9 +265,23 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
     const nested = asRecord(rec.data) ?? asRecord(rec.payload) ?? {}
     const merged = { ...nested, ...rec }
 
-    const eventType = normalizeEventType(
-      pickString(merged.event_type, merged.eventType, merged.type, merged.action, merged.name)
+    // SR "contact replies" webhooks often omit a standard event_type field.
+    const rawType = pickString(
+      merged.event_type,
+      merged.eventType,
+      merged.EventType,
+      merged.type,
+      merged.action,
+      merged.name,
+      merged.trigger,
+      merged.webhook_event,
+      merged.webhookEvent,
+      merged.eventName,
+      merged.event_name,
+      merged.status,
+      merged.Status
     )
+    let eventType = normalizeEventType(rawType)
 
     const occurredAt =
       parseFlexibleDate(
@@ -162,11 +292,31 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
           merged.created_at,
           merged.createdAt,
           merged.eventTime,
-          merged.time
+          merged.time,
+          merged.sentTime,
+          merged.sent_time
         )
       ) ?? new Date()
 
-    const accountRec = asRecord(merged.account) ?? asRecord(merged.linkedinAccount) ?? {}
+    const accountRec =
+      asRecord(merged.account) ??
+      asRecord(merged.linkedinAccount) ??
+      asRecord(merged.LinkedinAccount) ??
+      {}
+
+    const messageText = pickMessageText(merged)
+    const messageSentByMe = pickBool(
+      merged.messageSentByMe,
+      merged.message_sent_by_me,
+      merged.sentByMe,
+      merged.sent_by_me,
+      merged.isSentByMe,
+      asRecord(merged.message)?.messageSentByMe,
+      asRecord(merged.lastMessage)?.messageSentByMe
+    )
+
+    // Force reply_received for contact-replies-shaped unknowns (see coerce helper).
+    eventType = coerceReplyReceivedIfNeeded(eventType, merged, messageText, messageSentByMe)
 
     out.push({
       externalEventId: pickString(
@@ -227,14 +377,8 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
         asRecord(merged.prospectData)?.profileUrl
       ),
       prospectName: pickProspectName(merged),
-      messageText: pickMessageText(merged),
-      messageSentByMe: pickBool(
-        merged.messageSentByMe,
-        merged.message_sent_by_me,
-        merged.sentByMe,
-        merged.sent_by_me,
-        asRecord(merged.message)?.messageSentByMe
-      ),
+      messageText,
+      messageSentByMe,
       occurredAt,
       raw: merged,
     })

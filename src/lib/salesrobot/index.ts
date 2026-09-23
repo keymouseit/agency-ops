@@ -9,5 +9,5 @@ export {
   parseBdActivityJson,
 } from './bd-activity'
 export type { BdAccountActivityRow } from './bd-activity'
-export { verifyWebhookSecret, normalizeWebhookPayload } from './webhook'
+export { verifyWebhookSecret, normalizeWebhookPayload, summarizeWebhookPayloadShape } from './webhook'
 export { acceptanceRate, replyRate, withRates, formatRatePercent } from './metrics'

@@ -83,10 +83,14 @@ export async function notifySalesRobotClientMessage(
 ): Promise<{ ok: boolean; skipped?: boolean; reason?: string }> {
   const url = getSlackWebhookUrl()
   if (!url) {
-    console.info('[slack] SLACK_SALESROBOT_WEBHOOK_URL unset — skipping client message alert', {
-      clientName: input.clientName,
-      accountName: input.accountName,
-    })
+    console.warn(
+      '[slack] SLACK_SALESROBOT_WEBHOOK_URL (or SLACK_INCOMING_WEBHOOK_URL) missing — Slack alert skipped',
+      {
+        clientName: input.clientName,
+        accountName: input.accountName,
+        reason: 'missing_webhook_url',
+      }
+    )
     return { ok: true, skipped: true, reason: 'missing_webhook_url' }
   }
 
@@ -116,6 +120,7 @@ export async function notifySalesRobotClientMessage(
     console.info('[slack] SalesRobot client message alert sent', {
       clientName: input.clientName,
       accountName: input.accountName,
+      http_status: res.status,
     })
     return { ok: true }
   } catch (err) {

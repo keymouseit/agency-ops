@@ -121,6 +121,27 @@ function shouldNotifySlack(event: NormalizedWebhookEvent): boolean {
   return false
 }
 
+function slackSkipReason(event: NormalizedWebhookEvent): string | null {
+  if (shouldNotifySlack(event)) {
+    if (!event.messageText?.trim()) return 'reply_without_message_text'
+    return null
+  }
+  if (
+    event.eventType === 'prospect_added' ||
+    event.eventType === 'connection_request_sent' ||
+    event.eventType === 'connection_accepted' ||
+    event.eventType === 'message_sent'
+  ) {
+    return `non_reply_event:${event.eventType}`
+  }
+  if (event.eventType === 'unknown') {
+    if (event.messageSentByMe === true) return 'unknown_outbound_message'
+    if (!event.messageText?.trim()) return 'unknown_without_inbound_signal'
+    return 'unknown_not_inbound'
+  }
+  return `event_type:${event.eventType}`
+}
+
 async function resolveAccountName(event: NormalizedWebhookEvent): Promise<string> {
   if (event.accountName?.trim()) return event.accountName.trim()
   if (event.linkedinAccountId) {
@@ -148,30 +169,46 @@ async function resolveClientName(event: NormalizedWebhookEvent): Promise<string>
 }
 
 async function maybeNotifySlackClientMessage(event: NormalizedWebhookEvent) {
-  if (!shouldNotifySlack(event)) return
-
-  const message = event.messageText?.trim()
-  // Keep webhook fast — do not invent text or fetch inbox APIs when body is missing.
-  if (!message) {
-    console.info('[salesrobot] skip Slack alert — reply_received without message text', {
+  const skip = slackSkipReason(event)
+  if (skip) {
+    console.info('[salesrobot] skip Slack alert', {
+      reason: skip,
+      eventType: event.eventType,
       prospectId: event.prospectId,
       externalEventId: event.externalEventId,
+      hasMessageText: Boolean(event.messageText?.trim()),
+      messageSentByMe: event.messageSentByMe,
     })
     return
   }
+
+  const message = event.messageText!.trim()
 
   const [clientName, accountName] = await Promise.all([
     resolveClientName(event),
     resolveAccountName(event),
   ])
 
-  await notifySalesRobotClientMessage({
+  console.info('[salesrobot] attempting Slack alert', {
+    eventType: event.eventType,
+    clientName,
+    accountName,
+    messagePreview: message.slice(0, 80),
+  })
+
+  const result = await notifySalesRobotClientMessage({
     clientName,
     message,
     accountName,
     accountId: event.linkedinAccountId,
     campaignName: event.campaignName,
     prospectUrl: event.prospectLinkedinUrl,
+  })
+
+  console.info('[salesrobot] Slack alert result', {
+    ok: result.ok,
+    skipped: result.skipped,
+    reason: result.reason,
   })
 }
 
@@ -309,6 +346,12 @@ export async function processSalesRobotWebhook(payload: unknown) {
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         duplicates += 1
+        console.info('[salesrobot] duplicate event — skip Slack', {
+          dedupeKey,
+          eventType: event.eventType,
+          prospectId: event.prospectId,
+          externalEventId: event.externalEventId,
+        })
         continue
       }
       throw err

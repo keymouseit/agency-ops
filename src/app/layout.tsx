@@ -11,6 +11,13 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: branding.name,
     description: branding.tagline,
+    icons: {
+      icon: [
+        { url: '/favicon.png?v=3', type: 'image/png' },
+        { url: '/favicon.ico?v=3', type: 'image/x-icon' },
+      ],
+      shortcut: '/favicon.ico?v=3',
+    },
   }
 }
 
