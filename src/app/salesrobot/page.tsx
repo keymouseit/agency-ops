@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { fmtDate, fmtDateTime } from '@/lib/utils'
 import {
@@ -19,6 +20,7 @@ import {
 import SalesRobotWaitingList from './SalesRobotWaitingList'
 import SalesRobotTabs from './SalesRobotTabs'
 import { resolveSalesRobotTab } from './salesrobot-tabs'
+import { WaitingCountProvider } from './WaitingCountContext'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +35,7 @@ export default async function SalesRobotPage({
     accountId?: string
     status?: string
     tab?: string
+    waitingPage?: string
   }
 }) {
   const session = await auth()
@@ -48,12 +51,15 @@ export default async function SalesRobotPage({
     to: searchParams.to,
   })
 
+  const requestedWaitingPage = Math.max(1, Math.floor(Number(searchParams.waitingPage) || 1))
+
   const data = await getAnalyticsDashboard({
     from: range.from,
     to: range.to,
     campaignId: searchParams.campaignId || null,
     linkedinAccountId: searchParams.accountId || null,
     status: searchParams.status || null,
+    waitingPage: requestedWaitingPage,
   })
 
   const waitingRows = (data.waitingForUs ?? []).map(p => ({
@@ -70,6 +76,22 @@ export default async function SalesRobotPage({
     isConnected: p.isConnected,
   }))
   const waitingCount = data.waitingForUsCount ?? waitingRows.length
+  const waitingPage = data.waitingPage ?? 1
+  const waitingPageSize = data.waitingPageSize ?? 50
+
+  // Keep URL in sync when server clamps an out-of-range waitingPage.
+  if (
+    activeTab === 'waiting' &&
+    requestedWaitingPage !== waitingPage
+  ) {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value != null && value !== '' && key !== 'waitingPage') params.set(key, value)
+    }
+    params.set('tab', 'waiting')
+    if (waitingPage > 1) params.set('waitingPage', String(waitingPage))
+    redirect(`/salesrobot?${params.toString()}`)
+  }
 
   const rangeLabel =
     searchParams.preset === 'custom' && searchParams.from && searchParams.to
@@ -201,73 +223,80 @@ export default async function SalesRobotPage({
           </div>
         )}
 
-      <Suspense fallback={<div className="mb-6 h-11 w-72 rounded-xl bg-gray-100 animate-pulse" />}>
-        <SalesRobotTabs active={activeTab} waitingCount={waitingCount} />
-      </Suspense>
+      <WaitingCountProvider initialCount={waitingCount}>
+        <Suspense fallback={<div className="mb-6 h-11 w-72 rounded-xl bg-gray-100 animate-pulse" />}>
+          <SalesRobotTabs active={activeTab} />
+        </Suspense>
 
-      <SalesRobotClientShell
-        filters={
-          <Suspense
-            fallback={
-              <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6 text-sm text-gray-400">
-                Loading filters…
-              </div>
-            }
-          >
-            <SalesRobotFilters
-              campaigns={data.filterOptions.campaigns}
-              accounts={data.filterOptions.accounts}
-              statuses={data.filterOptions.statuses}
+        <SalesRobotClientShell
+          filters={
+            <Suspense
+              fallback={
+                <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6 text-sm text-gray-400">
+                  Loading filters…
+                </div>
+              }
+            >
+              <SalesRobotFilters
+                campaigns={data.filterOptions.campaigns}
+                accounts={data.filterOptions.accounts}
+                statuses={data.filterOptions.statuses}
+              />
+            </Suspense>
+          }
+        >
+          {activeTab === 'waiting' ? (
+            <SalesRobotWaitingList
+              canMarkDone={canSync}
+              rows={waitingRows}
+              page={waitingPage}
+              pageSize={waitingPageSize}
             />
-          </Suspense>
-        }
-      >
-        {activeTab === 'waiting' ? (
-          <SalesRobotWaitingList canMarkDone={canSync} rows={waitingRows} />
-        ) : (
-          <>
-            <SalesRobotKpiGrid kpis={kpis} />
+          ) : (
+            <>
+              <SalesRobotKpiGrid kpis={kpis} />
 
-            <div className="mb-6">
-              <SalesRobotCharts
-                trend={data.trend.map(t => ({
-                  label: t.label,
-                  connectionRequestsSent: t.connectionRequestsSent,
-                  connectionsAccepted: t.connectionsAccepted,
-                  repliesReceived: t.repliesReceived,
-                  acceptanceRate: t.acceptanceRate,
-                  replyRate: t.replyRate,
-                }))}
-              />
-            </div>
+              <div className="mb-6">
+                <SalesRobotCharts
+                  trend={data.trend.map(t => ({
+                    label: t.label,
+                    connectionRequestsSent: t.connectionRequestsSent,
+                    connectionsAccepted: t.connectionsAccepted,
+                    repliesReceived: t.repliesReceived,
+                    acceptanceRate: t.acceptanceRate,
+                    replyRate: t.replyRate,
+                  }))}
+                />
+              </div>
 
-            <div className="space-y-4 mb-6">
-              <SalesRobotCampaignTable
-                rows={data.campaignComparison.map(row => ({
-                  campaignId: row.campaignId,
-                  name: row.name,
-                  connectionRequestsSent: row.connectionRequestsSent,
-                  connectionsAccepted: row.connectionsAccepted,
-                  messagesSent: row.messagesSent,
-                  repliesReceived: row.repliesReceived,
-                }))}
-              />
-              <SalesRobotWeeklyTable
-                rows={data.weekRows.map(row => ({
-                  id: row.id,
-                  weekLabel: `${fmtDate(row.weekStart)} – ${fmtDate(row.weekEnd)}`,
-                  campaignName: row.campaignName,
-                  prospectsAdded: row.prospectsAdded,
-                  connectionRequestsSent: row.connectionRequestsSent,
-                  connectionsAccepted: row.connectionsAccepted,
-                  messagesSent: row.messagesSent,
-                  repliesReceived: row.repliesReceived,
-                }))}
-              />
-            </div>
-          </>
-        )}
-      </SalesRobotClientShell>
+              <div className="space-y-4 mb-6">
+                <SalesRobotCampaignTable
+                  rows={data.campaignComparison.map(row => ({
+                    campaignId: row.campaignId,
+                    name: row.name,
+                    connectionRequestsSent: row.connectionRequestsSent,
+                    connectionsAccepted: row.connectionsAccepted,
+                    messagesSent: row.messagesSent,
+                    repliesReceived: row.repliesReceived,
+                  }))}
+                />
+                <SalesRobotWeeklyTable
+                  rows={data.weekRows.map(row => ({
+                    id: row.id,
+                    weekLabel: `${fmtDate(row.weekStart)} – ${fmtDate(row.weekEnd)}`,
+                    campaignName: row.campaignName,
+                    prospectsAdded: row.prospectsAdded,
+                    connectionRequestsSent: row.connectionRequestsSent,
+                    connectionsAccepted: row.connectionsAccepted,
+                    messagesSent: row.messagesSent,
+                    repliesReceived: row.repliesReceived,
+                  }))}
+                />
+              </div>
+            </>
+          )}
+        </SalesRobotClientShell>
+      </WaitingCountProvider>
     </div>
   )
 }

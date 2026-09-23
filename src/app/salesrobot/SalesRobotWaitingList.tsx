@@ -1,9 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import toast from 'react-hot-toast'
 import { fmtDateTime } from '@/lib/utils'
+import { useWaitingCount } from './WaitingCountContext'
 
 export type WaitingProspect = {
   id: string
@@ -39,15 +40,38 @@ function waitingLabel(days: number | null) {
 export default function SalesRobotWaitingList({
   rows,
   canMarkDone,
+  page,
+  pageSize,
 }: {
   rows: WaitingProspect[]
   canMarkDone: boolean
+  page: number
+  pageSize: number
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const { count, decrement } = useWaitingCount()
 
   const visible = rows.filter(r => !doneIds.has(r.id))
+  const totalPages = count > 0 ? Math.max(1, Math.ceil(count / pageSize)) : 1
+
+  function hrefForPage(nextPage: number) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', 'waiting')
+    if (nextPage <= 1) params.delete('waitingPage')
+    else params.set('waitingPage', String(nextPage))
+    const q = params.toString()
+    return q ? `/salesrobot?${q}` : '/salesrobot?tab=waiting'
+  }
+
+  function goToPage(nextPage: number) {
+    startTransition(() => {
+      router.push(hrefForPage(nextPage))
+    })
+  }
 
   async function markDone(id: string) {
     setLoadingId(id)
@@ -62,9 +86,17 @@ export default function SalesRobotWaitingList({
         toast.error(data.error || 'Could not mark done')
         return
       }
-      setDoneIds(prev => new Set(prev).add(id))
+      const nextDone = new Set(doneIds).add(id)
+      setDoneIds(nextDone)
+      decrement()
       toast.success('Marked as followed up')
       router.refresh()
+
+      const remainingOnPage = rows.filter(r => !nextDone.has(r.id)).length
+      // Stay on same page when possible; if this page empties and page > 1, go back one.
+      if (remainingOnPage === 0 && page > 1) {
+        goToPage(page - 1)
+      }
     } catch {
       toast.error('Could not mark done')
     } finally {
@@ -83,7 +115,7 @@ export default function SalesRobotWaitingList({
             </p>
           </div>
           <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-            {visible.length}
+            {count}
           </span>
         </div>
       </div>
@@ -93,8 +125,16 @@ export default function SalesRobotWaitingList({
           Nobody waiting — all replied prospects are followed up (or sync to pull replies).
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="max-h-[70vh] overflow-y-auto">
+        <div className="relative overflow-x-auto">
+          {isPending && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+              <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm">
+                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700" />
+                Loading…
+              </div>
+            </div>
+          )}
+          <div className={`max-h-[70vh] overflow-y-auto ${isPending ? 'opacity-50 pointer-events-none' : ''}`}>
             <table className="w-full min-w-[1040px] text-sm border-collapse table-fixed">
               <colgroup>
                 <col className="w-[22%]" />
@@ -203,6 +243,52 @@ export default function SalesRobotWaitingList({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {count > 0 && (
+        <div className="px-5 py-3 border-t border-amber-100 bg-amber-50/40 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-gray-600">
+            {isPending ? (
+              <span className="inline-flex items-center gap-1.5 font-medium text-amber-800">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700" />
+                Loading page…
+              </span>
+            ) : (
+              <>
+                Page {page} of {totalPages}
+                <span className="text-gray-400"> · </span>
+                {count.toLocaleString()} waiting
+                <span className="text-gray-400"> · </span>
+                {pageSize}/page
+              </>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1 || isPending}
+              onClick={() => goToPage(page - 1)}
+              className="text-xs font-medium px-3 py-1.5 rounded-md border border-amber-200 bg-white text-gray-800 hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages || isPending}
+              onClick={() => goToPage(page + 1)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-amber-200 bg-white text-gray-800 hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isPending ? (
+                <>
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700" />
+                  Loading…
+                </>
+              ) : (
+                'Next'
+              )}
+            </button>
           </div>
         </div>
       )}

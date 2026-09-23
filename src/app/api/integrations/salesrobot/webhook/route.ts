@@ -8,6 +8,16 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+/** Browser / SalesRobot health checks often GET the URL — keep POST for real events. */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    integration: 'salesrobot',
+    message: 'Webhook is live. SalesRobot must POST reply events here for Slack alerts.',
+    accepts: ['POST'],
+  })
+}
+
 export async function POST(request: Request) {
   if (!verifyWebhookSecret(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
