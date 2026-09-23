@@ -1,7 +1,7 @@
 export { isSalesRobotConfigured, getSalesRobotConfig, SalesRobotApiError } from './client'
 export { runSalesRobotSync, startSalesRobotSync, getSalesRobotSyncStatus, clearSalesRobotSyncLock } from './sync'
 export { processSalesRobotWebhook } from './service'
-export { getAnalyticsDashboard, resolveDateRange, rebuildWeeklyFromDaily } from './analytics'
+export { getAnalyticsDashboard, resolveDateRange, rebuildWeeklyFromDaily, WAITING_PAGE_SIZE } from './analytics'
 export {
   getLinkedInBdActivityForDay,
   isLinkedInOutreachTask,

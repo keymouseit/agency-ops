@@ -56,6 +56,9 @@ export default function SalesRobotFilters({
       else params.set(key, value)
     }
 
+    // Filter changes invalidate waiting pagination — reset to page 1.
+    params.delete('waitingPage')
+
     if (next.preset && next.preset !== 'custom') {
       params.delete('from')
       params.delete('to')

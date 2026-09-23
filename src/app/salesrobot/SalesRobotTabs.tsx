@@ -6,15 +6,15 @@ import {
   SALESROBOT_TABS,
   type SalesRobotTabId,
 } from './salesrobot-tabs'
+import { useWaitingCount } from './WaitingCountContext'
 
 export default function SalesRobotTabs({
   active,
-  waitingCount,
 }: {
   active: SalesRobotTabId
-  waitingCount: number
 }) {
   const searchParams = useSearchParams()
+  const { count } = useWaitingCount()
 
   function hrefFor(tab: SalesRobotTabId) {
     const params = new URLSearchParams(searchParams.toString())
@@ -39,7 +39,7 @@ export default function SalesRobotTabs({
             }`}
           >
             {tab.label}
-            {tab.id === 'waiting' && waitingCount > 0 && (
+            {tab.id === 'waiting' && count > 0 && (
               <span
                 className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] font-semibold ${
                   isActive
@@ -47,7 +47,7 @@ export default function SalesRobotTabs({
                     : 'bg-gray-200 text-gray-600'
                 }`}
               >
-                {waitingCount}
+                {count}
               </span>
             )}
           </Link>

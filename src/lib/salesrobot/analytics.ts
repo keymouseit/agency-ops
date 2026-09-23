@@ -188,12 +188,17 @@ export async function rebuildWeeklyFromDaily(opts?: {
   return { weeks: upserted, dailyRows: daily.length }
 }
 
+/** Page size for Waiting for us list (50 for usability vs previous hard take:100). */
+export const WAITING_PAGE_SIZE = 50
+
 export async function getAnalyticsDashboard(filters: {
   from: Date
   to: Date
   campaignId?: string | null
   linkedinAccountId?: string | null
   status?: string | null
+  /** 1-based page for Waiting for us; clamped to available pages. */
+  waitingPage?: number | null
 }) {
   const [allCampaigns, allAccounts] = await Promise.all([
     prisma.salesRobotCampaign.findMany({ orderBy: { name: 'asc' } }),
@@ -227,7 +232,24 @@ export async function getAnalyticsDashboard(filters: {
         : { salesrobotCampaignId: '__none__' }
       : {}
 
-  const [weekly, daily, recentEvents, waitingProspects] = await Promise.all([
+  const waitingWhere = {
+    isReplied: true,
+    followUpCompletedAt: null,
+    lastClientMessage: { not: null },
+    ...(filters.campaignId ? { salesrobotCampaignId: filters.campaignId } : {}),
+    ...(filters.linkedinAccountId ? { linkedinAccountId: filters.linkedinAccountId } : {}),
+    ...(hasCampaignScope && !filters.campaignId && campaignIds.length > 0
+      ? { salesrobotCampaignId: { in: campaignIds } }
+      : {}),
+    ...(hasCampaignScope && campaignIds.length === 0
+      ? { salesrobotCampaignId: '__none__' }
+      : {}),
+  }
+
+  const waitingPageSize = WAITING_PAGE_SIZE
+  const requestedWaitingPage = Math.max(1, Math.floor(Number(filters.waitingPage) || 1))
+
+  const [weekly, daily, recentEvents, waitingForUsCount] = await Promise.all([
     prisma.salesRobotWeeklyAnalytics.findMany({
       where: {
         weekStart: { lte: filters.to },
@@ -258,27 +280,21 @@ export async function getAnalyticsDashboard(filters: {
       orderBy: { occurredAt: 'desc' },
       take: 25,
     }),
-    prisma.salesRobotProspect.findMany({
-      where: {
-        isReplied: true,
-        followUpCompletedAt: null,
-        lastClientMessage: { not: null },
-        ...(filters.campaignId ? { salesrobotCampaignId: filters.campaignId } : {}),
-        ...(filters.linkedinAccountId ? { linkedinAccountId: filters.linkedinAccountId } : {}),
-        ...(hasCampaignScope && !filters.campaignId && campaignIds.length > 0
-          ? { salesrobotCampaignId: { in: campaignIds } }
-          : {}),
-        ...(hasCampaignScope && campaignIds.length === 0
-          ? { salesrobotCampaignId: '__none__' }
-          : {}),
-      },
-      include: {
-        campaign: { select: { name: true, status: true } },
-      },
-      orderBy: [{ lastClientMessageAt: 'desc' }, { repliedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: 100,
-    }),
+    prisma.salesRobotProspect.count({ where: waitingWhere }),
   ])
+
+  const waitingTotalPages = Math.max(1, Math.ceil(waitingForUsCount / waitingPageSize))
+  const waitingPage = Math.min(requestedWaitingPage, waitingTotalPages)
+
+  const waitingProspects = await prisma.salesRobotProspect.findMany({
+    where: waitingWhere,
+    include: {
+      campaign: { select: { name: true, status: true } },
+    },
+    orderBy: [{ lastClientMessageAt: 'desc' }, { repliedAt: 'desc' }, { updatedAt: 'desc' }],
+    skip: (waitingPage - 1) * waitingPageSize,
+    take: waitingPageSize,
+  })
 
   const totals = daily.reduce(
     (acc, row) =>
@@ -440,7 +456,10 @@ export async function getAnalyticsDashboard(filters: {
         isConnected: p.isConnected,
       }
     }),
-    waitingForUsCount: waitingProspects.length,
+    waitingForUsCount,
+    waitingPage,
+    waitingPageSize,
+    waitingTotalPages,
     lastSyncedAt,
   }
 }
