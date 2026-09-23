@@ -112,8 +112,16 @@ export interface NormalizedWebhookEvent {
   salesrobotCampaignId?: string
   campaignName?: string
   linkedinAccountId?: string
+  /** Display name of the LinkedIn / SalesRobot account that received the message */
+  accountName?: string
   prospectId?: string
   prospectLinkedinUrl?: string
+  /** Client / prospect display name when present on the webhook payload */
+  prospectName?: string
+  /** Inbound message body when present (reply / client message events) */
+  messageText?: string
+  /** true = sent by us; false = client; undefined = unknown */
+  messageSentByMe?: boolean
   occurredAt: Date
   raw: Record<string, unknown>
 }

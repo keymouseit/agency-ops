@@ -50,10 +50,10 @@ export default function LeaveHourPolicyCard() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="leave-hour-policy-title"
-            className="bg-white rounded-2xl shadow-xl w-full max-w-lg ring-1 ring-gray-900/5 overflow-hidden"
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg ring-1 ring-gray-900/5 overflow-hidden flex flex-col max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   Rules &amp; regulations
@@ -65,14 +65,14 @@ export default function LeaveHourPolicyCard() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-8 w-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                className="h-8 w-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-4 text-sm text-gray-600 leading-relaxed">
+            <div className="px-6 py-5 space-y-4 text-sm text-gray-600 leading-relaxed overflow-y-auto">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-amber-50/80 ring-1 ring-amber-100 px-3.5 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Half day</p>
