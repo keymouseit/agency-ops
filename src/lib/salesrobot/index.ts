@@ -1,5 +1,5 @@
 export { isSalesRobotConfigured, getSalesRobotConfig, SalesRobotApiError } from './client'
-export { runSalesRobotSync, startSalesRobotSync, getSalesRobotSyncStatus } from './sync'
+export { runSalesRobotSync, startSalesRobotSync, getSalesRobotSyncStatus, clearSalesRobotSyncLock } from './sync'
 export { processSalesRobotWebhook } from './service'
 export { getAnalyticsDashboard, resolveDateRange, rebuildWeeklyFromDaily } from './analytics'
 export {
