@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logAudit, getClientIP } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { notify } from '@/lib/notify'
+import { parseHoursInput } from '@/lib/validation'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   // Use requireRole to get the user's role
@@ -40,12 +41,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Project not found.' }, { status: 404 })
     }
 
+    const hoursAddedParsed = parseHoursInput(data.hoursAdded, {
+      label: 'Hours added',
+      min: 0,
+    })
+    if (!hoursAddedParsed.ok) {
+      return NextResponse.json({ error: hoursAddedParsed.error }, { status: 400 })
+    }
+
     const sc = await prisma.scopeChange.create({
       data: {
         projectId: params.id,
         requestedBy: data.requestedBy || 'client',
         description: data.description,
-        hoursAdded: data.hoursAdded ? parseFloat(data.hoursAdded) : null,
+        hoursAdded: hoursAddedParsed.value,
         valueAdded: data.valueAdded && userInfo.role !== 'Dev' ? parseFloat(data.valueAdded) : null,
         changeOrderSigned: data.changeOrderSigned === 'true' || data.changeOrderSigned === true,
         approvalStatus: 'pending',

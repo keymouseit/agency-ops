@@ -89,7 +89,7 @@ export default function MilestoneBugFixActions({
                       disabled={loading === bug.id || !resolutionNotes.trim()}
                       onClick={() => submitFix(bug.id)}
                     >
-                      {loading === bug.id ? 'Saving...' : 'Submit fix to QA'}
+                      {loading === bug.id ? 'Saving...' : 'Send to QA'}
                     </button>
                     <button
                       type="button"

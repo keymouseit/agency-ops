@@ -27,7 +27,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
     where: { id: params.bugId },
     include: {
       milestone: {
-        include: { project: { select: { id: true, name: true, developerId: true } } },
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              developerId: true,
+              assignees: { select: { memberId: true } },
+            },
+          },
+        },
       },
     },
   })
@@ -37,8 +46,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
   }
 
   if (isDevFix) {
-    if (existing.milestone.project.developerId !== userId && userRole !== 'Founder') {
-      return NextResponse.json({ error: 'Only the project developer can mark bugs as fixed' }, { status: 403 })
+    const assignedIds = new Set([
+      existing.milestone.project.developerId,
+      ...existing.milestone.project.assignees.map(a => a.memberId),
+    ])
+    if (!userId || (!assignedIds.has(userId) && userRole !== 'Founder')) {
+      return NextResponse.json(
+        { error: 'Only assigned developers can mark bugs as fixed' },
+        { status: 403 },
+      )
     }
     if (existing.status !== 'open') {
       return NextResponse.json({ error: 'Only open bugs can be marked as fixed' }, { status: 400 })

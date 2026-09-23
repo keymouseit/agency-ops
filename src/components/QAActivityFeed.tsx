@@ -10,6 +10,7 @@ import {
 import TestCyclesList from '@/components/TestCyclesList'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
+import MilestoneBugWorkflow from '@/components/MilestoneBugWorkflow'
 import {
   BUG_SEVERITY_CONFIG,
   BUG_STATUS_CONFIG,
@@ -89,6 +90,7 @@ type Props = {
   milestones?: Milestone[]
   projectStatus?: string
   allowDevFix?: boolean
+  allowQAReview?: boolean
   qaDetailHref?: string
 }
 
@@ -137,7 +139,15 @@ function Section({
   )
 }
 
-function MilestoneReviewsAccordion({ milestones }: { milestones: Milestone[] }) {
+function MilestoneReviewsAccordion({
+  milestones,
+  allowDevFix = false,
+  allowQAReview = false,
+}: {
+  milestones: Milestone[]
+  allowDevFix?: boolean
+  allowQAReview?: boolean
+}) {
   const [openId, setOpenId] = useState<string | null>(null)
 
   function toggle(id: string) {
@@ -240,7 +250,9 @@ function MilestoneReviewsAccordion({ milestones }: { milestones: Milestone[] }) 
                             className={`rounded-lg px-2.5 py-2 text-xs border ${
                               bug.status === 'open'
                                 ? 'bg-red-50 border-red-100'
-                                : 'bg-gray-50 border-gray-100'
+                                : bug.status === 'fixed'
+                                  ? 'bg-emerald-50 border-emerald-100'
+                                  : 'bg-gray-50 border-gray-100'
                             }`}
                           >
                             <div className="flex items-start gap-2 flex-wrap">
@@ -254,6 +266,12 @@ function MilestoneReviewsAccordion({ milestones }: { milestones: Milestone[] }) 
                             <p className="text-gray-400 mt-1">
                               {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
                             </p>
+                            <MilestoneBugWorkflow
+                              milestoneId={m.id}
+                              bug={bug}
+                              canFix={allowDevFix}
+                              canReview={allowQAReview}
+                            />
                           </li>
                         )
                       })}
@@ -296,6 +314,7 @@ export default function QAActivityFeed({
   milestones = [],
   projectStatus = 'active',
   allowDevFix = false,
+  allowQAReview = false,
   qaDetailHref,
 }: Props) {
   const inQaCount = milestones.filter(m => m.status === 'ready_for_qa').length
@@ -367,7 +386,11 @@ export default function QAActivityFeed({
 
       {qaMilestones.length > 0 && (
         <Section title="Milestone reviews">
-          <MilestoneReviewsAccordion milestones={qaMilestones} />
+          <MilestoneReviewsAccordion
+            milestones={qaMilestones}
+            allowDevFix={allowDevFix}
+            allowQAReview={allowQAReview}
+          />
         </Section>
       )}
 

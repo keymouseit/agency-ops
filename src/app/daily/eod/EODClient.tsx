@@ -10,6 +10,7 @@ import EODHeader from './EODHeader'
 import EODBdLinkedInActivity from './EODBdLinkedInActivity'
 import EODManualBdActivity from './EODManualBdActivity'
 import { parseManualBdActivityJson, type ManualBdActivityRow } from '@/lib/bd-activity-manual'
+import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
 
 type Task = {
   id: string
@@ -304,9 +305,13 @@ export default function EODClient({
 
   const plannedActual = Object.entries(taskUpdates).reduce((s, [, t]) => {
     if (t.status === 'skipped') return s
-    return s + (parseFloat(t.actualHours) || 0)
+    const parsed = parseHoursInput(t.actualHours, { minExclusive: 0 })
+    return s + (parsed.ok && parsed.value != null ? parsed.value : 0)
   }, 0)
-  const newActual = newTasks.reduce((s, t) => s + (parseFloat(t.actualHours) || 0), 0)
+  const newActual = newTasks.reduce((s, t) => {
+    const parsed = parseHoursInput(t.actualHours, { minExclusive: 0 })
+    return s + (parsed.ok && parsed.value != null ? parsed.value : 0)
+  }, 0)
   const totalActual = plannedActual + newActual
   const totalEst = log.tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
   const doneCount =
@@ -325,10 +330,22 @@ export default function EODClient({
     e.preventDefault()
     if (!dayRating) return
 
-    const invalidNew = newTasks.some(t => t.title.trim() && !(parseFloat(t.actualHours) > 0))
-    if (invalidNew) {
-      setError('New tasks need a title and actual hours worked.')
-      return
+    for (const [, update] of Object.entries(taskUpdates)) {
+      if (update.status === 'skipped') continue
+      const hours = parseHoursInput(update.actualHours, { label: 'Actual hours', minExclusive: 0 })
+      if (!hours.ok) {
+        setError(hours.error)
+        return
+      }
+    }
+
+    for (const t of newTasks) {
+      if (!t.title.trim()) continue
+      const hours = parseRequiredPositiveHours(t.actualHours, 'Actual hours')
+      if (!hours.ok) {
+        setError(hours.error)
+        return
+      }
     }
 
     setLoading(true)
@@ -530,7 +547,9 @@ export default function EODClient({
                         <input
                           type="number"
                           step="0.5"
-                          min="0"
+                          min="0.5"
+                          max="999"
+                          inputMode="decimal"
                           value={update.actualHours}
                           onChange={e => updateTask(task.id, 'actualHours', e.target.value)}
                           className="input bg-gray-50/50 focus:bg-white tabular-nums"

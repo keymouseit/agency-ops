@@ -81,7 +81,7 @@ export default function AssigneeMultiSelect({
           id={listId}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1"
+          className="relative z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1"
         >
           {members.map(m => {
             const checked = ids.includes(m.id)

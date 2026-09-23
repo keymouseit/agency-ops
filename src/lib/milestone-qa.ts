@@ -60,7 +60,7 @@ export const TEST_CASE_STATUS_CONFIG: Record<string, { label: string; cls: strin
 
 export const BUG_STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   open:      { label: 'Open',      cls: 'bg-red-100 text-red-800' },
-  fixed:     { label: 'Fixed',     cls: 'bg-green-100 text-green-800' },
+  fixed:     { label: 'Fixed — awaiting QA', cls: 'bg-green-100 text-green-800' },
   closed:    { label: 'Closed',    cls: 'bg-gray-100 text-gray-600' },
   wont_fix:  { label: "Won't fix", cls: 'bg-amber-100 text-amber-800' },
 }

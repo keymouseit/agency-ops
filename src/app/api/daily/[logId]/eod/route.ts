@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { canEditEod } from '@/lib/daily'
 import { syncProjectLoggedHours } from '@/lib/project-hours'
 import { invalidateProjectsListCache } from '@/lib/cache-tags'
+import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
 
 const ALLOWED_TASK_STATUSES = new Set(['done', 'partial', 'blocked', 'moved', 'skipped'])
 
@@ -97,20 +98,44 @@ export async function POST(
   const taskUpdates = (data.taskUpdates ?? {}) as Record<string, TaskUpdatePayload>
   const newTasksRaw = Array.isArray(data.newTasks) ? (data.newTasks as NewTaskPayload[]) : []
 
-  const newTasks = newTasksRaw
-    .map(t => ({
-      title: typeof t.title === 'string' ? t.title.trim() : '',
+  const newTasks: Array<{
+    title: string
+    projectId: string | null
+    actualHours: number | null
+    eodNotes: string | null
+    status: string
+  }> = []
+
+  for (const t of newTasksRaw) {
+    const title = typeof t.title === 'string' ? t.title.trim() : ''
+    if (!title) continue
+    const hours = parseRequiredPositiveHours(t.actualHours, 'Actual hours')
+    if (!hours.ok) {
+      return NextResponse.json({ error: hours.error }, { status: 400 })
+    }
+    newTasks.push({
+      title,
       projectId: typeof t.projectId === 'string' && t.projectId ? t.projectId : null,
-      actualHours: t.actualHours ? parseFloat(t.actualHours) : null,
+      actualHours: hours.value,
       eodNotes: typeof t.eodNotes === 'string' ? t.eodNotes.trim() || null : null,
       status: ALLOWED_TASK_STATUSES.has(t.status ?? '') ? (t.status as string) : 'done',
-    }))
-    .filter(t => t.title.length > 0)
+    })
+  }
 
-  for (const update of Object.values(taskUpdates)) {
+  const parsedActualHours = new Map<string, number | null>()
+  for (const [taskId, update] of Object.entries(taskUpdates)) {
     if (!ALLOWED_TASK_STATUSES.has(update.status)) {
       return NextResponse.json({ error: `Invalid task status: ${update.status}` }, { status: 400 })
     }
+    if (update.status === 'skipped') {
+      parsedActualHours.set(taskId, null)
+      continue
+    }
+    const hours = parseHoursInput(update.actualHours, { label: 'Actual hours', minExclusive: 0 })
+    if (!hours.ok) {
+      return NextResponse.json({ error: hours.error }, { status: 400 })
+    }
+    parsedActualHours.set(taskId, hours.value)
   }
 
   const existingTasks = await prisma.dailyTask.findMany({
@@ -137,11 +162,7 @@ export async function POST(
           where: { id: taskId },
           data: {
             status: update.status,
-            actualHours: isSkipped
-              ? null
-              : update.actualHours
-                ? parseFloat(update.actualHours)
-                : null,
+            actualHours: parsedActualHours.get(taskId) ?? null,
             eodNotes: update.eodNotes || null,
             blockedReason: update.status === 'blocked' ? update.blockedReason || null : null,
             bdActivityJson: isSkipped ? null : serializeBdActivity(update.bdActivity),

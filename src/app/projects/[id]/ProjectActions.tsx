@@ -48,8 +48,8 @@ function ActionModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 shrink-0">
           <div>
             <h3 className="text-base font-semibold text-gray-900">{title}</h3>
             {description ? <p className="text-xs text-gray-500 mt-1">{description}</p> : null}
@@ -63,7 +63,7 @@ function ActionModal({
             ×
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 overflow-y-auto min-h-0">{children}</div>
       </div>
     </div>
   )

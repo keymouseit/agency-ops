@@ -5,6 +5,7 @@ import { logAudit, captureChanges, getClientIP } from '@/lib/audit'
 import { canEditProject, canDeleteProject, projectEditFields, type ProjectEditField } from '@/lib/projects'
 import { replaceProjectAssignees, uniqueMemberIds } from '@/lib/project-assignees'
 import { invalidateProjectCaches } from '@/lib/cache-tags'
+import { parseHoursInput } from '@/lib/validation'
 
 function parseOptionalNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
@@ -132,19 +133,25 @@ export async function PATCH(
   }
 
   if (data.estimatedHours !== undefined) {
-    const hours = parseOptionalNumber(data.estimatedHours)
-    if (hours !== null && hours <= 0) {
-      return NextResponse.json({ error: 'Estimated hours must be greater than 0 when provided.' }, { status: 400 })
+    const hours = parseHoursInput(data.estimatedHours, {
+      label: 'Estimated hours',
+      minExclusive: 0,
+    })
+    if (!hours.ok) {
+      return NextResponse.json({ error: hours.error }, { status: 400 })
     }
-    setIfAllowed('estimatedHours', hours)
+    setIfAllowed('estimatedHours', hours.value)
   }
 
   if (data.actualHours !== undefined) {
-    const hours = parseOptionalNumber(data.actualHours)
-    if (hours !== null && hours < 0) {
-      return NextResponse.json({ error: 'Actual hours cannot be negative.' }, { status: 400 })
+    const hours = parseHoursInput(data.actualHours, {
+      label: 'Actual hours',
+      min: 0,
+    })
+    if (!hours.ok) {
+      return NextResponse.json({ error: hours.error }, { status: 400 })
     }
-    setIfAllowed('actualHours', hours)
+    setIfAllowed('actualHours', hours.value)
   }
 
   if (data.techStack !== undefined) {
