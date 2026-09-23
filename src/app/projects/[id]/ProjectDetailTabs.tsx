@@ -216,23 +216,32 @@ export default function ProjectDetailTabs({
   const pendingScopeCount = project.scopeChanges.filter(s => s.approvalStatus === 'pending').length
   const timesheetCount = timesheet?.entries.filter(e => e.status !== 'skipped').length ?? 0
 
+  const canViewTimesheet = isBD
+
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'qa', label: 'QA updates', badge: qaTabCount || undefined },
     { id: 'scope', label: 'Scope', badge: pendingScopeCount || undefined },
     { id: 'checkins', label: 'Check-ins', badge: project.checkIns.length || undefined },
     { id: 'history', label: 'History' },
-    { id: 'timesheet', label: 'Timesheet', badge: timesheetCount || undefined },
+    ...(canViewTimesheet
+      ? [{ id: 'timesheet' as const, label: 'Timesheet', badge: timesheetCount || undefined }]
+      : []),
   ]
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
-    if (hash && TAB_HASH[hash]) {
-      setActiveTab(TAB_HASH[hash])
+    const next = hash && TAB_HASH[hash] ? TAB_HASH[hash] : null
+    if (next === 'timesheet' && !canViewTimesheet) {
+      setActiveTab('overview')
+      window.history.replaceState(null, '', '#overview')
+      return
     }
-  }, [])
+    if (next) setActiveTab(next)
+  }, [canViewTimesheet])
 
   function selectTab(id: TabId) {
+    if (id === 'timesheet' && !canViewTimesheet) return
     setActiveTab(id)
     window.history.replaceState(null, '', `#${id}`)
   }
@@ -342,14 +351,14 @@ export default function ProjectDetailTabs({
 
               <ProjectWorkMemos
                 memos={workMemos}
-                onOpenTimesheet={() => selectTab('timesheet')}
+                onOpenTimesheet={canViewTimesheet ? () => selectTab('timesheet') : undefined}
               />
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === 'timesheet' && timesheet && (
+      {activeTab === 'timesheet' && canViewTimesheet && timesheet && (
         <ProjectTimesheet
           projectName={timesheet.projectName}
           estimatedHours={timesheet.estimatedHours}

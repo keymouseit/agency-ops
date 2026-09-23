@@ -215,16 +215,20 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           totalScopeHours,
         }}
         workMemos={workMemos}
-        timesheet={{
-          projectName: project.name,
-          estimatedHours: project.estimatedHours,
-          contractValue: project.contractValue,
-          currency: project.currency,
-          startDate: project.startDate?.toISOString() ?? null,
-          estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
-          entries: timesheetEntries,
-          milestones: timesheetMilestones,
-        }}
+        timesheet={
+          isBD
+            ? {
+                projectName: project.name,
+                estimatedHours: project.estimatedHours,
+                contractValue: project.contractValue,
+                currency: project.currency,
+                startDate: project.startDate?.toISOString() ?? null,
+                estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
+                entries: timesheetEntries,
+                milestones: timesheetMilestones,
+              }
+            : undefined
+        }
         project={{
           id: project.id,
           status: project.status,
