@@ -43,9 +43,11 @@ function progressColor(pct: number) {
 export default function QAProjectListCard({
   project,
   canManage = false,
+  canLogTestCycle = false,
 }: {
   project: Project
   canManage?: boolean
+  canLogTestCycle?: boolean
 }) {
   const latestCycle = project.testCycles[0]
   const hasSignOff = !!project.releaseSignOff
@@ -143,7 +145,7 @@ export default function QAProjectListCard({
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {canManage && !hasSignOff && (
+            {canManage && canLogTestCycle && !hasSignOff && (
               <Link href={`/qa/${project.id}`} className="btn-primary text-xs px-3 py-1.5">
                 + Log test cycle
               </Link>

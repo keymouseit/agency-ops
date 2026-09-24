@@ -20,12 +20,18 @@ function getSlackWebhookUrl(): string | undefined {
   )
 }
 
-/** Build plain-text + Block Kit payload for a client LinkedIn reply. */
+/** Build plain-text + Block Kit (+ attachment fallback) for a client LinkedIn reply. */
 export function formatSalesRobotClientMessage(input: SalesRobotClientMessageAlert) {
+  const message = input.message?.trim() || '(no message text)'
+  const accountLabel = input.accountId
+    ? `${input.accountName} (\`${input.accountId}\`)`
+    : input.accountName
+
+  // Incoming-webhook / notification fallback — always includes Message.
   const lines = [
     '*New client message*',
     `*Client:* ${input.clientName}`,
-    `*Account:* ${input.accountName}${input.accountId ? ` (\`${input.accountId}\`)` : ''}`,
+    `*Account:* ${accountLabel}`,
   ]
   if (input.campaignName) {
     lines.push(`*Campaign:* ${input.campaignName}`)
@@ -33,10 +39,12 @@ export function formatSalesRobotClientMessage(input: SalesRobotClientMessageAler
   if (input.prospectUrl) {
     lines.push(`*Profile:* ${input.prospectUrl}`)
   }
-  lines.push(`*Message:* ${input.message}`)
+  lines.push(`*Message:* ${message}`)
 
   const text = lines.join('\n')
 
+  // Agency Ops bot Block Kit layout — Message is its own full-width section
+  // so it never gets buried under Client/Account/Campaign field pairs.
   const fields: Array<{ type: 'mrkdwn'; text: string }> = [
     { type: 'mrkdwn', text: `*Client:*\n${input.clientName}` },
     { type: 'mrkdwn', text: `*Account:*\n${input.accountName}` },
@@ -44,6 +52,15 @@ export function formatSalesRobotClientMessage(input: SalesRobotClientMessageAler
   if (input.campaignName) {
     fields.push({ type: 'mrkdwn', text: `*Campaign:*\n${input.campaignName}` })
   }
+
+  const attachmentFields: Array<{ title: string; value: string; short: boolean }> = [
+    { title: 'Client', value: input.clientName, short: true },
+    { title: 'Account', value: input.accountName, short: true },
+  ]
+  if (input.campaignName) {
+    attachmentFields.push({ title: 'Campaign', value: input.campaignName, short: true })
+  }
+  attachmentFields.push({ title: 'Message', value: message, short: false })
 
   return {
     text,
@@ -55,7 +72,7 @@ export function formatSalesRobotClientMessage(input: SalesRobotClientMessageAler
       { type: 'section', fields },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Message:*\n${input.message}` },
+        text: { type: 'mrkdwn', text: `*Message:*\n${message}` },
       },
       ...(input.prospectUrl
         ? [
@@ -70,6 +87,15 @@ export function formatSalesRobotClientMessage(input: SalesRobotClientMessageAler
             },
           ]
         : []),
+    ],
+    // Legacy attachment layout some Slack clients / workflows surface more clearly
+    attachments: [
+      {
+        color: '#2EB67D',
+        mrkdwn_in: ['text', 'fields'],
+        text: `*Message:* ${message}`,
+        fields: attachmentFields,
+      },
     ],
   }
 }

@@ -62,13 +62,14 @@ const SIGNOFF_ITEMS = [
 ]
 
 export default function QAProjectActions({
-  project, members, canSignOff, latestCycleId, issueMode = false, hasSignOff = false, milestones = [],
+  project, members, canSignOff, canLogTestCycle = false, latestCycleId, issueMode = false, hasSignOff = false, milestones = [],
   editingCycle = null,
   onCancelEdit,
 }: {
   project: Project
   members: Member[]
   canSignOff: boolean
+  canLogTestCycle?: boolean
   latestCycleId?: string
   issueMode?: boolean
   hasSignOff?: boolean
@@ -325,7 +326,7 @@ export default function QAProjectActions({
       {/* Action buttons */}
       {!issueMode && (
         <div className="flex gap-2 flex-wrap">
-          {!editingCycle && (
+          {!editingCycle && canLogTestCycle && (
             <button className="btn-primary text-xs" onClick={openNewCycleForm}>
               + Log test cycle
             </button>

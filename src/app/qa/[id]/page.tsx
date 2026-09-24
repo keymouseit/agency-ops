@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { fetchProjectForQAPage, serializeMilestoneBug, serializeMilestoneTestCase } from '@/lib/project-queries'
 import { testCycleCaseSummary, QA_CYCLE_RESULT_CONFIG, isBlockingCycleResult } from '@/lib/qa'
-import { canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
+import { canCreateQATestCycles, canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
 import { auth } from '@/lib/auth'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -28,6 +28,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
   if (!canViewQATestCycles(session?.user?.role)) redirect('/')
 
   const canManageQA = canManageQATestCycles(session?.user?.role)
+  const canCreateQA = canCreateQATestCycles(session?.user?.role)
 
   const [project, members] = await Promise.all([
     fetchProjectForQAPage(params.id),
@@ -224,6 +225,7 @@ export default async function QAProjectPage({ params }: { params: { id: string }
         hasSignOff={hasSignOff}
         canSignOff={canSignOff && canManageQA}
         canManage={canManageQA}
+        canLogTestCycle={canCreateQA}
         latestCycleId={latestCycle?.id}
       />
 
