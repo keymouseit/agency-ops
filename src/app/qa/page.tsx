@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
+import { canCreateQATestCycles, canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
 import { milestoneListOrderBy } from '@/lib/project-queries'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -12,6 +12,7 @@ export default async function QAPage() {
   const session = await auth()
   if (!canViewQATestCycles(session?.user?.role)) redirect('/')
   const canManageQA = canManageQATestCycles(session?.user?.role)
+  const canCreateQA = canCreateQATestCycles(session?.user?.role)
   const [projects, recentIssues] = await Promise.all([
     prisma.project.findMany({
       where: { status: { in: ['active', 'qa', 'scoping'] } },
@@ -146,7 +147,7 @@ export default async function QAPage() {
         </div>
         <div className="space-y-3">
           {projects.map(p => (
-            <QAProjectListCard key={p.id} project={p} canManage={canManageQA} />
+            <QAProjectListCard key={p.id} project={p} canManage={canManageQA} canLogTestCycle={canCreateQA} />
           ))}
           {projects.length === 0 && (
             <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">

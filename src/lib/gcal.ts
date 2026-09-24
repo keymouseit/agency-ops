@@ -4,6 +4,7 @@ import { LeaveRequest, TeamMember } from '@prisma/client'
 import { formatIstDate, formatIstLeaveRange, istDateInputValue, istNextDateInputValue } from '@/lib/ist'
 import { leaveTypeLabel } from '@/lib/leave-today'
 import { getNotificationEmails } from '@/lib/notification-emails'
+import { shouldRunLeaveSideEffects } from '@/lib/leave-side-effects'
 
 type LeaveWithMember = LeaveRequest & { member: TeamMember }
 
@@ -189,6 +190,10 @@ async function sendCalendarMail(
 }
 
 export async function addEventToGoogleCalendar(leave: LeaveWithMember) {
+  if (!shouldRunLeaveSideEffects()) {
+    console.log('[leave] skip calendar (local)')
+    return null
+  }
   try {
     const calendarIds = await calendarTargetEmails()
     if (!calendarIds.length) {
@@ -211,6 +216,10 @@ export async function addEventToGoogleCalendar(leave: LeaveWithMember) {
 }
 
 export async function removeEventFromGoogleCalendar(leave: LeaveWithMember) {
+  if (!shouldRunLeaveSideEffects()) {
+    console.log('[leave] skip calendar (local)')
+    return null
+  }
   try {
     const calendarIds = await calendarTargetEmails()
     if (!calendarIds.length) {

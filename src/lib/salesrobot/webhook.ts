@@ -348,7 +348,9 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
     const accountRec =
       asRecord(merged.account) ??
       asRecord(merged.linkedinAccount) ??
+      asRecord(merged.linkedInAccount) ??
       asRecord(merged.LinkedinAccount) ??
+      asRecord(merged.LinkedInAccount) ??
       {}
 
     const messageText = pickMessageText(merged)
@@ -406,15 +408,27 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
         accountRec.id
       ),
       accountName: pickString(
+        // SalesRobot contact-reply webhooks use linkedInAccountName (capital I)
+        merged.linkedInAccountName,
+        merged.linkedinAccountName,
+        merged.LinkedInAccountName,
+        merged.linkedin_account_name,
         merged.accountName,
         merged.account_name,
-        merged.linkedinAccountName,
-        merged.linkedin_account_name,
         merged.nameOnLinkedinAccount,
+        merged.linkedInAccount,
+        typeof merged.linkedinAccount === 'string' ? merged.linkedinAccount : undefined,
+        typeof merged.linkedInAccount === 'string' ? merged.linkedInAccount : undefined,
         accountRec.name,
         accountRec.nameOnLinkedinAccount,
         accountRec.fullName,
-        accountRec.full_name
+        accountRec.full_name,
+        accountRec.email,
+        accountRec.linkedinEmail,
+        accountRec.linkedInEmail,
+        merged.linkedinEmail,
+        merged.linkedInEmail,
+        merged.accountEmail
       ),
       prospectId: pickString(
         merged.prospect_id,

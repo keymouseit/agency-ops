@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { LeaveRequest, TeamMember } from '@prisma/client';
 import { getNotificationEmails } from '@/lib/notification-emails'
+import { shouldRunLeaveSideEffects } from '@/lib/leave-side-effects'
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -62,6 +63,10 @@ export async function sendLeaveApprovalEmail(
   leave: LeaveRequest & { member: TeamMember },
   _approverName?: string
 ) {
+  if (!shouldRunLeaveSideEffects()) {
+    console.log('[leave] skip email (local)')
+    return
+  }
   const actorLabel = 'Management'
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
@@ -128,6 +133,10 @@ async function leaveDecisionRecipients(memberEmail: string) {
 }
 
 export async function sendLeaveAppliedEmail(leave: LeaveRequest & { member: TeamMember }, hrEmail: string | string[]) {
+  if (!shouldRunLeaveSideEffects()) {
+    console.log('[leave] skip email (local)')
+    return
+  }
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);
   const timeSlotStr = leave.timeSlot ? ` (${leave.timeSlot.replace('_', ' ')})` : '';
@@ -176,6 +185,10 @@ export async function sendLeaveRejectedEmail(
   leave: LeaveRequest & { member: TeamMember },
   _rejectorName?: string
 ) {
+  if (!shouldRunLeaveSideEffects()) {
+    console.log('[leave] skip email (local)')
+    return
+  }
   const actorLabel = 'Management'
   const startDate = new Date(leave.startDate);
   const endDate = new Date(leave.endDate);

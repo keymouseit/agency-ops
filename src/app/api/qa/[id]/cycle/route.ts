@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const startTime = Date.now()
   logger.logApiRequest('POST', `/api/qa/${params.id}/cycle`, undefined)
 
-  const deny = await checkRole(['QA', 'Founder'])
+  const deny = await checkRole(['QA'])
   if (deny) {
     logger.logApiResponse('POST', `/api/qa/${params.id}/cycle`, deny.status, Date.now() - startTime)
     return deny

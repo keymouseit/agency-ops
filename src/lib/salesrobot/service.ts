@@ -156,6 +156,23 @@ function slackSkipReason(event: NormalizedWebhookEvent): string | null {
 
 async function resolveAccountName(event: NormalizedWebhookEvent): Promise<string> {
   if (event.accountName?.trim()) return event.accountName.trim()
+
+  // Defensive: pick SalesRobot casing variants from raw if normalize missed them
+  const raw = event.raw || {}
+  const fromRaw = [
+    raw.linkedInAccountName,
+    raw.linkedinAccountName,
+    raw.LinkedInAccountName,
+    raw.accountName,
+    raw.nameOnLinkedinAccount,
+    raw.linkedinEmail,
+    raw.linkedInEmail,
+    raw.accountEmail,
+  ]
+  for (const v of fromRaw) {
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+
   if (event.linkedinAccountId) {
     const account = await prisma.salesRobotAccount.findUnique({
       where: { salesrobotAccountId: event.linkedinAccountId },

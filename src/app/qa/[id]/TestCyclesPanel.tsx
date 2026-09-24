@@ -17,6 +17,7 @@ type Props = {
   hasSignOff: boolean
   canSignOff: boolean
   canManage?: boolean
+  canLogTestCycle?: boolean
   latestCycleId?: string
 }
 
@@ -28,6 +29,7 @@ export default function TestCyclesPanel({
   hasSignOff,
   canSignOff,
   canManage = true,
+  canLogTestCycle = false,
   latestCycleId,
 }: Props) {
   const [editingCycleId, setEditingCycleId] = useState<string | null>(null)
@@ -73,6 +75,7 @@ export default function TestCyclesPanel({
             project={project}
             members={members}
             canSignOff={canSignOff}
+            canLogTestCycle={canLogTestCycle}
             latestCycleId={latestCycleId}
             hasSignOff={hasSignOff}
             milestones={milestones}
