@@ -4,6 +4,21 @@
 
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* My Day design tokens — Linear/Stripe depth + soft surfaces */
+  --me-border: rgb(226 232 240); /* slate-200 */
+  --me-border-subtle: rgb(241 245 249); /* slate-100 */
+  --me-radius: 0.75rem; /* 12px */
+  --me-radius-sm: 0.5rem;
+  --me-surface-bg: #fcfcfd;
+  --me-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 2px 8px -2px rgb(15 23 42 / 0.06);
+  --me-shadow-hover:
+    0 1px 3px rgb(15 23 42 / 0.05),
+    0 4px 12px -2px rgb(15 23 42 / 0.08),
+    0 12px 28px -8px rgb(15 23 42 / 0.12);
+  --me-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --me-duration: 0.2s;
 }
 
 body { font-family: var(--font-sans); }
@@ -69,4 +84,185 @@ textarea.input {
 @keyframes nav-progress {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
+}
+
+/* ── My Day (/me) — professional dashboard surfaces ── */
+
+.me-page {
+  @apply w-full pb-12;
+}
+
+/* Stacked layout — no 8/4 rail. Secondary = Attendance | Score. */
+.me-secondary-row {
+  @apply grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5 items-stretch;
+}
+
+.me-secondary-row > * {
+  @apply min-w-0;
+}
+
+.me-secondary-row .me-surface {
+  margin-bottom: 0;
+  height: 100%;
+}
+
+.me-stage {
+  @apply w-full min-w-0;
+}
+
+/* Unified card surface — soft layered shadow, subtle border */
+.me-surface {
+  background: var(--me-surface-bg);
+  border: 1px solid var(--me-border);
+  border-radius: var(--me-radius);
+  box-shadow: var(--me-shadow);
+}
+
+.me-surface-quiet {
+  background: var(--me-surface-bg);
+  border: 1px solid var(--me-border-subtle);
+  border-radius: var(--me-radius);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+}
+
+/* Staggered fade + slide-up — professional, no bounce */
+@keyframes me-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.me-enter {
+  animation: me-fade-up 0.45s var(--me-ease-out) both;
+}
+
+.me-stagger-1 { animation-delay: 0.04s; }
+.me-stagger-2 { animation-delay: 0.09s; }
+.me-stagger-3 { animation-delay: 0.14s; }
+.me-stagger-4 { animation-delay: 0.19s; }
+.me-stagger-5 { animation-delay: 0.24s; }
+.me-stagger-6 { animation-delay: 0.29s; }
+
+/* Card hover — deepen shadow + tiny lift (no bounce) */
+.me-card-lift {
+  transition:
+    border-color var(--me-duration) ease,
+    background-color var(--me-duration) ease,
+    box-shadow var(--me-duration) var(--me-ease-out),
+    transform var(--me-duration) var(--me-ease-out);
+}
+
+.me-card-lift:hover {
+  border-color: rgb(203 213 225); /* slate-300 */
+  box-shadow: var(--me-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.me-card-lift:active {
+  transform: translateY(0);
+  box-shadow: var(--me-shadow);
+}
+
+/* Progress fill — ease in from left on mount */
+@keyframes me-progress-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.me-progress-fill {
+  transform-origin: left center;
+  animation: me-progress-in 0.7s var(--me-ease-out) both;
+  transition: width 0.45s var(--me-ease-out);
+}
+
+/* Buttons — subtle hover lift + press */
+.me-btn-premium {
+  @apply inline-flex items-center justify-center font-medium;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow var(--me-duration) var(--me-ease-out),
+    transform var(--me-duration) var(--me-ease-out);
+}
+
+.me-btn-premium:hover {
+  transform: translateY(-1px);
+}
+
+.me-btn-premium:active {
+  transform: translateY(0);
+}
+
+.me-btn-premium-dark {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+.me-btn-premium-dark:hover {
+  box-shadow: 0 2px 8px -2px rgb(15 23 42 / 0.22);
+}
+
+.me-btn-premium-dark:active {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+/* Status chips — refined pills */
+.me-chip {
+  @apply inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium border;
+  box-shadow: 0 1px 1px rgb(15 23 42 / 0.03);
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Section header label */
+.me-section-title {
+  @apply text-[13px] font-semibold text-gray-900 tracking-tight;
+}
+
+.me-meta {
+  @apply text-xs text-gray-500;
+}
+
+.me-callout {
+  @apply rounded-lg border px-3.5 py-3;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+}
+
+.me-callout-danger {
+  @apply border-red-200 bg-red-50/60;
+}
+
+.me-callout-warn {
+  @apply border-amber-200 bg-amber-50/60;
+}
+
+.me-callout-success {
+  @apply border-emerald-200 bg-emerald-50/60;
+}
+
+.me-callout-info {
+  @apply border-gray-200 bg-gray-50/80;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .me-enter,
+  .me-progress-fill {
+    animation: none !important;
+  }
+
+  .me-card-lift,
+  .me-card-lift:hover,
+  .me-card-lift:active,
+  .me-btn-premium,
+  .me-btn-premium:hover,
+  .me-btn-premium:active,
+  .me-chip,
+  .me-progress-fill {
+    transition: none !important;
+    transform: none !important;
+  }
 }

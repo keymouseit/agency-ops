@@ -11,6 +11,8 @@ import MeDayHeader from './MeDayHeader'
 import MeSection from './MeSection'
 import MeLeaveSection, { MeLeaveSectionFallback } from './MeLeaveSection'
 import MeRightRail from './MeRightRail'
+import MeProjectsGrid from './MeProjectsGrid'
+import MeWeekScorePanel, { MeWeekScorePanelFallback } from './MeWeekScorePanel'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
 import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate, findCarryOverMovedTasks } from '@/lib/daily'
 import MovedTasksCard from './MovedTasksCard'
@@ -18,10 +20,17 @@ import MovedTasksCard from './MovedTasksCard'
 export const dynamic = 'force-dynamic'
 
 // ─── What each role sees ───────────────────────────────────────────────────
-// Dev:  today · my projects · estimate tasks · blockers · goals · score (rail streams)
+// Dev:  today · my projects · estimate tasks · blockers · goals · score
 // BD:   today · my pipeline · estimates awaiting review · goals · score
 // QA:   today · projects needing QA · blockers · goals · score
 // Both: combined
+//
+// Layout (top → bottom):
+// 1. Compact strip — greeting + date + status pills
+// 2. Primary stage — Today / morning plan (full width)
+// 3. Secondary row — Attendance | This week's score
+// 4. Projects grid — full-width 2–3 cols
+// 5. Extras — estimates, pipeline, QA, blockers, goals
 
 export default async function MePage() {
   const session = await auth()
@@ -37,7 +46,6 @@ export default async function MePage() {
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
 
-  // Primary column only — leave + right rail stream via Suspense
   const [
     member,
     todayLog,
@@ -128,15 +136,16 @@ export default async function MePage() {
   }
   const TASK_STATUS_CLS: Record<string, string> = {
     done: 'line-through text-gray-400',
-    blocked: 'text-red-600',
+    blocked: 'text-red-700',
     partial: 'text-amber-700',
     moved: 'text-gray-400',
     planned: 'text-gray-800',
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="me-page">
 
+      {/* 1. Compact top strip */}
       <MeDayHeader
         greeting={greeting}
         firstName={firstName}
@@ -151,277 +160,304 @@ export default async function MePage() {
         totalHours={totalHours}
       />
 
-      {/* ── URGENT: Missing yesterday's EOD ─────────────────────────────── */}
+      {/* Urgent: missing past EOD */}
       {missingPastEOD && pendingPastEodLog && (
-        <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 shadow-sm">
-          <div>
-            <div className="text-sm font-semibold text-red-800">Pending EOD from {pendingEodDateLabel}</div>
-            <div className="text-xs text-red-600 mt-0.5">
+        <div className="me-enter me-stagger-2 me-callout me-callout-danger mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-red-900">
+              Pending EOD from {pendingEodDateLabel}
+            </div>
+            <div className="text-xs text-red-700/80 mt-0.5 leading-relaxed">
               You submitted a plan but never closed that day. Submit EOD before planning today — hours won&apos;t be logged until you do.
             </div>
           </div>
           <Link
             href={`/daily/eod?logId=${pendingPastEodLog.id}`}
-            className="flex-shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors"
+            className="me-btn-premium me-btn-premium-dark inline-flex items-center justify-center shrink-0 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-red-700"
           >
-            Submit EOD →
+            Submit EOD
           </Link>
         </div>
       )}
-
-      <div className="xl:grid xl:grid-cols-12 xl:gap-5 xl:items-start">
-        <div className="xl:col-span-7 min-w-0">
-      <Suspense fallback={<MeLeaveSectionFallback />}>
-        <MeLeaveSection showPending={role === 'HR'} />
-      </Suspense>
 
       {carryOverMoved && carryOverMoved.tasks.length > 0 && (
         <MovedTasksCard carryOver={carryOverMoved} />
       )}
 
-      {isWeekday && (
-        <MeSection
-          title="Today"
-          icon="📋"
-          headerActions={
-            hasPlan && !hasEOD ? (
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href="/daily/plan"
-                  className="text-xs px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-white transition-colors"
-                >
-                  Edit plan
-                </Link>
-                <Link
-                  href="/daily/eod"
-                  className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700"
-                >
-                  Submit EOD →
-                </Link>
-              </div>
-            ) : undefined
-          }
-        >
-          {!hasPlan ? (
-            missingPastEOD && pendingPastEodLog ? (
-              <div className="rounded-xl border border-red-200 bg-gradient-to-br from-red-50 to-orange-50 p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white text-lg shadow-sm shrink-0">
-                      ⏰
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-red-950">Submit {pendingEodDateLabel}&apos;s EOD first</p>
-                      <p className="text-xs text-red-700 mt-1 max-w-md">
+      {/* 2. Primary stage — Today / morning plan (full width) */}
+      <div className="me-stage">
+        {isWeekday && (
+          <MeSection
+            title="Today"
+            icon="📋"
+            className="me-stagger-3"
+            headerActions={
+              hasPlan && !hasEOD ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href="/daily/plan"
+                    className="me-btn-premium text-xs px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Edit plan
+                  </Link>
+                  <Link
+                    href="/daily/eod"
+                    className="me-btn-premium me-btn-premium-dark text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                  >
+                    Submit EOD
+                  </Link>
+                </div>
+              ) : undefined
+            }
+          >
+            {!hasPlan ? (
+              missingPastEOD && pendingPastEodLog ? (
+                <div className="me-callout me-callout-danger">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-red-950">
+                        Submit {pendingEodDateLabel}&apos;s EOD first
+                      </p>
+                      <p className="text-xs text-red-700/80 mt-1 max-w-md leading-relaxed">
                         Close your previous day before planning today. Your morning plan unlocks once EOD is submitted.
                       </p>
                     </div>
+                    <Link
+                      href={`/daily/eod?logId=${pendingPastEodLog.id}`}
+                      className="me-btn-premium me-btn-premium-dark inline-flex items-center justify-center rounded-lg bg-red-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-red-700 shrink-0"
+                    >
+                      Submit EOD
+                    </Link>
                   </div>
-                  <Link
-                    href={`/daily/eod?logId=${pendingPastEodLog.id}`}
-                    className="inline-flex items-center justify-center px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm shrink-0"
-                  >
-                    Submit EOD →
-                  </Link>
                 </div>
-              </div>
-            ) : (
-              <MePlanWidget movedCount={carryOverMoved && !carryOverMoved.sameDay ? carryOverMoved.tasks.length : 0} />
-            )
-          ) : hasEOD ? (
-            <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white text-lg shrink-0">✓</span>
-                  <div>
-                    <p className="text-sm font-semibold text-green-900">EOD submitted — day closed</p>
-                    <p className="text-xs text-green-700 mt-1">
+              ) : (
+                <MePlanWidget movedCount={carryOverMoved && !carryOverMoved.sameDay ? carryOverMoved.tasks.length : 0} />
+              )
+            ) : hasEOD ? (
+              <div className="me-callout me-callout-success">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-emerald-900">EOD submitted — day closed</p>
+                    <p className="text-xs text-emerald-700/80 mt-1 leading-relaxed">
                       {doneTasks} of {todayTasks.length} tasks done.
                       {canEditTodayEOD
                         ? ' You can edit your EOD until the end of today.'
                         : ' Start a new plan if you\'re continuing today.'}
                     </p>
                   </div>
-                </div>
-                <div className="flex flex-col gap-2 flex-shrink-0">
-                  {canEditTodayEOD && todayLog && (
-                    <Link
-                      href={`/daily/eod?logId=${todayLog.id}`}
-                      className="px-3 py-1.5 border border-green-200 text-green-800 text-xs rounded-lg hover:bg-green-100 transition-colors text-center"
-                    >
-                      Edit EOD
-                    </Link>
-                  )}
-                  <Link
-                    href="/daily/plan"
-                    className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors text-center"
-                  >
-                    New plan →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                {[
-                  { label: 'Planned', value: `${todayTasks.length} tasks`, sub: `${totalHours}h` },
-                  { label: 'Done', value: `${doneTasks}/${todayTasks.length}`, highlight: doneTasks === todayTasks.length && todayTasks.length > 0 },
-                  ...(blockedTasks > 0 ? [{ label: 'Blocked', value: String(blockedTasks), danger: true }] : []),
-                ].map(stat => (
-                  <div
-                    key={stat.label}
-                    className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5"
-                  >
-                    <div className="text-[11px] text-gray-400 uppercase tracking-wide">{stat.label}</div>
-                    <div className={`text-lg font-semibold mt-0.5 ${
-                      stat.danger ? 'text-red-600' : stat.highlight ? 'text-green-700' : 'text-gray-900'
-                    }`}>
-                      {stat.value}
-                    </div>
-                    {'sub' in stat && stat.sub && (
-                      <div className="text-xs text-gray-500">{stat.sub}</div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {canEditTodayEOD && todayLog && (
+                      <Link
+                        href={`/daily/eod?logId=${todayLog.id}`}
+                        className="me-btn-premium px-3 py-1.5 border border-emerald-200 text-emerald-800 text-xs rounded-lg hover:bg-emerald-50"
+                      >
+                        Edit EOD
+                      </Link>
                     )}
+                    <Link
+                      href="/daily/plan"
+                      className="me-btn-premium me-btn-premium-dark px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800"
+                    >
+                      New plan
+                    </Link>
                   </div>
-                ))}
+                </div>
               </div>
-
-              <div className="rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
-                {todayTasks.map(task => (
-                  <div
-                    key={task.id}
-                    className="flex items-start gap-3 px-3 py-3 bg-white hover:bg-gray-50/80 transition-colors"
-                  >
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-sm whitespace-pre-wrap break-words block ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
-                        {task.title}
-                      </span>
-                      {task.project && (
-                        <span className="text-xs text-gray-400 mt-0.5 block">{task.project.name}</span>
+            ) : (
+              <div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                  {[
+                    { label: 'Planned', value: `${todayTasks.length}`, sub: `${totalHours}h` },
+                    { label: 'Done', value: `${doneTasks}/${todayTasks.length}`, highlight: doneTasks === todayTasks.length && todayTasks.length > 0 },
+                    ...(blockedTasks > 0 ? [{ label: 'Blocked', value: String(blockedTasks), danger: true }] : []),
+                  ].map(stat => (
+                    <div
+                      key={stat.label}
+                      className="me-card-lift rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-[var(--me-shadow)]"
+                    >
+                      <div className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                        {stat.label}
+                      </div>
+                      <div className={`text-lg font-semibold mt-0.5 tabular-nums ${
+                        stat.danger ? 'text-red-600' : stat.highlight ? 'text-emerald-700' : 'text-gray-900'
+                      }`}>
+                        {stat.value}
+                      </div>
+                      {'sub' in stat && stat.sub && (
+                        <div className="text-xs text-gray-500 tabular-nums">{stat.sub}</div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {task.status !== 'planned' && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          task.status === 'done'    ? 'bg-green-100 text-green-700'
-                          : task.status === 'blocked' ? 'bg-red-100 text-red-700'
-                          : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {task.status}
+                  ))}
+                </div>
+
+                <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                  {todayTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-start gap-3 px-3.5 py-3 bg-white hover:bg-gray-50/80 transition-colors"
+                    >
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm whitespace-pre-wrap break-words block ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
+                          {task.title}
                         </span>
-                      )}
-                      {task.estimatedHours != null && (
-                        <span className="text-xs text-gray-400 tabular-nums">{task.estimatedHours}h</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </MeSection>
-      )}
-
-      {/* ── ESTIMATION TASKS (Dev / Both) ────────────────────────────────── */}
-      {/* Dev sees: what they need to fill out. No BD context, no lead status, no pipeline. */}
-      {isDev && devEstimates.length > 0 && (
-        <MeSection title="Estimates you need to fill" icon="📝">
-          <div className="space-y-2">
-            {devEstimates.map(req => {
-              const needsRevision = req.status === 'revision'
-              return (
-                <div
-                  key={req.id}
-                  className={`p-3 rounded-xl border ${needsRevision ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium text-gray-900">{req.lead.clientName}</span>
-                        {needsRevision && (
-                          <span className="badge bg-red-100 text-red-700 text-xs">Revision needed</span>
-                        )}
-                        {req.dueBy && (
-                          <span className={`text-xs ${new Date(req.dueBy) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                            Due {fmtDate(req.dueBy)}
-                          </span>
+                        {task.project && (
+                          <span className="text-xs text-gray-400 mt-0.5 block">{task.project.name}</span>
                         )}
                       </div>
-                      {/* Show BD's scope notes so dev knows what to estimate */}
-                      {req.notes && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{req.notes}</p>
-                      )}
-                      {/* Show revision reason if sent back */}
-                      {needsRevision && req.record?.bdRevisionNote && (
-                        <p className="text-xs text-red-700 mt-1 font-medium">
-                          Revision reason: {req.record.bdRevisionNote}
-                        </p>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {task.status !== 'planned' && (
+                          <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
+                            task.status === 'done'    ? 'bg-emerald-50 text-emerald-700'
+                            : task.status === 'blocked' ? 'bg-red-50 text-red-700'
+                            : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {task.status}
+                          </span>
+                        )}
+                        {task.estimatedHours != null && (
+                          <span className="text-xs text-gray-400 tabular-nums">{task.estimatedHours}h</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </MeSection>
+        )}
+
+        {/* Estimation tasks (Dev / Both) */}
+        {isDev && devEstimates.length > 0 && (
+          <MeSection title="Estimates you need to fill" icon="📝" className="me-stagger-4">
+            <div className="space-y-2">
+              {devEstimates.map(req => {
+                const needsRevision = req.status === 'revision'
+                return (
+                  <div
+                    key={req.id}
+                    className={`me-card-lift p-3.5 rounded-lg border ${
+                      needsRevision
+                        ? 'border-red-200 bg-red-50/40'
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">{req.lead.clientName}</span>
+                          {needsRevision && (
+                            <span className="inline-flex items-center rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 border border-red-200">
+                              Revision needed
+                            </span>
+                          )}
+                          {req.dueBy && (
+                            <span className={`text-xs ${new Date(req.dueBy) < new Date() ? 'text-red-600' : 'text-gray-400'}`}>
+                              Due {fmtDate(req.dueBy)}
+                            </span>
+                          )}
+                        </div>
+                        {req.notes && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{req.notes}</p>
+                        )}
+                        {needsRevision && req.record?.bdRevisionNote && (
+                          <p className="text-xs text-red-700 mt-1.5 leading-relaxed">
+                            Revision reason: {req.record.bdRevisionNote}
+                          </p>
+                        )}
+                      </div>
+                      <Link
+                        href={`/estimate/${req.leadId}`}
+                        className={`me-btn-premium flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium ${
+                          needsRevision
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-gray-900 text-white hover:bg-gray-800'
+                        }`}
+                      >
+                        {needsRevision ? 'Revise' : 'Fill estimate'}
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </MeSection>
+        )}
+
+        {/* Estimates to review (BD / Both) */}
+        {isBD && bdEstimates.length > 0 && (
+          <MeSection title="Estimates ready for your review" icon="✅" className="me-stagger-4">
+            <div className="space-y-2">
+              {bdEstimates.map(req => (
+                <div
+                  key={req.id}
+                  className="me-card-lift flex items-center justify-between gap-3 p-3.5 rounded-lg border border-amber-200 bg-amber-50/40"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900">{req.lead.clientName}</span>
+                      <span className="inline-flex items-center rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 border border-violet-200">
+                        Dev confirmed
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      By {req.assignee.name}
+                      {req.record?.totalHoursFinal && ` · ${req.record.totalHoursFinal}h`}
+                      {req.record?.totalPriceFinal && ` · $${req.record.totalPriceFinal.toLocaleString()}`}
+                      {req.record?.overallRisk && (
+                        <span className={`ml-1.5 capitalize ${
+                          req.record.overallRisk === 'high' ? 'text-red-600'
+                          : req.record.overallRisk === 'medium' ? 'text-amber-700'
+                          : 'text-emerald-700'
+                        }`}>{req.record.overallRisk} risk</span>
                       )}
                     </div>
-                    <Link
-                      href={`/estimate/${req.leadId}`}
-                      className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-lg transition-colors ${
-                        needsRevision
-                          ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'bg-gray-900 text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      {needsRevision ? 'Revise →' : 'Fill estimate →'}
-                    </Link>
                   </div>
+                  <Link
+                    href={`/estimate/${req.leadId}`}
+                    className="me-btn-premium me-btn-premium-dark flex-shrink-0 text-xs px-3 py-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-800 font-medium"
+                  >
+                    Review & approve
+                  </Link>
                 </div>
-              )
-            })}
-          </div>
-        </MeSection>
-      )}
-
-      {/* ── ESTIMATES TO REVIEW (BD / Both) ──────────────────────────────── */}
-      {/* BD sees: estimates confirmed by dev, waiting for their approval. */}
-      {isBD && bdEstimates.length > 0 && (
-        <MeSection title="Estimates ready for your review" icon="✅">
-          <div className="space-y-2">
-            {bdEstimates.map(req => (
-              <div key={req.id} className="flex items-center justify-between p-3 rounded-xl border border-amber-100 bg-amber-50">
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-gray-900">{req.lead.clientName}</span>
-                    <span className="badge bg-purple-100 text-purple-800 text-xs">Dev confirmed</span>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    By {req.assignee.name}
-                    {req.record?.totalHoursFinal && ` · ${req.record.totalHoursFinal}h`}
-                    {req.record?.totalPriceFinal && ` · $${req.record.totalPriceFinal.toLocaleString()}`}
-                    {req.record?.overallRisk && (
-                      <span className={`ml-2 capitalize ${
-                        req.record.overallRisk === 'high' ? 'text-red-500'
-                        : req.record.overallRisk === 'medium' ? 'text-amber-600'
-                        : 'text-green-600'
-                      }`}>{req.record.overallRisk} risk</span>
-                    )}
-                  </div>
-                </div>
-                <Link
-                  href={`/estimate/${req.leadId}`}
-                  className="flex-shrink-0 text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-                >
-                  Review & approve →
-                </Link>
-              </div>
-            ))}
-          </div>
-        </MeSection>
-      )}
-        </div>
-
-        <div className="xl:col-span-5 min-w-0">
-          <Suspense fallback={<CardSectionFallback />}>
-            <MeRightRail memberId={memberId} role={role} hasCheckin={hasCheckin} />
-          </Suspense>
-        </div>
+              ))}
+            </div>
+          </MeSection>
+        )}
       </div>
 
+      {/* 3. Secondary row — Attendance | Score */}
+      <div className="me-secondary-row">
+        <Suspense fallback={<MeLeaveSectionFallback />}>
+          <MeLeaveAttendancePanel showPending={role === 'HR'} />
+        </Suspense>
+        <Suspense fallback={<MeWeekScorePanelFallback />}>
+          <MeWeekScorePanel memberId={memberId} role={role} hasCheckin={hasCheckin} />
+        </Suspense>
+      </div>
+
+      {/* 4. Projects — full-width responsive grid */}
+      <Suspense fallback={<CardSectionFallback />}>
+        <MeProjectsGrid memberId={memberId} role={role} />
+      </Suspense>
+
+      {/* 5. Extras — pipeline, QA, blockers, goals */}
+      <Suspense fallback={<CardSectionFallback />}>
+        <MeRightRail memberId={memberId} role={role} />
+      </Suspense>
+
+    </div>
+  )
+}
+
+/** Attendance panel for the secondary row (includes HR pending when needed). */
+async function MeLeaveAttendancePanel({ showPending }: { showPending: boolean }) {
+  return (
+    <div className="h-full">
+      <MeLeaveSection
+        showPending={showPending}
+        className="mb-0 me-enter me-stagger-4 h-full"
+      />
     </div>
   )
 }

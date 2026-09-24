@@ -7,7 +7,7 @@ import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDaily
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
-import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
+import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -77,7 +77,7 @@ function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount
                 : 'text-gray-700'
           }`}
         >
-          {totalHours}h / {MAX_DAILY_PLAN_HOURS}h
+          {formatHoursAmount(totalHours)}h / {MAX_DAILY_PLAN_HOURS}h
         </span>
       </div>
       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -410,17 +410,20 @@ export default function MorningPlanForm({
                     <div>
                       <label className="label">Est. hours *</label>
                       <input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        max="999"
+                        type="text"
                         inputMode="decimal"
+                        autoComplete="off"
                         value={task.estimatedHours}
                         onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
                         required
                         className="input bg-gray-50/50 focus:bg-white tabular-nums"
-                        placeholder="2"
+                        placeholder="0.25 or 15m"
+                        aria-describedby={`est-hours-hint-${i}`}
                       />
+                      <p id={`est-hours-hint-${i}`} className="text-[11px] text-gray-400 mt-1">
+                        Quarter hours OK — <span className="font-medium text-gray-500">0.25</span> or{' '}
+                        <span className="font-medium text-gray-500">15m</span> = 15 min · 0.5 = 30 min
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -475,8 +478,8 @@ export default function MorningPlanForm({
               ? 'Saving changes...'
               : 'Locking in plan...'
             : isEdit
-              ? `Save changes — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`
-              : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
+              ? `Save changes — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${formatHoursAmount(totalHours)}h`
+              : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${formatHoursAmount(totalHours)}h`}
         </button>
       </form>
     </div>

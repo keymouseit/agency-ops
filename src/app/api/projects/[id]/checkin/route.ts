@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { startOfWeek } from 'date-fns'
+import { getWeekStart } from '@/lib/utils'
 import { invalidateProjectCaches } from '@/lib/cache-tags'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -9,7 +9,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (deny) return deny
 
   const data = await req.json()
-  const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const weekOf = getWeekStart()
 
   const existing = await prisma.projectCheckIn.findFirst({
     where: {
@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (existing) {
     return NextResponse.json(
-      { error: 'You already submitted a project check-in for this week.' },
+      { error: 'You already submitted a check-in for this project this week.' },
       { status: 409 }
     )
   }

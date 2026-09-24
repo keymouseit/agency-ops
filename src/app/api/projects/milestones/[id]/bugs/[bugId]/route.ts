@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth, checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
-import { isValidBugSeverity, isValidBugStatus, serializeMilestoneBug } from '@/lib/milestone-bugs'
+import { isValidBugSeverity, isValidBugStatus, serializeMilestoneBug, revertQaApprovedMilestoneToInProgress, syncLinkedTestCaseWithBugStatus } from '@/lib/milestone-bugs'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 
 export async function PATCH(req: Request, { params }: { params: { id: string; bugId: string } }) {
@@ -56,8 +56,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
         { status: 403 },
       )
     }
-    if (existing.status !== 'open') {
-      return NextResponse.json({ error: 'Only open bugs can be marked as fixed' }, { status: 400 })
+    // Allow re-submitting an already-fixed bug so older linked cases can be
+    // repaired from Fail to Pending without requiring a QA reopen first.
+    if (!['open', 'fixed'].includes(existing.status)) {
+      return NextResponse.json({ error: 'Only open or already-fixed bugs can be marked as fixed' }, { status: 400 })
     }
     if (!data.resolutionNotes?.trim()) {
       return NextResponse.json({ error: 'Please describe what you fixed' }, { status: 400 })
@@ -114,7 +116,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
     include: { reportedBy: { select: { name: true } } },
   })
 
+  // Also sync when the status is already fixed. This repairs older/stale data
+  // where a linked case still says Fail after the bug was marked Fixed.
+  if (typeof data.status === 'string') {
+    await syncLinkedTestCaseWithBugStatus({
+      testCaseId: existing.testCaseId,
+      bugStatus: data.status,
+      resolutionNotes: bug.resolutionNotes,
+    })
+  }
+
   if (data.status === 'open' && existing.status !== 'open') {
+    await revertQaApprovedMilestoneToInProgress({
+      milestoneId: existing.milestone.id,
+      currentStatus: existing.milestone.status,
+      projectId: existing.milestone.project.id,
+      projectName: existing.milestone.project.name,
+      milestoneTitle: existing.milestone.title,
+      reason: `Bug reopened: ${bug.title}`,
+      request: req,
+    })
+
     await notify(
       'milestone_bug_logged',
       [existing.milestone.project.developerId],

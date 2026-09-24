@@ -167,7 +167,7 @@ export default function TestCycleCasesList({
                     value={tc.status}
                     disabled={loading === tc.id}
                     onChange={e => updateStatus(tc.id, e.target.value)}
-                    className={`badge shrink-0 border-0 cursor-pointer ${cfg.cls}`}
+                    className="badge shrink-0 border border-gray-200 bg-white text-gray-800 cursor-pointer" 
                     aria-label={`Status for ${tc.title}`}
                   >
                     {TEST_CYCLE_CASE_STATUSES.map(s => (

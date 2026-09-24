@@ -8,8 +8,10 @@ import { formatIstWeekdayShort } from '@/lib/ist'
 /** Streamed leave card — uses short-lived server cache. */
 export default async function MeLeaveSection({
   showPending = false,
+  className = 'mb-5 me-enter me-stagger-2',
 }: {
   showPending?: boolean
+  className?: string
 }) {
   const [people, pending] = await Promise.all([
     getApprovedOnLeaveToday().catch(() => []),
@@ -22,6 +24,7 @@ export default async function MeLeaveSection({
       <OnLeaveTodayCard
         people={people}
         dateLabel={formatIstWeekdayShort(businessDayStart())}
+        className={className}
       />
     </>
   )
@@ -29,9 +32,9 @@ export default async function MeLeaveSection({
 
 export function MeLeaveSectionFallback() {
   return (
-    <div className="card p-5 mb-6 animate-pulse" aria-hidden>
+    <div className="me-surface p-5 mb-0 h-full animate-pulse" aria-hidden>
       <div className="h-4 w-40 bg-gray-200 rounded mb-3" />
-      <div className="h-12 bg-gray-100 rounded-xl" />
+      <div className="h-12 bg-gray-100 rounded-lg" />
     </div>
   )
 }

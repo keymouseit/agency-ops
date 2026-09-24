@@ -164,7 +164,11 @@ export default function MilestoneTimeline({
     }
   }
 
-  async function updateMilestoneStatus(milestoneId: string, newStatus: string) {
+  async function updateMilestoneStatus(
+    milestoneId: string,
+    newStatus: string,
+    requestRetest = false,
+  ) {
     setLoading(milestoneId)
     localOverrides.current[milestoneId] = { status: newStatus, at: Date.now() }
     setItems(curr =>
@@ -184,7 +188,7 @@ export default function MilestoneTimeline({
       const res = await fetch(`/api/projects/milestones/${milestoneId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...(requestRetest ? { requestRetest: true } : {}) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || 'Failed to update milestone')
@@ -249,6 +253,9 @@ export default function MilestoneTimeline({
           const canExpand = ['ready_for_qa', 'testing', 'done'].includes(m.status)
           const isExpanded = expanded === m.id
           const openBugs = openBugCount(bugs)
+          const hasRetestWork =
+            testCases.some(testCase => testCase.status === 'pending') ||
+            bugs.some(bug => bug.status === 'fixed')
           const isLast = index === items.length - 1
           const canManage = canManageContent(m)
 
@@ -352,10 +359,10 @@ export default function MilestoneTimeline({
                           <>
                             <button
                               type="button"
-                              onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa')}
+                              onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa', hasRetestWork)}
                               className="inline-flex items-center rounded-full bg-green-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-800"
                             >
-                              Send to QA
+                              {hasRetestWork ? 'Send to QA for re-test' : 'Send to QA'}
                             </button>
                             <button
                               type="button"

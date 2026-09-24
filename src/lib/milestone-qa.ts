@@ -115,8 +115,12 @@ export function milestoneHasTestingVisibility(
   testCaseCount: number,
   bugCount = 0,
 ) {
-  return status === 'testing' || status === 'done'
-    || (status === 'ready_for_qa' && (testCaseCount > 0 || bugCount > 0))
+  if (status === 'testing' || status === 'done') return true
+  // Dev and QA should both see existing cases/bugs while In QA or sent back In progress
+  if ((status === 'ready_for_qa' || status === 'in_progress') && (testCaseCount > 0 || bugCount > 0)) {
+    return true
+  }
+  return false
 }
 
 export function openBugCount(bugs: { status: string }[]) {

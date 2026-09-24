@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_COLORS } from '@/lib/campaigns'
+import { CAMPAIGN_STATUSES } from '@/lib/campaigns'
 
 const STATUS_DOT: Record<string, string> = {
   draft: 'bg-gray-400',
@@ -67,7 +67,7 @@ export default function CampaignStatusSelect({
         type="button"
         disabled={loading}
         onClick={() => setOpen(v => !v)}
-        className={`badge border capitalize inline-flex items-center gap-1 hover:opacity-90 transition-opacity disabled:opacity-60 ${CAMPAIGN_STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-700'}`}
+        className="badge border border-gray-200 bg-white text-gray-800 capitalize inline-flex items-center gap-1 hover:bg-gray-50 transition-colors disabled:opacity-60" 
         aria-haspopup="listbox"
         aria-expanded={open}
       >

@@ -103,21 +103,61 @@ function pickProspectName(merged: Record<string, unknown>) {
   return undefined
 }
 
+/**
+ * Prefer SalesRobot contact-reply fields (`newMessage`), then nested conversation /
+ * threadedMessages inbound text, then legacy Zapier-style aliases.
+ * When walking a thread, skip messages marked messageSentByMe === true.
+ */
+function lastInboundThreadText(...sources: Array<Record<string, unknown> | null | undefined>) {
+  for (const src of sources) {
+    if (!src) continue
+    const threaded = asRecord(src.threadedMessages)
+    const threadMsgs = Array.isArray(threaded?.messages)
+      ? threaded!.messages
+      : Array.isArray(src.messages)
+        ? src.messages
+        : null
+    if (!threadMsgs?.length) continue
+    for (let i = threadMsgs.length - 1; i >= 0; i--) {
+      const m = asRecord(threadMsgs[i])
+      if (!m) continue
+      const byMe = pickBool(m.messageSentByMe, m.message_sent_by_me, m.sentByMe)
+      if (byMe === true) continue
+      const text = pickString(m.messageText, m.MessageText, m.text, m.content, m.body, m.newMessage)
+      if (text) return text
+    }
+  }
+  return undefined
+}
+
 function pickMessageText(merged: Record<string, unknown>) {
+  const conversation = asRecord(merged.conversation) ?? {}
+  const newMessageObj = asRecord(merged.newMessage)
   const messageObj =
     asRecord(merged.message) ??
     asRecord(merged.reply) ??
     asRecord(merged.lastMessage) ??
     asRecord(merged.LastMessage) ??
+    asRecord(conversation.lastMessage) ??
     {}
-  // SalesRobot inbox-style: threadedMessages.messages[last]
-  const threaded = asRecord(merged.threadedMessages)
-  const threadMsgs = Array.isArray(threaded?.messages) ? threaded!.messages : null
-  const lastThread = threadMsgs?.length
-    ? asRecord(threadMsgs[threadMsgs.length - 1])
-    : null
+  // SalesRobot inbox-style: conversation.threadedMessages.messages / root threadedMessages
+  const lastInbound = lastInboundThreadText(merged, conversation, asRecord(merged.threadedMessages))
 
   return pickString(
+    // SalesRobot "When a contact replies" — primary field seen in production webhooks
+    merged.newMessage,
+    typeof merged.newMessage === 'string' ? merged.newMessage : undefined,
+    newMessageObj?.messageText,
+    newMessageObj?.MessageText,
+    newMessageObj?.text,
+    newMessageObj?.content,
+    newMessageObj?.body,
+    conversation.newMessage,
+    typeof conversation.newMessage === 'string' ? conversation.newMessage : undefined,
+    conversation.messageText,
+    conversation.MessageText,
+    conversation.lastClientMessage,
+    conversation.replyText,
     merged.messageText,
     merged.message_text,
     merged.MessageText,
@@ -143,9 +183,7 @@ function pickMessageText(merged: Record<string, unknown>) {
     messageObj.MessageText,
     messageObj.content,
     messageObj.body,
-    lastThread?.messageText,
-    lastThread?.text,
-    lastThread?.content
+    lastInbound
   )
 }
 
@@ -174,6 +212,7 @@ function coerceReplyReceivedIfNeeded(
 
   const hasReplyishFields = Boolean(
     pickString(
+      merged.newMessage,
       merged.replyText,
       merged.reply_text,
       merged.replyMessage,
@@ -239,7 +278,7 @@ export function summarizeWebhookPayloadShape(payload: unknown): {
   if (!root) return { topKeys: [], nestedKeys: {} }
   const topKeys = Object.keys(root).slice(0, 40)
   const nestedKeys: Record<string, string[]> = {}
-  for (const nest of ['data', 'event', 'payload', 'message', 'prospect', 'prospectData'] as const) {
+  for (const nest of ['data', 'event', 'payload', 'message', 'prospect', 'prospectData', 'conversation', 'newMessage'] as const) {
     const child = asRecord(root[nest])
     if (child) nestedKeys[nest] = Object.keys(child).slice(0, 40)
   }
@@ -263,7 +302,15 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
   for (const item of list) {
     const rec = asRecord(item) ?? root
     const nested = asRecord(rec.data) ?? asRecord(rec.payload) ?? {}
-    const merged = { ...nested, ...rec }
+    const base = { ...nested, ...rec }
+    // Flatten SalesRobot conversation / prospectData so name + ids resolve
+    const conversation = asRecord(base.conversation) ?? {}
+    const prospectData =
+      asRecord(base.prospectData) ??
+      asRecord(conversation.prospectData) ??
+      asRecord(base.prospect) ??
+      {}
+    const merged = { ...prospectData, ...conversation, ...base }
 
     // SR "contact replies" webhooks often omit a standard event_type field.
     const rawType = pickString(
@@ -312,7 +359,9 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
       merged.sent_by_me,
       merged.isSentByMe,
       asRecord(merged.message)?.messageSentByMe,
-      asRecord(merged.lastMessage)?.messageSentByMe
+      asRecord(merged.lastMessage)?.messageSentByMe,
+      asRecord(merged.newMessage)?.messageSentByMe,
+      asRecord(merged.conversation)?.messageSentByMe
     )
 
     // Force reply_received for contact-replies-shaped unknowns (see coerce helper).
@@ -322,10 +371,16 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
       externalEventId: pickString(
         merged.event_id,
         merged.eventId,
-        merged.id,
-        merged.uuid,
         merged.messageId,
-        merged.message_id
+        merged.message_id,
+        merged.messageUuid,
+        merged.message_uuid,
+        merged.webhookEventId,
+        merged.webhook_event_id,
+        // Prefer message-level ids above. Bare uniqueId is a prospect key — do not
+        // use it here or every reply from the same person collapses into one dedupe.
+        merged.id,
+        merged.uuid
       ),
       eventType,
       salesrobotCampaignId: pickString(
@@ -365,9 +420,14 @@ export function normalizeWebhookPayload(payload: unknown): NormalizedWebhookEven
         merged.prospect_id,
         merged.prospectId,
         merged.prospectUuid,
+        merged.uniqueId,
+        merged.UniqueId,
+        merged.unique_id,
         asRecord(merged.prospect)?.prospectUuid,
         asRecord(merged.prospect)?.uuid,
-        asRecord(merged.prospectData)?.prospectUuid
+        asRecord(merged.prospect)?.uniqueId,
+        asRecord(merged.prospectData)?.prospectUuid,
+        asRecord(merged.prospectData)?.uniqueId
       ),
       prospectLinkedinUrl: pickString(
         merged.prospect_linkedin_url,

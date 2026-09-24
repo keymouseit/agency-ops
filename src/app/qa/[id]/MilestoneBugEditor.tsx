@@ -28,9 +28,11 @@ export default function MilestoneBugEditor({
   const [severity, setSeverity] = useState('medium')
   const [adding, setAdding] = useState(false)
 
-  const canEdit = ['testing', 'done', 'ready_for_qa'].includes(milestoneStatus)
+  // Status can be changed while QA is working the milestone, after approval, or once it is sent back for fixes.
+  const canChangeStatus = ['testing', 'done', 'ready_for_qa', 'in_progress'].includes(milestoneStatus)
+  const canLogBugs = milestoneStatus === 'testing'
 
-  if (!canEdit) return null
+  if (!canChangeStatus) return null
 
   async function logBug(e: React.FormEvent) {
     e.preventDefault()
@@ -97,7 +99,7 @@ export default function MilestoneBugEditor({
     <div className="mt-4 pt-4 border-t border-gray-100">
       <h4 className="text-xs font-semibold text-gray-700 mb-2">Log bug</h4>
 
-      {milestoneStatus === 'testing' && (
+      {canLogBugs && (
         <form onSubmit={logBug} className="space-y-2 mb-4">
           <input
             className="input text-sm w-full"
@@ -154,23 +156,36 @@ export default function MilestoneBugEditor({
                       {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
                     </p>
                   </div>
-                  {milestoneStatus === 'testing' && (
-                    <select
-                      value={bug.status}
-                      disabled={loading === bug.id}
-                      onChange={e => updateBug(bug.id, { status: e.target.value })}
-                      className={`text-xs rounded border px-1.5 py-1 ${statusCfg.cls}`}
-                    >
-                      {BUG_STATUSES.map(s => (
-                        <option key={s} value={s}>{BUG_STATUS_CONFIG[s].label}</option>
-                      ))}
-                    </select>
-                  )}
-                  {milestoneStatus !== 'testing' && (
+                  {canChangeStatus ? (
+                    loading === bug.id ? (
+                      <div
+                        className="inline-flex items-center gap-1.5 text-xs text-gray-500 px-1.5 py-1"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <span
+                          className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Saving…
+                      </div>
+                    ) : (
+                      <select
+                        value={bug.status}
+                        onChange={e => updateBug(bug.id, { status: e.target.value })}
+                        className="text-xs rounded border border-gray-200 bg-white text-gray-800 px-1.5 py-1"
+                        aria-label={`Status for ${bug.title}`}
+                      >
+                        {BUG_STATUSES.map(s => (
+                          <option key={s} value={s}>{BUG_STATUS_CONFIG[s].label}</option>
+                        ))}
+                      </select>
+                    )
+                  ) : (
                     <span className={`badge text-xs ${statusCfg.cls}`}>{statusCfg.label}</span>
                   )}
                 </div>
-                {milestoneStatus === 'testing' && !linkedToTestCase && (
+                {canLogBugs && !linkedToTestCase && (
                   <button
                     type="button"
                     onClick={() => deleteBug(bug.id)}
@@ -186,7 +201,7 @@ export default function MilestoneBugEditor({
         </div>
       )}
 
-      {bugs.length === 0 && milestoneStatus !== 'testing' && (
+      {bugs.length === 0 && !canLogBugs && (
         <p className="text-xs text-gray-400">No bugs logged for this milestone.</p>
       )}
     </div>

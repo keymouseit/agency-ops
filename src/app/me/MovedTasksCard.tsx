@@ -10,11 +10,11 @@ const PRIORITY_DOT: Record<string, string> = {
 const STATUS_META: Record<string, { label: string; className: string }> = {
   moved: {
     label: 'Moved',
-    className: 'bg-slate-100 text-slate-700 ring-slate-200/80',
+    className: 'bg-slate-50 text-slate-700 border-slate-200',
   },
   partial: {
     label: 'Partial',
-    className: 'bg-amber-50 text-amber-800 ring-amber-200/80',
+    className: 'bg-amber-50 text-amber-800 border-amber-200',
   },
 }
 
@@ -34,34 +34,30 @@ export default function MovedTasksCard({
     : `Left unfinished on ${dateLabel} — already lined up for today's plan`
 
   return (
-    <section className="mb-5 overflow-hidden rounded-2xl border border-amber-200/80 bg-white shadow-sm">
-      <div className="relative bg-gradient-to-br from-amber-50 via-orange-50/40 to-white px-5 pt-5 pb-4">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" aria-hidden />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between pl-1">
+    <section className="me-enter me-stagger-2 me-surface overflow-hidden mb-5">
+      <div className="border-b border-amber-100 bg-amber-50/50 px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white text-sm font-semibold shadow-sm">
-                →
-              </span>
-              <h2 className="text-base font-semibold text-gray-900 tracking-tight">{title}</h2>
-              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h2 className="me-section-title">{title}</h2>
+              <span className="inline-flex items-center rounded-md bg-white px-1.5 py-0.5 text-[11px] font-medium text-amber-900 border border-amber-200">
                 {carryOver.tasks.length} task{carryOver.tasks.length === 1 ? '' : 's'}
               </span>
             </div>
-            <p className="text-sm text-gray-600 max-w-xl">{subtitle}</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium">
+            <p className="text-sm text-gray-600 leading-relaxed">{subtitle}</p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-medium">
               {partialCount > 0 && (
-                <span className="rounded-full bg-amber-50 text-amber-800 px-2.5 py-1 ring-1 ring-amber-200/80">
+                <span className="rounded-md bg-amber-50 text-amber-800 px-2 py-0.5 border border-amber-200">
                   {partialCount} partial
                 </span>
               )}
               {movedCount > 0 && (
-                <span className="rounded-full bg-slate-100 text-slate-700 px-2.5 py-1 ring-1 ring-slate-200/80">
+                <span className="rounded-md bg-slate-50 text-slate-700 px-2 py-0.5 border border-slate-200">
                   {movedCount} moved
                 </span>
               )}
               {hours > 0 && (
-                <span className="rounded-full bg-white text-gray-600 px-2.5 py-1 ring-1 ring-gray-200">
+                <span className="rounded-md bg-white text-gray-600 px-2 py-0.5 border border-gray-200 tabular-nums">
                   {hours}h estimated
                 </span>
               )}
@@ -71,28 +67,27 @@ export default function MovedTasksCard({
           {!carryOver.sameDay && (
             <Link
               href="/daily/plan"
-              className="inline-flex items-center justify-center gap-1.5 self-start rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 shrink-0"
+              className="inline-flex items-center justify-center self-start rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-800 shrink-0 transition-colors"
             >
               Start plan
-              <span aria-hidden>→</span>
             </Link>
           )}
         </div>
       </div>
 
-      <ul className="divide-y divide-gray-100 border-t border-amber-100/80">
+      <ul className="divide-y divide-gray-100">
         {carryOver.tasks.map(task => {
           const status = STATUS_META[task.status] ?? {
             label: task.status,
-            className: 'bg-gray-100 text-gray-600 ring-gray-200',
+            className: 'bg-gray-50 text-gray-600 border-gray-200',
           }
           return (
             <li
               key={task.id}
-              className="flex items-start gap-3 px-5 py-3.5 hover:bg-amber-50/30 transition-colors"
+              className="flex items-start gap-3 px-5 py-3 hover:bg-gray-50/80 transition-colors"
             >
               <div
-                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
                   PRIORITY_DOT[task.priority] ?? 'bg-slate-300'
                 }`}
                 title={`${task.priority} priority`}
@@ -107,7 +102,7 @@ export default function MovedTasksCard({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${status.className}`}
+                  className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium border ${status.className}`}
                 >
                   {status.label}
                 </span>
@@ -123,8 +118,8 @@ export default function MovedTasksCard({
       </ul>
 
       {carryOver.carryOverNotes?.trim() && (
-        <div className="border-t border-amber-100/80 bg-amber-50/40 px-5 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800/80 mb-1">
+        <div className="border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
             EOD note
           </p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">

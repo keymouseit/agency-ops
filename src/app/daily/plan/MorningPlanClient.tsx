@@ -6,6 +6,7 @@ import { MAX_DAILY_PLAN_HOURS, defaultDailyTaskType, dailyTaskTypeGroupsForRole 
 import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDailyTaskTypeGroups'
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { formatIstWeekdayLong } from '@/lib/ist'
+import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -60,9 +61,12 @@ export default function MorningPlanClient({
     setTasks(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
   }
 
-  const totalHours = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0)
+  const totalHours = tasks.reduce((s, t) => {
+    const parsed = parseHoursInput(t.estimatedHours, { minExclusive: 0 })
+    return s + (parsed.ok && parsed.value != null ? parsed.value : 0)
+  }, 0)
   const canSubmit = memberId
-    && tasks.every(t => t.title.trim() && parseFloat(t.estimatedHours) > 0)
+    && tasks.every(t => t.title.trim() && parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours').ok)
     && !alreadyDone
 
   async function submit(e: React.FormEvent) {
@@ -85,7 +89,7 @@ export default function MorningPlanClient({
       <div className="text-5xl mb-4">☀</div>
       <h1 className="text-2xl font-semibold mb-2">Plan locked in</h1>
       <p className="text-gray-500 mb-1">
-        {member?.name} — {tasks.length} task{tasks.length !== 1 ? 's' : ''}, {totalHours}h planned.
+        {member?.name} — {tasks.length} task{tasks.length !== 1 ? 's' : ''}, {formatHoursAmount(totalHours)}h planned.
       </p>
       <p className="text-sm text-gray-400 mb-8">EOD report due by 7pm.</p>
       <div className="flex gap-3 justify-center">
@@ -221,15 +225,16 @@ export default function MorningPlanClient({
                       <div>
                         <label className="label">Est. hours</label>
                         <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
+                          type="text"
+                          inputMode="decimal"
+                          autoComplete="off"
                           value={task.estimatedHours}
                           onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
                           required
                           className="input"
-                          placeholder="2"
+                          placeholder="0.25 or 15m"
                         />
+                        <p className="text-[11px] text-gray-400 mt-1">0.25 or 15m = 15 min</p>
                       </div>
                     </div>
                   </div>
@@ -247,7 +252,7 @@ export default function MorningPlanClient({
                 + Add another task
               </button>
               <div className={`text-sm font-medium ${totalHours > MAX_DAILY_PLAN_HOURS ? 'text-amber-600' : totalHours >= 6 ? 'text-green-700' : 'text-gray-500'}`}>
-                {totalHours}h planned
+                {formatHoursAmount(totalHours)}h planned
                 {totalHours > MAX_DAILY_PLAN_HOURS && ' — over a standard workday'}
                 {totalHours > 0 && totalHours <= 4 && ' — add more tasks'}
               </div>
@@ -268,7 +273,7 @@ export default function MorningPlanClient({
             {/* Validation warning */}
             {totalHours > 0 && totalHours < 3 && (
               <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800">
-                You&apos;ve planned {totalHours}h — consider adding more tasks for a fuller day.
+                You&apos;ve planned {formatHoursAmount(totalHours)}h — consider adding more tasks for a fuller day.
               </div>
             )}
 
@@ -277,7 +282,7 @@ export default function MorningPlanClient({
               disabled={loading || !canSubmit}
               className="btn-primary w-full py-3 text-base"
             >
-              {loading ? 'Locking in plan...' : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${totalHours}h`}
+              {loading ? 'Locking in plan...' : `Submit plan — ${tasks.length} task${tasks.length !== 1 ? 's' : ''}, ${formatHoursAmount(totalHours)}h`}
             </button>
           </>
         )}

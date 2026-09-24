@@ -11,6 +11,7 @@ import TestCyclesList from '@/components/TestCyclesList'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
 import MilestoneBugWorkflow from '@/components/MilestoneBugWorkflow'
+import MilestoneRetestAction from '@/components/MilestoneRetestAction'
 import {
   BUG_SEVERITY_CONFIG,
   BUG_STATUS_CONFIG,
@@ -278,6 +279,16 @@ function MilestoneReviewsAccordion({
                     </ul>
                   </div>
                 )}
+
+                <MilestoneRetestAction
+                  milestoneId={m.id}
+                  milestoneStatus={m.status}
+                  hasRetestWork={
+                    testCases.some(testCase => testCase.status === 'pending') ||
+                    bugs.some(bug => bug.status === 'fixed')
+                  }
+                  canRequestRetest={allowDevFix}
+                />
 
                 {bugs.length === 0 && !showCases && (
                   <p className="text-xs text-gray-400 py-1">No bugs or test cases logged yet.</p>

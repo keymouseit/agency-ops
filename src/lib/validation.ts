@@ -96,16 +96,32 @@ export function validateRequiredSelect(
   return null
 }
 
-/** Decimal hours only (e.g. 2, 2.5). Rejects HH:MM, letters, and partial parses. */
+/** Plain decimal hours (e.g. 2, 0.25, 2.5). */
 const HOURS_PATTERN = /^-?\d+(\.\d+)?$/
+/** Minutes shorthand: 15m, 30 min, 90 minutes → hours. */
+const MINUTES_PATTERN = /^(-?\d+(?:\.\d+)?)\s*(?:m|mins?|minutes?)$/i
+/** Optional hours suffix: 2h, 0.25 hours. */
+const HOURS_SUFFIX_PATTERN = /^(-?\d+(?:\.\d+)?)\s*(?:h|hrs?|hours?)$/i
 
 export type ParseHoursOk = { ok: true; value: number | null }
 export type ParseHoursErr = { ok: false; error: string }
 export type ParseHoursResult = ParseHoursOk | ParseHoursErr
 
+const HOURS_EXAMPLES = '0.25, 15m, 0.5, or 2'
+
+/**
+ * Format decimal hours for UI (Day load, submit button).
+ * Rounds to 2dp to avoid float noise; keeps quarter-hours readable (0.25).
+ */
+export function formatHoursAmount(hours: number): string {
+  if (!Number.isFinite(hours)) return '0'
+  const rounded = Math.round(hours * 100) / 100
+  return String(rounded)
+}
+
 /**
  * Parse optional decimal hours from form/API input.
- * Empty → null. Non-empty must be a finite number within bounds.
+ * Empty → null. Accepts plain decimals (0.25), optional h/hrs suffix, or minutes (15m).
  * Rejects time-like strings (2:30), NaN, Infinity, and scientific notation.
  */
 export function parseHoursInput(
@@ -134,14 +150,32 @@ export function parseHoursInput(
   if (str.includes(':')) {
     return {
       ok: false,
-      error: `${label} must be decimal hours (for example 2 or 2.5), not a time like 2:30.`,
+      error: `${label} must be decimal hours or minutes (for example ${HOURS_EXAMPLES}), not a time like 2:30.`,
     }
+  }
+
+  const minutesMatch = str.match(MINUTES_PATTERN)
+  if (minutesMatch) {
+    const mins = Number(minutesMatch[1])
+    if (!Number.isFinite(mins)) {
+      return { ok: false, error: `${label} must be a valid number.` }
+    }
+    return finalizeHours(mins / 60, label, opts, max)
+  }
+
+  const hoursSuffixMatch = str.match(HOURS_SUFFIX_PATTERN)
+  if (hoursSuffixMatch) {
+    const hours = Number(hoursSuffixMatch[1])
+    if (!Number.isFinite(hours)) {
+      return { ok: false, error: `${label} must be a valid number.` }
+    }
+    return finalizeHours(hours, label, opts, max)
   }
 
   if (!HOURS_PATTERN.test(str)) {
     return {
       ok: false,
-      error: `${label} must be a valid number (for example 2 or 2.5).`,
+      error: `${label} must be a valid number (for example ${HOURS_EXAMPLES}).`,
     }
   }
 
