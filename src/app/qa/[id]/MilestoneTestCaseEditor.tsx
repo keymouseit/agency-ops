@@ -35,7 +35,13 @@ export default function MilestoneTestCaseEditor({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
-  const canEdit = ['testing', 'done'].includes(milestoneStatus)
+  // Editable while actively testing, after approval, or after send-back for fixes
+  const canEdit = ['testing', 'done', 'in_progress'].includes(milestoneStatus)
+  const showStartTesting = milestoneStatus === 'ready_for_qa'
+  const canView =
+    canEdit ||
+    showStartTesting ||
+    (milestoneStatus === 'ready_for_qa' && testCases.length > 0)
   const summary = testCaseSummary(testCases)
 
   function startEdit(tc: TestCase) {
@@ -141,26 +147,28 @@ export default function MilestoneTestCaseEditor({
     return <p className="text-xs text-gray-400 mt-2">Waiting for developer to send to QA.</p>
   }
 
-  if (milestoneStatus === 'ready_for_qa') {
-    return (
-      <div className="mt-3 pt-3 border-t border-blue-100">
-        <button
-          type="button"
-          onClick={startTesting}
-          disabled={loading === 'start'}
-          className="btn-primary text-xs py-1.5 px-3"
-        >
-          {loading === 'start' ? 'Starting…' : 'Start testing'}
-        </button>
-        <p className="text-xs text-gray-400 mt-2">Begin testing to add test cases and track progress for the developer.</p>
-      </div>
-    )
-  }
-
-  if (!['testing', 'done'].includes(milestoneStatus)) return null
+  if (!canView && !showStartTesting) return null
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-100">
+      {showStartTesting && (
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={startTesting}
+            disabled={loading === 'start'}
+            className="btn-primary text-xs py-1.5 px-3"
+          >
+            {loading === 'start' ? 'Starting…' : 'Start testing'}
+          </button>
+          <p className="text-xs text-gray-400 mt-2">
+            {testCases.length > 0
+              ? 'Existing test cases are listed below. Start testing to edit statuses and add more.'
+              : 'Begin testing to add test cases and track progress for the developer.'}
+          </p>
+        </div>
+      )}
+
       {testCases.length > 0 && (
         <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
           <span>
@@ -249,16 +257,29 @@ export default function MilestoneTestCaseEditor({
                   )}
                 </div>
                 {canEdit && editingId !== tc.id && (
-                  <select
-                    value={tc.status}
-                    disabled={loading === tc.id}
-                    onChange={e => updateCase(tc.id, { status: e.target.value })}
-                    className={`text-xs rounded border px-1.5 py-1 ${cfg.cls}`}
-                  >
-                    {TEST_CASE_STATUSES.map(s => (
-                      <option key={s} value={s}>{TEST_CASE_STATUS_CONFIG[s].label}</option>
-                    ))}
-                  </select>
+                  loading === tc.id ? (
+                    <div
+                      className="inline-flex items-center gap-1.5 text-xs text-gray-500 px-1.5 py-1"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Saving…
+                    </div>
+                  ) : (
+                    <select
+                      value={tc.status}
+                      onChange={e => updateCase(tc.id, { status: e.target.value })}
+                      className="text-xs rounded border border-gray-200 bg-white text-gray-800 px-1.5 py-1"
+                    >
+                      {TEST_CASE_STATUSES.map(s => (
+                        <option key={s} value={s}>{TEST_CASE_STATUS_CONFIG[s].label}</option>
+                      ))}
+                    </select>
+                  )
                 )}
                 {!canEdit && <span className={`badge text-xs ${cfg.cls}`}>{cfg.label}</span>}
               </div>

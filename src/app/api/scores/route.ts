@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRole, auth } from '@/lib/auth'
-import { startOfWeek } from 'date-fns'
+import { getWeekStart } from '@/lib/utils'
 
 export async function POST(req: Request) {
   const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia'])
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
   const data = await req.json()
   const session = await auth()
-  const weekOf = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const weekOf = getWeekStart()
   const founderScore =
     data.founderScore === true ||
     data.founderScore === 'true' ||
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   // Weekly self-assessment is once per week — no resubmission
   if (!founderScore && existing) {
     return NextResponse.json(
-      { error: 'You already submitted your weekly check-in this week.' },
+      { error: 'You already submitted your weekly self-assessment this week.' },
       { status: 409 }
     )
   }

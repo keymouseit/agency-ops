@@ -4,6 +4,8 @@ type ProjectAssignment = {
   assigneeIds?: string[]
 }
 
+const PROJECT_EDIT_BLOCKED_ROLES = ['Dev', 'QA']
+
 export function isProjectAdmin(role?: string | null): boolean {
   return !!role && ['Founder', 'Manager'].includes(role)
 }
@@ -15,6 +17,8 @@ export function canEditProject(
 ): boolean {
   if (!userId) return false
   if (isProjectAdmin(userRole)) return true
+  // Developers and QA can view projects but not edit project details.
+  if (userRole && PROJECT_EDIT_BLOCKED_ROLES.includes(userRole)) return false
   if (project.developerId === userId) return true
   if (project.assigneeIds?.includes(userId)) return true
   if (project.bdMemberId === userId) return true

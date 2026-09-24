@@ -43,7 +43,11 @@ export default function DeveloperMilestones({
   const [loading, setLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  async function updateMilestoneStatus(milestoneId: string, newStatus: string) {
+  async function updateMilestoneStatus(
+    milestoneId: string,
+    newStatus: string,
+    requestRetest = false,
+  ) {
     setLoading(milestoneId)
     try {
       const res = await fetch(`/api/projects/milestones/${milestoneId}`, {
@@ -51,7 +55,7 @@ export default function DeveloperMilestones({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...(requestRetest ? { requestRetest: true } : {}) }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -131,6 +135,9 @@ export default function DeveloperMilestones({
           const canExpand = ['ready_for_qa', 'testing', 'done'].includes(m.status)
           const isExpanded = expanded === m.id
           const openBugs = openBugCount(bugs)
+          const hasRetestWork =
+            testCases.some(testCase => testCase.status === 'pending') ||
+            bugs.some(bug => bug.status === 'fixed')
 
           return (
             <div
@@ -207,11 +214,11 @@ export default function DeveloperMilestones({
                         <>
                           <button
                             type="button"
-                            onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa')}
+                            onClick={() => updateMilestoneStatus(m.id, 'ready_for_qa', hasRetestWork)}
                             className="btn-secondary text-xs py-1 px-2"
                             title="Mark as ready for QA testing"
                           >
-                            → Send to QA
+                            {hasRetestWork ? '→ Send to QA for re-test' : '→ Send to QA'}
                           </button>
                           <button
                             type="button"

@@ -3,7 +3,7 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
 import { TEST_CASE_STATUSES } from '@/lib/milestone-qa'
-import { upsertBugForFailedTestCase } from '@/lib/milestone-bugs'
+import { upsertBugForFailedTestCase, revertQaApprovedMilestoneToInProgress } from '@/lib/milestone-bugs'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 
 export async function PATCH(req: Request, { params }: { params: { id: string; caseId: string } }) {
@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; ca
     return NextResponse.json({ error: 'Test case not found' }, { status: 404 })
   }
 
-  if (!['testing', 'done', 'ready_for_qa'].includes(existing.milestone.status)) {
+  if (!['testing', 'done', 'ready_for_qa', 'in_progress'].includes(existing.milestone.status)) {
     return NextResponse.json({ error: 'Milestone is not in testing' }, { status: 400 })
   }
 
@@ -77,6 +77,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string; ca
       status: testCase.status,
       reportedById: session.user.id,
     })
+
+    if (data.status === 'fail' || data.status === 'blocked') {
+      await revertQaApprovedMilestoneToInProgress({
+        milestoneId: existing.milestone.id,
+        currentStatus: existing.milestone.status,
+        projectId: existing.milestone.project.id,
+        projectName: existing.milestone.project.name,
+        milestoneTitle: existing.milestone.title,
+        reason: `Test case marked ${data.status}: ${testCase.title}`,
+        request: req,
+      })
+    }
 
     if (bug && (data.status === 'fail' || data.status === 'blocked')) {
       await notify(

@@ -10,7 +10,6 @@ type Line = { id?: string; phase: string; feature: string; description: string |
 type ExistingRecord = { id: string; status: string; assignee: { id: string; name: string }; requester: { name: string }; record: { id: string; totalHoursRaw: number; totalHoursFinal: number; bufferPct: number; ratePerHour: number | null; totalPriceFinal: number | null; overallRisk: string; assumptions: string | null; exclusions: string | null; devConfirmedAt: string | null; bdApprovedAt: string | null; bdRevisionNote: string | null; lines: Line[] } | null } | null
 
 const PHASES = ['discovery','design','frontend','backend','mobile','qa','devops','integration','other']
-const COMPLEXITY_COLORS: Record<string, string> = { simple: 'text-green-700 bg-green-50', medium: 'text-amber-700 bg-amber-50', complex: 'text-red-700 bg-red-50' }
 
 const emptyLine = (order: number): Line => ({
   phase: 'frontend', feature: '', description: '', estimatedHours: 0,
@@ -406,7 +405,7 @@ export default function EstimateForm({ lead, members, existingRequest }: { lead:
                       onChange={e => updateLine(i,'estimatedHours',parseFloat(e.target.value)||0)} />
                   </div>
                   <div className="col-span-2">
-                    <select className={`input text-xs py-1.5 ${COMPLEXITY_COLORS[line.complexityLevel]}`}
+                    <select className="input text-xs py-1.5" 
                       value={line.complexityLevel} onChange={e => updateLine(i,'complexityLevel',e.target.value)}>
                       <option value="simple">Simple</option>
                       <option value="medium">Medium</option>

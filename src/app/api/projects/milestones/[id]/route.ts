@@ -47,6 +47,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const userId = session?.user?.id
   const userRole = session?.user?.role
   const data = await req.json()
+  const requestRetest = data.requestRetest === true
 
   if (data.status != null && !isMilestoneStatus(data.status)) {
     return NextResponse.json({ error: 'Invalid milestone status' }, { status: 400 })
@@ -81,6 +82,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if (data.status != null && !['Dev', 'QA', 'Both', 'Founder'].includes(userRole || '')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  if (requestRetest) {
+    if (!['Dev', 'Both', 'Founder'].includes(userRole || '')) {
+      return NextResponse.json({ error: 'Only developers can send a milestone for re-test' }, { status: 403 })
+    }
+    if (data.status !== 'ready_for_qa') {
+      return NextResponse.json({ error: 'A re-test request must move the milestone to QA' }, { status: 400 })
+    }
+    if (existingMilestone.status === 'ready_for_qa') {
+      return NextResponse.json({ error: 'This milestone is already in QA' }, { status: 400 })
+    }
   }
 
   const previousStatus = existingMilestone.status
@@ -151,6 +164,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         milestoneTitle: milestone.title,
         fromStatus: previousStatus,
         toStatus: nextStatus,
+        ...(requestRetest ? { retest: true } : {}),
+      },
+      req,
+    )
+  } else if (requestRetest) {
+    await logProjectQAActivity(
+      'updated',
+      existingMilestone.projectId,
+      existingMilestone.project.name,
+      {
+        qaEventType: 'milestone_ready_for_qa',
+        milestoneId: milestone.id,
+        milestoneTitle: milestone.title,
+        fromStatus: previousStatus,
+        toStatus: nextStatus,
+        retest: true,
       },
       req,
     )
@@ -186,7 +215,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     )
   }
 
-  if (nextStatus === 'ready_for_qa' && previousStatus !== 'ready_for_qa') {
+  if (nextStatus === 'ready_for_qa' && (previousStatus !== 'ready_for_qa' || requestRetest)) {
     const qaMembers = await prisma.teamMember.findMany({
       where: { role: { in: ['QA', 'Both'] }, active: true },
       select: { id: true },
@@ -196,7 +225,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       await notify(
         'milestone_ready_for_qa',
         qaMembers.map(m => m.id),
-        `Milestone ready: ${milestone.title} in ${existingMilestone.project.name}`,
+        `${requestRetest ? 'Milestone ready for QA re-test' : 'Milestone ready'}: ${milestone.title} in ${existingMilestone.project.name}`,
         `/qa/${existingMilestone.projectId}`
       )
     }

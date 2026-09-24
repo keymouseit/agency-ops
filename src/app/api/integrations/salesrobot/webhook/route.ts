@@ -31,11 +31,10 @@ export async function POST(request: Request) {
     const msgPreview = first?.messageText?.trim().slice(0, 80)
     const willAttemptSlack =
       Boolean(first) &&
+      first!.messageSentByMe !== true &&
+      Boolean(first!.messageText?.trim()) &&
       (first!.eventType === 'reply_received' ||
-        (first!.eventType === 'unknown' &&
-          first!.messageSentByMe === false &&
-          Boolean(first!.messageText?.trim()))) &&
-      Boolean(first!.messageText?.trim())
+        (first!.eventType === 'unknown' && first!.messageSentByMe === false))
 
     console.info('[salesrobot] webhook received', {
       integration: 'salesrobot',

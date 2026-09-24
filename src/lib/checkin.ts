@@ -7,7 +7,16 @@ export type CheckInProject = {
   assigneeIds?: string[]
 }
 
-/** Projects a member can report on during weekly check-in. */
+/**
+ * Projects a member can report on during weekly check-in.
+ *
+ * Eligibility (aligned with daily plan assignment rules in project-assignees):
+ * - Dev / default: developerId or ProjectAssignee
+ * - QA: same assignment rule, plus any project currently in `qa` status
+ *   (QA pipeline). Do NOT treat all `active` projects as QA-eligible —
+ *   that falsely inflated "assigned" lists and empty-state copy.
+ * - BD: bdMemberId; Both: assigned or BD; Founder/Manager: all
+ */
 export function checkInProjectsForMember(
   projects: CheckInProject[],
   memberId: string,
@@ -18,7 +27,7 @@ export function checkInProjectsForMember(
 
   switch (role) {
     case 'QA':
-      return projects.filter(p => p.status === 'qa' || p.status === 'active')
+      return projects.filter(p => isAssigned(p) || p.status === 'qa')
     case 'BD':
       return projects.filter(p => p.bdMemberId === memberId)
     case 'Dev':

@@ -133,6 +133,8 @@ function shouldNotifySlack(event: NormalizedWebhookEvent): boolean {
 
 function slackSkipReason(event: NormalizedWebhookEvent): string | null {
   if (shouldNotifySlack(event)) {
+    // Contact-reply webhooks should be inbound; never Slack our own sends.
+    if (event.messageSentByMe === true) return 'outbound_message'
     if (!event.messageText?.trim()) return 'reply_without_message_text'
     return null
   }

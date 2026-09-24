@@ -75,7 +75,7 @@ export function formatQAActivitySummary(metadata: Record<string, unknown> | null
     case 'milestone_started':
       return `Started milestone "${metadata.milestoneTitle}"`
     case 'milestone_ready_for_qa':
-      return `Sent milestone "${metadata.milestoneTitle}" to QA`
+      return `Sent milestone "${metadata.milestoneTitle}" to QA${metadata.retest ? ' for re-test' : ''}`
     case 'milestone_testing_started':
       return `Started testing milestone "${metadata.milestoneTitle}"`
     case 'milestone_test_case_added':

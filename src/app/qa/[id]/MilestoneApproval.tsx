@@ -241,7 +241,7 @@ export default function MilestoneApproval({
                       {loading === m.id ? 'Updating…' : 'Undo'}
                     </button>
                   )}
-                  {(isTesting || isApproved || isReadyForQA) && (
+                  {(isTesting || isApproved || isReadyForQA || isInProgress) && (
                     <button
                       type="button"
                       onClick={() => setExpanded(isExpanded ? null : m.id)}
