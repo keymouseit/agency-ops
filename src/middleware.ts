@@ -30,10 +30,11 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Public integration webhook + cron (auth handled inside the route)
+  // Public integration webhook + cron + mobile device registration (auth handled inside the route)
   if (
     pathname === '/api/integrations/salesrobot/webhook' ||
-    pathname.startsWith('/api/cron/')
+    pathname.startsWith('/api/cron/') ||
+    pathname === '/api/notifications/register-device'
   ) {
     return NextResponse.next()
   }
