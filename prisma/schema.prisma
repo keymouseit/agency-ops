@@ -960,6 +960,10 @@ model LeaveRequest {
   approvedBy      TeamMember? @relation("ApprovedLeaves", fields: [approvedById], references: [id])
   approvalNotes   String?
   approvedAt      DateTime?
+
+  @@index([status, appliedAt])
+  @@index([memberId, status])
+  @@index([startDate, endDate])
 }
 
 // ─── COMPANY BRANDING ────────────────────────────────────────

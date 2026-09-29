@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendLeaveAppliedEmail, leaveNotifyEmails } from '@/lib/notifications'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
-import { formatIstDate } from '@/lib/ist'
+import { formatIstDate, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { revalidateLeavePages } from '@/lib/cache-tags'
 import {
   assertLeaveTypePolicy,
@@ -14,7 +14,6 @@ import {
   getAvailableCompOffDays,
   syncShortLeaveBalance,
 } from '@/lib/leave-balance'
-import { istYearAndMonth } from '@/lib/ist'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -43,7 +42,7 @@ export async function GET(request: Request) {
     const leaves = await prisma.leaveRequest.findMany({
       where: whereClause,
       include: {
-        member: { select: { name: true, email: true } },
+        member: { select: { id: true, name: true, email: true, role: true } },
         approvedBy: { select: { name: true } },
       },
       orderBy: { startDate: 'desc' },
@@ -96,12 +95,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const todayIst = istDateInputValue(new Date())
+    const startIst = istDateInputValue(start)
 
-    if (!wantsAdminLog && start < today) {
+    if (!wantsAdminLog && startIst < todayIst) {
       return NextResponse.json(
-        { error: 'Standard employees can only apply for future dates' },
+        { error: 'Standard employees can only apply for today or future dates' },
         { status: 400 }
       )
     }
@@ -218,7 +217,12 @@ export async function POST(request: Request) {
       'leave-applied-side-effects'
     )
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
     return NextResponse.json(leaveRequest, { status: 201 })
   } catch (error: unknown) {
     console.error('Error creating leave request:', error)

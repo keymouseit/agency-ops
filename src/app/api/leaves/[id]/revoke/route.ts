@@ -9,6 +9,8 @@ import { removeEventFromGoogleCalendar } from '@/lib/gcal'
 
 const ALLOWED = ['Founder', 'HR', 'Manager']
 
+export const dynamic = 'force-dynamic'
+
 /** Revoke an approved leave and roll back paid balance / short-leave count. */
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -128,8 +130,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       'leave-revoke-side-effects'
     )
 
-    revalidateLeavePages()
-    return NextResponse.json(updated)
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
+    return NextResponse.json(updated, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error: unknown) {
     console.error('Error revoking leave:', error)
     const msg = error instanceof Error ? error.message : 'Unknown error'

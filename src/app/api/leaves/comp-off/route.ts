@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getAvailableCompOffDays, syncShortLeaveBalance } from '@/lib/leave-balance'
 import { istYearAndMonth } from '@/lib/ist'
 import { revalidateLeavePages } from '@/lib/cache-tags'
+import { runInBackground } from '@/lib/background'
 
 export const dynamic = 'force-dynamic'
 
@@ -168,7 +169,12 @@ export async function POST(request: Request) {
       },
     })
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
 
     const available = await getAvailableCompOffDays(memberId, year)
 
