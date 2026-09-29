@@ -7,6 +7,7 @@ import {
   computeLeaveBalanceSplit,
 } from '@/lib/leave-balance'
 import { revalidateLeavePages } from '@/lib/cache-tags'
+import { runInBackground } from '@/lib/background'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -120,7 +121,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       })
     }
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
     return NextResponse.json(updatedLeave, { status: 200 })
   } catch (error: unknown) {
     console.error('Error updating leave request:', error)
@@ -177,7 +183,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
     await prisma.leaveRequest.delete({ where: { id } })
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
     console.error('Error deleting leave request:', error)

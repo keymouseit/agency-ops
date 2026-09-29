@@ -10,6 +10,8 @@ import { revalidateLeavePages } from '@/lib/cache-tags'
 
 const ALLOWED = ['Founder', 'HR', 'Manager']
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await auth()
@@ -161,8 +163,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       `leave-${status}-side-effects`
     )
 
-    revalidateLeavePages()
-    return NextResponse.json(updatedLeave)
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
+    return NextResponse.json(updatedLeave, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error: unknown) {
     console.error('Error updating leave status:', error)
     const msg = error instanceof Error ? error.message : 'Unknown error'
