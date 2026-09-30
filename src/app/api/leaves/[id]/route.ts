@@ -8,6 +8,8 @@ import {
 } from '@/lib/leave-balance'
 import { revalidateLeavePages } from '@/lib/cache-tags'
 import { runInBackground } from '@/lib/background'
+import { formatIstDate } from '@/lib/ist'
+import { notifyFounderLeaveEvent } from '@/lib/push-notifications'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -124,8 +126,25 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     runInBackground(
       (async () => {
         revalidateLeavePages()
+
+        const member = await prisma.teamMember.findUnique({
+          where: { id: updatedLeave.memberId },
+          select: { name: true },
+        })
+        const memberName = member?.name || 'A team member'
+        const startLabel = formatIstDate(updatedLeave.startDate)
+        const endLabel = formatIstDate(updatedLeave.endDate)
+        await notifyFounderLeaveEvent({
+          eventType: 'updated',
+          applicantName: memberName,
+          leaveType: updatedLeave.leaveType,
+          dates: `${startLabel} to ${endLabel}`,
+          leaveId: updatedLeave.id,
+          reason: updatedLeave.reason,
+          applicantMemberId: updatedLeave.memberId,
+        })
       })(),
-      'revalidate-leave-pages'
+      'leave-update-side-effects'
     )
     return NextResponse.json(updatedLeave, { status: 200 })
   } catch (error: unknown) {

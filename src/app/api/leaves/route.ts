@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendLeaveAppliedEmail, leaveNotifyEmails } from '@/lib/notifications'
 import { notify } from '@/lib/notify'
+import { notifyFounderLeaveEvent } from '@/lib/push-notifications'
 import { runInBackground } from '@/lib/background'
 import { formatIstDate, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { revalidateLeavePages } from '@/lib/cache-tags'
@@ -78,6 +79,10 @@ export async function POST(request: Request) {
       wantsAdminLog && sessionIsAdmin && typeof body.memberId === 'string'
         ? body.memberId
         : session.user.id
+
+    if (!wantsAdminLog && (session.user.role === 'Founder' || session.user.email === 'shiven@keymouse.com')) {
+      return NextResponse.json({ error: 'Founders cannot apply for leaves.' }, { status: 400 })
+    }
 
     if (!leaveType || !startDate || !endDate) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -213,6 +218,16 @@ export async function POST(request: Request) {
           `${leaveRequest.member.name} applied for ${typeLabel} leave${unpaidLabel} — ${startLabel} to ${endLabel}`,
           '/leaves'
         )
+
+        await notifyFounderLeaveEvent({
+          eventType: 'applied',
+          applicantName: leaveRequest.member.name,
+          leaveType: leaveRequest.leaveType,
+          dates: `${startLabel} to ${endLabel}`,
+          leaveId: leaveRequest.id,
+          reason: leaveRequest.reason,
+          applicantMemberId: leaveRequest.memberId,
+        })
       })(),
       'leave-applied-side-effects'
     )

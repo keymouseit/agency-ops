@@ -72,7 +72,7 @@ export function projectEditFields(
   fields.add('name')
   fields.add('clientName')
 
-  if (project.developerId === userId || project.assigneeIds?.includes(userId)) {
+  if (userId && (project.developerId === userId || project.assigneeIds?.includes(userId))) {
     ;['techStack', 'estimatedHours', 'actualHours', 'startDate', 'estimatedEnd'].forEach(f =>
       fields.add(f as ProjectEditField),
     )
