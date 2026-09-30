@@ -7,10 +7,12 @@ import { google } from "googleapis";
 import path from "path";
 import fs from "fs";
 
+import { sendApnsPush } from "@/lib/apns-push";
+
 /**
- * Send push notification directly to native Android device via Firebase Cloud Messaging HTTP v1 API
+ * Send push notification directly via Firebase Cloud Messaging HTTP v1 API (supports Android & iOS APNs relay)
  */
-async function sendFcmNotification(token: string, title: string, body: string, data: Record<string, any> = {}) {
+async function sendFcmNotification(token: string, title: string, body: string, data: Record<string, any> = {}, platform = "android") {
   try {
     let auth: any = null;
     let projectId = "agency-ops-cb73e";
@@ -40,7 +42,7 @@ async function sendFcmNotification(token: string, title: string, body: string, d
       });
       projectId = await auth.getProjectId();
     } else {
-      logger.warn("Firebase credentials not found (checked FIREBASE_SERVICE_ACCOUNT env and service-account.json)");
+      console.warn("⚠️ [FCM PUSH] Firebase credentials not found (checked FIREBASE_SERVICE_ACCOUNT env and service-account.json)");
       return;
     }
 
@@ -49,7 +51,7 @@ async function sendFcmNotification(token: string, title: string, body: string, d
     const accessToken = tokenRes.token;
 
     if (!accessToken) {
-      logger.error("Failed to obtain Google access token for FCM");
+      console.error("❌ [FCM PUSH] Failed to obtain Google access token for FCM");
       return;
     }
 
@@ -57,6 +59,12 @@ async function sendFcmNotification(token: string, title: string, body: string, d
     for (const [k, v] of Object.entries(data)) {
       stringData[k] = typeof v === "string" ? v : JSON.stringify(v);
     }
+
+    console.log(`🔥 [PUSH NOTIFICATION - FCM DISPATCH]`);
+    console.log(`   Target Token: ${token.substring(0, 20)}...`);
+    console.log(`   Platform: ${platform.toUpperCase()}`);
+    console.log(`   Project ID: ${projectId}`);
+    console.log(`   Title: "${title}"`);
 
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: "POST",
@@ -77,6 +85,25 @@ async function sendFcmNotification(token: string, title: string, body: string, d
             notification: {
               channelId: "leaves",
               tag: data?.leaveId ? `leave_${data.leaveId}` : undefined,
+              sound: "default",
+            },
+          },
+          apns: {
+            headers: {
+              "apns-priority": "10",
+              "apns-push-type": "alert",
+              "apns-topic": "com.keymouseit.agencyops",
+            },
+            payload: {
+              aps: {
+                alert: {
+                  title,
+                  subtitle: "Agency Ops",
+                  body,
+                },
+                sound: "default",
+                badge: 1,
+              },
             },
           },
           data: stringData,
@@ -85,9 +112,13 @@ async function sendFcmNotification(token: string, title: string, body: string, d
     });
 
     const resJson = await res.json().catch(() => ({}));
-    logger.info("FCM HTTP v1 push response", { status: res.status, resJson });
-  } catch (err) {
-    logger.error("Error sending direct FCM push", err as Error);
+    if (res.ok) {
+      console.log(`✅ [FCM PUSH SUCCESS] Status: ${res.status}, Name: ${resJson.name || "Sent"}`);
+    } else {
+      console.warn(`⚠️ [FCM PUSH FAILED] Status: ${res.status}, Error:`, JSON.stringify(resJson, null, 2));
+    }
+  } catch (err: any) {
+    console.error("❌ [FCM PUSH EXCEPTION]:", err?.message || err);
   }
 }
 
@@ -126,9 +157,11 @@ export async function registerDeviceToken(params: {
         type,
       },
     });
+    console.log(`💾 [DEVICE TOKEN DB UPSERT] Member: ${memberId} | Platform: ${platform} | Type: ${type}`);
     logger.info("Device token registered successfully", { memberId, platform, type });
     return record;
   } catch (error) {
+    console.error("❌ [DEVICE TOKEN DB ERROR]:", error);
     logger.error("Failed to register device token", error as Error, { memberId });
     return null;
   }
@@ -143,14 +176,16 @@ export async function unregisterDeviceToken(token: string) {
     await getDeviceTokenModel().deleteMany({
       where: { token },
     });
+    console.log(`🗑️ [DEVICE TOKEN DB DELETE] Token removed: ${token.substring(0, 15)}...`);
     logger.info("Device token unregistered", { token });
   } catch (error) {
+    console.error("❌ [DEVICE TOKEN UNREGISTER ERROR]:", error);
     logger.error("Failed to unregister device token", error as Error, { token });
   }
 }
 
 /**
- * Send push notifications to target team members using Expo Push Notification service
+ * Send push notifications to target team members using Expo Push Notification service and Direct APNs/FCM
  */
 export async function sendPushNotification({
   memberIds,
@@ -168,37 +203,53 @@ export async function sendPushNotification({
       select: {
         token: true,
         platform: true,
+        type: true,
         memberId: true,
       },
     });
 
     if (deviceTokens.length === 0) {
-      logger.info("No registered push device tokens found for members", { memberIds });
       return;
     }
 
-    // Deduplicate device tokens so a physical device is never messaged multiple times
+    // Deduplicate device tokens
     const seen = new Set<string>();
-    const uniqueTokens = deviceTokens.filter((dt) => {
+    const uniqueTokens = deviceTokens.filter((dt: any) => {
       if (seen.has(dt.token)) return false;
       seen.add(dt.token);
       return true;
     });
 
-    const expoTokens = uniqueTokens.filter((dt) => dt.token.startsWith("ExponentPushToken"));
-    const fcmTokens = uniqueTokens.filter((dt) => !dt.token.startsWith("ExponentPushToken"));
+    console.log(`[push] Dispatching "${title}" to ${uniqueTokens.length} device(s)`);
 
-    // 1. Send to FCM native tokens directly via Firebase Cloud Messaging
+    const expoTokens = uniqueTokens.filter((dt: any) => dt.token.startsWith("ExponentPushToken"));
+    const nativeTokens = uniqueTokens.filter((dt: any) => !dt.token.startsWith("ExponentPushToken"));
+    const apnsTokens = nativeTokens.filter((dt: any) => (dt.platform || "").toLowerCase() === "ios" || (dt.type || "").toLowerCase() === "apns");
+    const fcmTokens = nativeTokens.filter((dt: any) => (dt.platform || "").toLowerCase() !== "ios" && (dt.type || "").toLowerCase() !== "apns");
+
+    // 1. Direct Apple APNs Dispatch (Identical to bookone-server)
+    for (const apnsDevice of apnsTokens) {
+      const apnsResult = await sendApnsPush(apnsDevice.token, {
+        title,
+        body,
+        data,
+      });
+      if (!apnsResult.ok) {
+        console.warn(`[push][apns] Delivery failed for ${apnsDevice.token.slice(0, 8)}... (${apnsResult.reason || "failed"})`);
+      }
+    }
+
+    // 2. Direct FCM native tokens (Android)
     for (const fcmDevice of fcmTokens) {
       await sendFcmNotification(fcmDevice.token, title, body, {
         ...data,
         targetMemberId: fcmDevice.memberId,
-      });
+      }, "android");
     }
 
-    // 2. Send to Expo push tokens via Expo Push API
+    // 3. Expo Push API (Handles both iOS and Android automatically)
     if (expoTokens.length > 0) {
-      const messages = expoTokens.map((dt) => ({
+      const messages = expoTokens.map((dt: any) => ({
         to: dt.token,
         sound: "default",
         title,
@@ -226,12 +277,9 @@ export async function sendPushNotification({
             body: JSON.stringify(chunk),
           });
 
-          const resData = await response.json().catch(() => ({}));
-          logger.info("Expo push notifications sent", {
-            count: chunk.length,
-            status: response.status,
-            response: resData,
-          });
+          if (!response.ok) {
+            console.warn(`[push][expo] Chunk dispatch status ${response.status}`);
+          }
         } catch (chunkErr) {
           logger.error("Error sending push notification chunk", chunkErr as Error);
         }
@@ -276,6 +324,8 @@ export async function notifyFounderLeaveEvent(params: {
           .filter((id) => id !== applicantMemberId)
       ),
     ];
+
+    console.log(`[leave-event] ${eventType.toUpperCase()} by ${applicantName} (${dates}) -> notifying ${founderIds.length} founder(s)`);
 
     if (founderIds.length === 0) return;
 

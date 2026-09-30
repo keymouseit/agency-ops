@@ -24,23 +24,31 @@ export async function POST(request: Request) {
     }
 
     if (!targetMemberId) {
+      console.warn("[PUSH NOTIFICATION REGISTER] ⚠️ Rejected: Sign in required or member not found. Body:", body);
       return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     }
 
     if (!token || typeof token !== "string") {
+      console.warn("[PUSH NOTIFICATION REGISTER] ⚠️ Rejected: Valid token required. Body:", body);
       return NextResponse.json({ error: "Valid token is required." }, { status: 400 });
     }
 
+    const cleanToken = token.trim();
+    const cleanPlatform = (platform || "android").toLowerCase();
+    const cleanType = (type || (cleanToken.startsWith("ExponentPushToken") ? "expo" : cleanPlatform === "ios" ? "apns" : "fcm")).toLowerCase();
+
+    console.log(`[push] Registered ${cleanPlatform} device (${cleanType}) for ${email || targetMemberId}`);
+
     const record = await registerDeviceToken({
       memberId: targetMemberId,
-      token: token.trim(),
-      platform: platform || "android",
-      type: type || "expo",
+      token: cleanToken,
+      platform: cleanPlatform,
+      type: cleanType,
     });
 
     return NextResponse.json({ success: true, record });
   } catch (error: any) {
-    console.error("[register-device error]:", error);
+    console.error("❌ [PUSH NOTIFICATION REGISTER ERROR]:", error);
     return NextResponse.json({ error: error.message || "Failed to register device" }, { status: 500 });
   }
 }
