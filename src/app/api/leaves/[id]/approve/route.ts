@@ -146,7 +146,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             'leave_approved',
             [leave.memberId],
             `Management approved your leave request${notesPart}`,
-            '/leaves'
+            `/leaves?id=${leave.id}&date=${leave.startDate}`
           )
           await sendLeaveApprovalEmail(updatedLeave, actorLabel)
           await addEventToGoogleCalendar(updatedLeave)
@@ -155,7 +155,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             'leave_rejected',
             [leave.memberId],
             `Management rejected your leave request${notesPart}`,
-            '/leaves'
+            `/leaves?id=${leave.id}&date=${leave.startDate}`
           )
           await sendLeaveRejectedEmail(updatedLeave, actorLabel)
         }
