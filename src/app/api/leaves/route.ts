@@ -216,7 +216,7 @@ export async function POST(request: Request) {
           'leave_applied',
           reviewerIds,
           `${leaveRequest.member.name} applied for ${typeLabel} leave${unpaidLabel} — ${startLabel} to ${endLabel}`,
-          '/leaves'
+          `/leaves?id=${leaveRequest.id}&date=${leaveRequest.startDate}`
         )
 
         await notifyFounderLeaveEvent({

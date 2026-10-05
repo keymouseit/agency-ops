@@ -123,7 +123,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
           'leave_rejected',
           [leave.memberId],
           `Management revoked your approved leave — ${notes}`,
-          '/leaves'
+          `/leaves?id=${leave.id}&date=${leave.startDate}`
         )
         await removeEventFromGoogleCalendar(updated)
       })(),
