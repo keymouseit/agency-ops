@@ -229,6 +229,9 @@ export default function MilestoneTestCaseEditor({
                   ) : (
                     <div className="flex items-center gap-1.5 min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">{tc.title}</div>
+                      {tc.status === 'fail' && (
+                        <span className="badge text-xs bg-red-100 text-red-800 shrink-0">Failed</span>
+                      )}
                       {canEdit && (
                         <button
                           type="button"

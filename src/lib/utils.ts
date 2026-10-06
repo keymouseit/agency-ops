@@ -36,6 +36,60 @@ export function normalizeMomFinalStatus(value: string | null | undefined): MomFi
   return 'Active'
 }
 
+
+export const MOM_ACTION_STATUSES = ['Open', 'InProgress', 'Done', 'NotCompleted', 'Blocked', 'Skipped'] as const
+export type MomActionStatus = (typeof MOM_ACTION_STATUSES)[number]
+
+export function isMomActionStatus(value: string): value is MomActionStatus {
+  return (MOM_ACTION_STATUSES as readonly string[]).includes(value)
+}
+
+/** Done / NotCompleted / Skipped — closed/final outcomes (not overdue, not open metrics). */
+export const MOM_ACTION_CLOSED_STATUSES = ['Done', 'NotCompleted', 'Skipped'] as const
+
+export function isMomActionClosed(status: string) {
+  return (MOM_ACTION_CLOSED_STATUSES as readonly string[]).includes(status)
+}
+
+/** Open / InProgress / Blocked — still need attention. */
+export function isMomActionOpenish(status: string) {
+  return status === 'Open' || status === 'InProgress' || status === 'Blocked'
+}
+
+export function momActionStatusLabel(status: string) {
+  if (status === 'InProgress') return 'In progress'
+  if (status === 'Done') return 'Completed'
+  if (status === 'NotCompleted') return 'Not completed'
+  return status
+}
+
+/** Statuses that require at least one structured action item. */
+export const MOM_STATUSES_REQUIRING_ACTIONS = [
+  'Active',
+  'Waiting Response',
+  'Demo Given / Committed / Prepared',
+] as const
+
+export function momRequiresActionItems(finalStatus: string) {
+  return (MOM_STATUSES_REQUIRING_ACTIONS as readonly string[]).includes(finalStatus)
+}
+
+/** Open / InProgress block marking follow-up as attended. */
+export const MOM_ACTION_BLOCKING_ATTEND = ['Open', 'InProgress'] as const
+
+export function isMomActionBlockingAttend(status: string) {
+  return (MOM_ACTION_BLOCKING_ATTEND as readonly string[]).includes(status)
+}
+
+export const MOM_ACTION_STATUS_COLORS: Record<string, string> = {
+  Open: 'bg-amber-50 text-amber-800 border-amber-200',
+  InProgress: 'bg-blue-50 text-blue-800 border-blue-200',
+  Done: 'bg-green-50 text-green-800 border-green-200',
+  NotCompleted: 'bg-orange-50 text-orange-800 border-orange-200',
+  Blocked: 'bg-red-50 text-red-800 border-red-200',
+  Skipped: 'bg-slate-50 text-slate-700 border-slate-200',
+}
+
 export const INDUSTRIES = [
   'Healthcare',
   'FinTech',

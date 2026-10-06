@@ -1,6 +1,5 @@
 /** Normalized key to group MOMs for the same client + company */
 import { differenceInDays, startOfDay } from 'date-fns'
-import { fmtDate } from '@/lib/utils'
 
 export function momClientKey(clientName: string, companyName?: string | null) {
   const name = clientName.trim().toLowerCase()
@@ -75,10 +74,35 @@ export function followUpStatusLabel(r: MomFollowUpFields, today = startOfDay(new
     return { text: 'Completed', cls: 'bg-green-50 text-green-700 border-green-100' }
   }
   const days = differenceInDays(startOfDay(r.followUpDate), today)
-  if (days < 0) return { text: `${Math.abs(days)}d overdue`, cls: 'bg-red-50 text-red-700 border-red-100' }
-  if (days === 0) return { text: 'Due today', cls: 'bg-amber-50 text-amber-800 border-amber-100' }
-  if (days <= 7) return { text: `Upcoming · in ${days}d`, cls: 'bg-blue-50 text-blue-700 border-blue-100' }
-  return { text: `Upcoming · ${fmtDate(r.followUpDate)}`, cls: 'bg-slate-50 text-slate-600 border-slate-100' }
+  if (days < 0) {
+    return { text: `${Math.abs(days)}d overdue`, cls: 'bg-red-50 text-red-700 border-red-100' }
+  }
+  if (days === 0) {
+    return { text: 'Next call today', cls: 'bg-amber-50 text-amber-800 border-amber-100' }
+  }
+  if (days === 1) {
+    return { text: 'Next call tomorrow', cls: 'bg-blue-50 text-blue-700 border-blue-100' }
+  }
+  const cls = days <= 7
+    ? 'bg-blue-50 text-blue-700 border-blue-100'
+    : 'bg-slate-50 text-slate-600 border-slate-100'
+  return { text: `Next call in ${days} days`, cls }
+}
+
+/** Pending next-call on a thread: latest child with pending follow-up, else root if pending. */
+export function threadPendingFollowUp<T extends MomFollowUpFields & { meetingDate?: Date | null }>(
+  root: T,
+  children: T[],
+): T | null {
+  const pendingChildren = children.filter(isFollowUpPending)
+  if (pendingChildren.length > 0) {
+    return [...pendingChildren].sort((a, b) => {
+      const aTime = (a.followUpDate ?? a.meetingDate)?.getTime?.() ?? 0
+      const bTime = (b.followUpDate ?? b.meetingDate)?.getTime?.() ?? 0
+      return bTime - aTime
+    })[0]
+  }
+  return isFollowUpPending(root) ? root : null
 }
 
 export function groupMomsByClient<T extends MomRecordBase>(records: T[]) {

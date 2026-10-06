@@ -7,6 +7,7 @@ import { getApprovedOnLeaveToday } from '@/lib/leave-today'
 import OnLeaveTodayCard from '@/components/OnLeaveTodayCard'
 import { DashboardKpiFallback, CardSectionFallback } from '@/components/SectionFallbacks'
 import DashboardBody from './DashboardBody'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,21 +24,23 @@ async function DashboardLeave() {
 
 export default async function Dashboard() {
   const session = await auth()
-  const firstName = (session?.user?.name ?? '').split(' ')[0]
+  const firstName = shortDisplayName(session?.user?.name ?? '')
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {firstName ? `${timeGreeting()}, ${firstName}.` : timeGreeting()}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Here&apos;s everything that needs your attention today.
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 leading-tight">
+              {firstName ? `${timeGreeting()}, ${firstName}.` : timeGreeting()}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1 sm:mt-0.5 leading-snug">
+              Here&apos;s everything that needs your attention today.
+            </p>
+          </div>
+          <p className="text-xs text-gray-400 tabular-nums sm:text-right shrink-0 pt-0.5">
+            {formatIstWeekdayLong(new Date())}
           </p>
-        </div>
-        <div className="text-xs text-gray-400">
-          {formatIstWeekdayLong(new Date())}
         </div>
       </div>
 

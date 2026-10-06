@@ -92,7 +92,12 @@ export default function MilestoneTestProgress({
                 >
                   <span className={`badge shrink-0 ${cfg.cls}`}>{cfg.label}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-gray-800 font-medium">{tc.title}</div>
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <div className="text-gray-800 font-medium">{tc.title}</div>
+                      {tc.status === 'fail' && (
+                        <span className="badge text-xs bg-red-100 text-red-800">Failed</span>
+                      )}
+                    </div>
                     {tc.notes && (
                       <p className="text-gray-500 mt-0.5 whitespace-pre-wrap">{tc.notes}</p>
                     )}

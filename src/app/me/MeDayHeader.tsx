@@ -42,7 +42,7 @@ function StatusPill({
   )
 }
 
-/** Compact top strip — greeting, date, and status pills in one slim bar. */
+/** Compact top strip — greeting, date, and status pills. */
 export default function MeDayHeader({
   greeting,
   firstName,
@@ -59,26 +59,27 @@ export default function MeDayHeader({
   const roleCls = ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-700'
 
   return (
-    <header className="me-enter me-stagger-1 me-surface mb-5">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h1 className="text-base sm:text-lg font-semibold text-gray-950 tracking-tight leading-none">
-            {greeting}, {firstName}
-          </h1>
-          <span className="hidden sm:inline text-gray-200" aria-hidden>
-            ·
-          </span>
-          <span className={`badge ${roleCls}`}>{role}</span>
-          <span className="text-xs text-gray-400 tabular-nums">{dateLabel}</span>
-          {isWeekday && hasPlan && totalTasks > 0 && (
-            <span className="text-xs text-gray-400 tabular-nums">
-              · {doneTasks}/{totalTasks} · {totalHours}h
-            </span>
-          )}
+    <header className="me-enter me-stagger-1 me-surface mb-4 sm:mb-5">
+      <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-base sm:text-lg font-semibold text-gray-950 tracking-tight leading-snug">
+              {greeting}, {firstName}
+            </h1>
+            <span className={`badge ${roleCls} text-[10px] sm:text-xs`}>{role}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-400 tabular-nums">
+            <span>{dateLabel}</span>
+            {isWeekday && hasPlan && totalTasks > 0 && (
+              <span className="hidden sm:inline">
+                · {doneTasks}/{totalTasks} · {totalHours}h
+              </span>
+            )}
+          </div>
         </div>
 
         {isWeekday && (
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0 pt-0.5 border-t border-gray-100 sm:border-0 sm:pt-0">
             <StatusPill label="Morning plan" done={hasPlan} pendingLabel="Plan pending" />
             <StatusPill label="EOD report" done={hasEOD} pendingLabel="EOD pending" />
             <StatusPill label="Weekly check-in" done={hasCheckin} pendingLabel="Check-in due" />

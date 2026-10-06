@@ -16,6 +16,7 @@ import MeWeekScorePanel, { MeWeekScorePanelFallback } from './MeWeekScorePanel'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
 import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate, findCarryOverMovedTasks } from '@/lib/daily'
 import MovedTasksCard from './MovedTasksCard'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +129,7 @@ export default async function MePage() {
   const blockedTasks   = todayTasks.filter(t => t.status === 'blocked').length
   const totalHours     = todayTasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
   const hasCheckin  = !!thisWeekScore
-  const firstName = member.name.split(' ')[0]
+  const firstName = shortDisplayName(member.name)
   const greeting  = timeGreeting()
 
   const PRIORITY_DOT: Record<string, string> = {

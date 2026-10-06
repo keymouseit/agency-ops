@@ -9,6 +9,7 @@ import NavCountBadge from './NavCountBadge'
 import { useNavigationPending } from './NavigationProvider'
 import { usePendingLeaveCount } from '@/hooks/usePendingLeaveCount'
 import type { Branding } from '@/lib/branding'
+import { shortDisplayName } from '@/lib/employee-order'
 
 /** Warm these on idle so the first intentional click is already cached. */
 const PRIMARY_PREFETCH: Record<string, string[]> = {
@@ -366,15 +367,17 @@ function UserMenuDropdown({
           <div className="flex items-center gap-3">
             <UserAvatar name={name} size="lg" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+                {role && (
+                  <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${roleCls}`}>
+                    {role === 'SocialMedia' ? 'Social' : role}
+                  </span>
+                )}
+              </div>
               {email && <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>}
             </div>
           </div>
-          {role && (
-            <span className={`inline-flex mt-3 text-[11px] px-2.5 py-0.5 rounded-full font-medium ${roleCls}`}>
-              {role === 'SocialMedia' ? 'Social Media' : role}
-            </span>
-          )}
         </div>
 
         <div className="p-1.5">
@@ -449,6 +452,7 @@ export default function Nav({
   const { startNavigation } = useNavigationPending()
   const [signingOut, setSigningOut] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const user = session?.user
     ? {
@@ -458,7 +462,7 @@ export default function Nav({
       }
     : initialUser
   const role = user?.role ?? ''
-  const firstName = (user?.name ?? '').split(' ')[0]
+  const firstName = shortDisplayName(user?.name ?? '')
   const fullName = user?.name ?? ''
   const navItems = NAV_STRUCTURE[role as keyof typeof NAV_STRUCTURE] || []
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
@@ -503,8 +507,28 @@ export default function Nav({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- warm once per role session
   }, [role, homeHref, router])
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [path])
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMobileNavOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [mobileNavOpen])
+
   function handleNavigate() {
     startNavigation()
+    setMobileNavOpen(false)
   }
 
   async function handleSignOut() {
@@ -515,10 +539,30 @@ export default function Nav({
   if (!user) return null
 
   return (
-    <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2">
-      <div className="app-header">
-        <div className="flex h-12 items-center gap-3 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 overflow-visible">
+    <>
+    <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2 px-3 sm:px-0">
+      <div className="app-header sm:px-0">
+        <div className="flex h-12 items-center gap-2 sm:gap-3 px-2.5 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
+          {/* Mobile menu button */}
+          <button
+            type="button"
+            className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 shrink-0 -ml-0.5"
+            aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(open => !open)}
+          >
+            {mobileNavOpen ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
+
+          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1 overflow-visible">
             <Link
               href={homeHref}
               prefetch={false}
@@ -530,12 +574,13 @@ export default function Nav({
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-[10px] font-bold text-white">
                 {branding.initials}
               </span>
-              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden lg:block">
+              <span className="font-semibold text-gray-900 text-sm tracking-tight hidden sm:block md:hidden lg:block">
                 {branding.name}
               </span>
             </Link>
 
-            <nav className="flex items-center gap-0.5 min-w-0 overflow-visible">
+            {/* Desktop nav */}
+            <nav className="hidden md:flex items-center gap-0.5 min-w-0 overflow-visible">
               {navItems.map((item, idx) =>
                 'items' in item && item.items ? (
                   <NavDropdown
@@ -563,14 +608,14 @@ export default function Nav({
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
             <NotificationBell />
 
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className={`flex items-center gap-2 rounded-lg border border-gray-200 pl-1 pr-2 py-1 transition-colors max-w-[11rem] sm:max-w-none ${
+                className={`flex items-center gap-2 rounded-lg border border-gray-200 pl-1 pr-1.5 sm:pr-2 py-1 transition-colors max-w-[11rem] sm:max-w-none ${
                   userDropdownOpen ? 'bg-gray-50' : 'hover:bg-gray-50'
                 }`}
               >
@@ -612,5 +657,113 @@ export default function Nav({
         </div>
       </div>
     </header>
+
+      {/* Outside sticky header so fixed positioning is viewport-relative */}
+      {mobileNavOpen && (
+        <div className="md:hidden fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <button
+            type="button"
+            className="absolute inset-0 bg-gray-900/40"
+            aria-label="Close menu"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <aside className="absolute top-0 left-0 bottom-0 flex w-[min(100%,20rem)] flex-col bg-white shadow-xl ring-1 ring-black/5 animate-[nav-drawer-in_0.2s_ease-out]">
+            <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-[11px] font-bold text-white shrink-0">
+                  {branding.initials}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">{branding.name}</div>
+                  <div className="text-[11px] text-gray-500 truncate">{firstName} · {roleLabel}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+                aria-label="Close menu"
+                onClick={() => setMobileNavOpen(false)}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-4">
+              {(() => {
+                // Bundle consecutive top-level links so Check-In / Daily / Leaves
+                // use the same tight spacing as Work submenu items.
+                type MobileChunk =
+                  | { kind: 'section'; label: string; items: { href: string; label: string }[] }
+                  | { kind: 'links'; items: { href: string; label: string }[] }
+                const chunks: MobileChunk[] = []
+                for (const item of navItems) {
+                  if ('items' in item && item.items) {
+                    chunks.push({ kind: 'section', label: item.label, items: item.items })
+                  } else if ('href' in item && item.href) {
+                    const last = chunks[chunks.length - 1]
+                    if (last?.kind === 'links') last.items.push({ href: item.href, label: item.label })
+                    else chunks.push({ kind: 'links', items: [{ href: item.href, label: item.label }] })
+                  }
+                }
+
+                function mobileLink(href: string, label: string) {
+                  const active = isLinkActive(path, href)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      prefetch={false}
+                      onClick={handleNavigate}
+                      onPointerDown={() => prefetchHref(href)}
+                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors ${
+                        active ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <NavCountBadge
+                        count={href === '/leaves' ? pendingLeaveCount : 0}
+                        active={active}
+                      />
+                    </Link>
+                  )
+                }
+
+                return chunks.map((chunk, idx) =>
+                  chunk.kind === 'section' ? (
+                    <div key={`section-${idx}`} className="space-y-1">
+                      <div className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        {chunk.label}
+                      </div>
+                      <div className="space-y-1">{chunk.items.map(i => mobileLink(i.href, i.label))}</div>
+                    </div>
+                  ) : (
+                    <div key={`links-${idx}`} className="space-y-1">
+                      {chunk.items.map(i => mobileLink(i.href, i.label))}
+                    </div>
+                  )
+                )
+              })()}
+            </nav>
+
+            <div className="shrink-0 border-t border-gray-100 p-3">
+              <Link
+                href="/account"
+                prefetch={false}
+                onClick={handleNavigate}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <UserAvatar name={fullName} />
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-900 truncate">{fullName || firstName}</div>
+                  <div className="text-xs text-gray-500">Account settings</div>
+                </div>
+              </Link>
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   )
 }

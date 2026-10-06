@@ -6,6 +6,7 @@ import { startOfWeek, subWeeks } from 'date-fns'
 import { businessDayStart, requiresDailyCadence } from '@/lib/daily'
 import { formatIstWeekdayShort } from '@/lib/ist'
 import { getActiveMembersCached } from '@/lib/active-members'
+import { shortDisplayName } from '@/lib/employee-order'
 
 /** Heavy dashboard panels — streamed under Suspense. */
 export default async function DashboardBody({ children }: { children?: ReactNode }) {
@@ -170,7 +171,7 @@ export default async function DashboardBody({ children }: { children?: ReactNode
                     <span className="text-red-500 text-xs uppercase tracking-wide">No plan submitted</span>
                     <div className="flex gap-1 mt-0.5 flex-wrap">
                       {noPlan.map(m => (
-                        <span key={m.id} className="badge bg-red-100 text-red-700 text-xs">{m.name.split(' ')[0]}</span>
+                        <span key={m.id} className="badge bg-red-100 text-red-700 text-xs">{shortDisplayName(m.name)}</span>
                       ))}
                     </div>
                   </div>
@@ -178,7 +179,7 @@ export default async function DashboardBody({ children }: { children?: ReactNode
                 {blockers.length > 0 && (
                   <div>
                     <span className="text-amber-600 text-xs uppercase tracking-wide">Blockers today</span>
-                    <div className="text-gray-700 text-sm">{blockers.map(l => l.member.name.split(' ')[0]).join(', ')}</div>
+                    <div className="text-gray-700 text-sm">{blockers.map(l => shortDisplayName(l.member.name)).join(', ')}</div>
                   </div>
                 )}
                 {submitted === cadenceMembers.length && noPlan.length === 0 && (
@@ -264,7 +265,7 @@ export default async function DashboardBody({ children }: { children?: ReactNode
                   const overall = avg([s.delivery, s.process, s.communication, s.growth, s.culture])
                   return (
                     <tr key={s.id}>
-                      <td className="py-1.5 font-medium text-gray-800">{s.member.name.split(' ')[0]}</td>
+                      <td className="py-1.5 font-medium text-gray-800">{shortDisplayName(s.member.name)}</td>
                       {[s.delivery, s.process, s.communication, s.growth, s.culture].map((v, i) => (
                         <td key={i} className={`text-center py-1.5 font-semibold ${scoreColor(v)}`}>{v}</td>
                       ))}

@@ -1,3 +1,5 @@
+import { shortDisplayName } from '@/lib/employee-order'
+
 type Member = { id: string; name: string }
 type Log = { id: string; member: { name: string } }
 
@@ -28,7 +30,7 @@ export default function DailyAlerts({ noPlan, noEOD, blockers }: Props) {
               <div className="flex flex-wrap gap-1.5">
                 {noPlan.map(m => (
                   <span key={m.id} className="badge bg-red-100 text-red-800 text-xs">
-                    {m.name.split(' ')[0]}
+                    {shortDisplayName(m.name)}
                   </span>
                 ))}
               </div>
@@ -47,7 +49,7 @@ export default function DailyAlerts({ noPlan, noEOD, blockers }: Props) {
               <div className="flex flex-wrap gap-1.5">
                 {noEOD.map(l => (
                   <span key={l.id} className="badge bg-amber-100 text-amber-800 text-xs">
-                    {l.member.name.split(' ')[0]}
+                    {shortDisplayName(l.member.name)}
                   </span>
                 ))}
               </div>
@@ -66,7 +68,7 @@ export default function DailyAlerts({ noPlan, noEOD, blockers }: Props) {
           <div className="divide-y divide-red-100">
             {blockers.map(l => (
               <div key={l.id} className="px-4 py-3 text-sm">
-                <span className="font-medium text-red-900">{l.member.name}</span>
+                <span className="font-medium text-red-900">{shortDisplayName(l.member.name)}</span>
                 <p className="text-red-800 mt-0.5 whitespace-pre-wrap">{l.blockers}</p>
               </div>
             ))}

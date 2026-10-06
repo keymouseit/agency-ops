@@ -39,6 +39,7 @@ model TeamMember {
   notificationPreference NotificationPreference?
   auditLogs              AuditLog[]
   meetingMinutes         MeetingMinute[]
+  momActionItems         MomActionItem[] @relation("MomActionOwner")
   campaigns              Campaign[]
   campaignCalls          CampaignCall[]
   milestonesQAStarted    Milestone[]         @relation("MilestoneQAStartedBy")
@@ -92,6 +93,7 @@ model MeetingMinute {
   requirementsFromClient String?
   followUpDate           DateTime?
   followUpCompletedAt    DateTime?
+  followUpOutcome        String?
   meetingVideoPath       String?
   meetingVideoUrl        String?
   leadSource             String?
@@ -105,9 +107,33 @@ model MeetingMinute {
   createdBy              TeamMember @relation(fields: [createdById], references: [id])
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
+  actionItems            MomActionItem[]
 
   @@index([parentId])
 }
+
+model MomActionItem {
+  id               String        @id @default(cuid())
+  momId            String
+  mom              MeetingMinute @relation(fields: [momId], references: [id], onDelete: Cascade)
+  title            String
+  ownerId          String
+  owner            TeamMember    @relation("MomActionOwner", fields: [ownerId], references: [id])
+  dueDate          DateTime
+  status           String        @default("Open") // Open | InProgress | Done | NotCompleted | Blocked | Skipped
+  blockedReason    String?
+  sortOrder        Int           @default(0)
+  completedAt      DateTime?
+  lastOwnerNudgeAt DateTime?
+  lastEscalationAt DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([momId])
+  @@index([ownerId, status])
+  @@index([dueDate, status])
+}
+
 
 // ─── LINKEDIN / OUTREACH CAMPAIGNS ───────────────────────────
 
