@@ -3,8 +3,9 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendLeaveAppliedEmail, leaveNotifyEmails } from '@/lib/notifications'
 import { notify } from '@/lib/notify'
+import { notifyFounderLeaveEvent } from '@/lib/push-notifications'
 import { runInBackground } from '@/lib/background'
-import { formatIstDate } from '@/lib/ist'
+import { formatIstDate, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { revalidateLeavePages } from '@/lib/cache-tags'
 import {
   assertLeaveTypePolicy,
@@ -14,7 +15,6 @@ import {
   getAvailableCompOffDays,
   syncShortLeaveBalance,
 } from '@/lib/leave-balance'
-import { istYearAndMonth } from '@/lib/ist'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     const leaves = await prisma.leaveRequest.findMany({
       where: whereClause,
       include: {
-        member: { select: { name: true, email: true } },
+        member: { select: { id: true, name: true, email: true, role: true } },
         approvedBy: { select: { name: true } },
       },
       orderBy: { startDate: 'desc' },
@@ -80,6 +80,10 @@ export async function POST(request: Request) {
         ? body.memberId
         : session.user.id
 
+    if (!wantsAdminLog && (session.user.role === 'Founder' || session.user.email === 'shiven@keymouse.com')) {
+      return NextResponse.json({ error: 'Founders cannot apply for leaves.' }, { status: 400 })
+    }
+
     if (!leaveType || !startDate || !endDate) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -96,12 +100,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const todayIst = istDateInputValue(new Date())
+    const startIst = istDateInputValue(start)
 
-    if (!wantsAdminLog && start < today) {
+    if (!wantsAdminLog && startIst < todayIst) {
       return NextResponse.json(
-        { error: 'Standard employees can only apply for future dates' },
+        { error: 'Standard employees can only apply for today or future dates' },
         { status: 400 }
       )
     }
@@ -212,13 +216,28 @@ export async function POST(request: Request) {
           'leave_applied',
           reviewerIds,
           `${leaveRequest.member.name} applied for ${typeLabel} leave${unpaidLabel} — ${startLabel} to ${endLabel}`,
-          '/leaves'
+          `/leaves?id=${leaveRequest.id}&date=${leaveRequest.startDate}`
         )
+
+        await notifyFounderLeaveEvent({
+          eventType: 'applied',
+          applicantName: leaveRequest.member.name,
+          leaveType: leaveRequest.leaveType,
+          dates: `${startLabel} to ${endLabel}`,
+          leaveId: leaveRequest.id,
+          reason: leaveRequest.reason,
+          applicantMemberId: leaveRequest.memberId,
+        })
       })(),
       'leave-applied-side-effects'
     )
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
     return NextResponse.json(leaveRequest, { status: 201 })
   } catch (error: unknown) {
     console.error('Error creating leave request:', error)

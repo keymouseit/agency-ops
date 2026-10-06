@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
@@ -57,7 +59,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }
     }
 
-    return NextResponse.json(logs);
+    return NextResponse.json(logs, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+      },
+    });
   } catch (error: unknown) {
     console.error('Error fetching audit logs:', error);
     const msg = error instanceof Error ? error.message : 'Unknown error';

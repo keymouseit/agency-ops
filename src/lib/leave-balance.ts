@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
-import { formatIstLeaveRange, istYearAndMonth } from '@/lib/ist'
+import { istDateInputValue, istYearAndMonth, formatIstLeaveRange } from '@/lib/ist'
+
 import {
   BIRTHDAY_LEAVE_YEARLY_CAP,
   MAX_ANNUAL_LEAVE_DAYS,
@@ -207,30 +208,51 @@ export async function assertNoOverlappingLeave(opts: {
 }) {
   // WFH must not overlap pending/approved leave (any non-WFH type).
   // Non-WFH leave still ignores existing WFH so leave can be filed over a WFH day.
-  const overlap = await prisma.leaveRequest.findFirst({
+  const reqStartKey = istDateInputValue(opts.startDate)
+  const reqEndKey = istDateInputValue(opts.endDate)
+
+  // Expand query window by 2 days on each side to safely catch any UTC timezone shifts in stored DB timestamps
+  const searchStart = new Date(opts.startDate.getTime() - 2 * 24 * 60 * 60 * 1000)
+  const searchEnd = new Date(opts.endDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+
+  const candidates = await prisma.leaveRequest.findMany({
     where: {
       memberId: opts.memberId,
       status: { in: ['pending', 'approved'] },
       leaveType: { not: 'work_from_home' },
       ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
-      startDate: { lte: opts.endDate },
-      endDate: { gte: opts.startDate },
+      startDate: { lte: searchEnd },
+      endDate: { gte: searchStart },
     },
-    select: { id: true, startDate: true, endDate: true, status: true, leaveType: true },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      leaveType: true,
+      timeSlot: true,
+    },
   })
-  if (overlap) {
-    const typeLabel = overlap.leaveType.replace(/_/g, ' ')
-    const rangeLabel = formatIstLeaveRange(overlap.startDate, overlap.endDate)
-    const prefix =
-      opts.leaveType === 'work_from_home'
-        ? 'Cannot request Work From Home — overlaps'
-        : 'Overlaps'
-    throw Object.assign(
-      new Error(
-        `${prefix} an existing ${overlap.status} ${typeLabel} leave (${rangeLabel})`
-      ),
-      { status: 400 }
-    )
+
+  for (const candidate of candidates) {
+    const candStartKey = istDateInputValue(candidate.startDate)
+    const candEndKey = istDateInputValue(candidate.endDate)
+
+    // Calendar date overlap: intervals [A, B] and [C, D] overlap iff candStartKey <= reqEndKey and candEndKey >= reqStartKey
+    if (candStartKey <= reqEndKey && candEndKey >= reqStartKey) {
+      const typeLabel = candidate.leaveType.replace(/_/g, ' ')
+      const rangeLabel = formatIstLeaveRange(candidate.startDate, candidate.endDate)
+      const prefix =
+        opts.leaveType === 'work_from_home'
+          ? 'Cannot request Work From Home — overlaps'
+          : 'Overlaps'
+      throw Object.assign(
+        new Error(
+          `${prefix} an existing ${candidate.status} ${typeLabel} leave (${rangeLabel})`
+        ),
+        { status: 400 }
+      )
+    }
   }
 }
 

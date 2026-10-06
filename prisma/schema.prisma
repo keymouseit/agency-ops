@@ -53,6 +53,7 @@ model TeamMember {
   leaveBalances          LeaveBalance[]      @relation("EmployeeLeaveBalance")
   compOffGrants          CompOffGrant[]      @relation("EmployeeCompOffGrants")
   compOffGrantsGiven     CompOffGrant[]      @relation("GrantedCompOffBy")
+  deviceTokens           DeviceToken[]
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -997,6 +998,10 @@ model LeaveRequest {
   approvedBy      TeamMember? @relation("ApprovedLeaves", fields: [approvedById], references: [id])
   approvalNotes   String?
   approvedAt      DateTime?
+
+  @@index([status, appliedAt])
+  @@index([memberId, status])
+  @@index([startDate, endDate])
 }
 
 // ─── COMPANY BRANDING ────────────────────────────────────────
@@ -1186,4 +1191,19 @@ model SalesRobotDailyStat {
   @@unique([date, salesrobotCampaignId, linkedinAccountId])
   @@index([date])
   @@index([linkedinAccountId, date])
+}
+
+// ─── PUSH NOTIFICATION TOKENS ─────────────────────────────────
+
+model DeviceToken {
+  id        String     @id @default(cuid())
+  memberId  String
+  member    TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  token     String     @unique
+  platform  String     @default("android") // "android" | "ios"
+  type      String     @default("expo")    // "expo" | "fcm"
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([memberId])
 }
