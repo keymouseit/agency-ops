@@ -54,6 +54,15 @@ model TeamMember {
   compOffGrants          CompOffGrant[]      @relation("EmployeeCompOffGrants")
   compOffGrantsGiven     CompOffGrant[]      @relation("GrantedCompOffBy")
   deviceTokens           DeviceToken[]
+
+  // ScreenshotMonitor / HR attendance mapping (optional until filled in)
+  ssmEmploymentId        Int?
+  attendanceEmpNo        Int?
+  attendanceExcluded     Boolean  @default(false)
+  attendanceFixedStart   String?  // "HH:MM" IST — fixed C-In override (e.g. Sushant)
+  attendanceFixedEnd     String?  // "HH:MM" IST — fixed C-Out override
+  attendanceAdjustments  AttendanceAdjustment[] @relation("AttendanceAdjustmentMember")
+  attendanceAdjustmentsUpdated AttendanceAdjustment[] @relation("AttendanceAdjustmentUpdatedBy")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -1002,6 +1011,29 @@ model LeaveRequest {
   @@index([status, appliedAt])
   @@index([memberId, status])
   @@index([startDate, endDate])
+}
+
+
+// ─── HR ATTENDANCE (ScreenshotMonitor) ───────────────────────
+
+model AttendanceAdjustment {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      TeamMember @relation("AttendanceAdjustmentMember", fields: [memberId], references: [id])
+  /// Business-day midnight IST (same convention as DailyLog.date / LeaveRequest dates)
+  date        DateTime
+  grossHours  String?    // "H:MM" manual override of gross shift hours
+  leaveHours  String?    // "H:MM" manual override / supplement
+  ebh         String?    // Extra billable hours "H:MM" (adds to shortage balance)
+  note        String?
+  updatedById String
+  updatedBy   TeamMember @relation("AttendanceAdjustmentUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([memberId, date])
+  @@index([date])
+  @@index([memberId, date])
 }
 
 // ─── COMPANY BRANDING ────────────────────────────────────────

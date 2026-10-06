@@ -113,10 +113,18 @@ export function computeExpectedHoursForDay(
 
   const expectedHours = Math.max(0, Math.round((STANDARD_DAY_HOURS - bestDeduction) * 10) / 10)
   const isFullDayLeave = expectedHours <= 0 && bestDeduction >= STANDARD_DAY_HOURS
-  const leaveType = best && bestDeduction > 0 ? best.leaveType : null
-  const timeSlot = best && bestDeduction > 0 ? (best.timeSlot ?? null) : null
+  // Prefer hour-reducing leave; otherwise surface WFH for calendar/attendance colors.
+  const wfh = covering.find(l => l.leaveType === 'work_from_home') ?? null
+  const leaveType =
+    best && bestDeduction > 0 ? best.leaveType : wfh ? 'work_from_home' : null
+  const timeSlot =
+    best && bestDeduction > 0 ? (best.timeSlot ?? null) : wfh ? (wfh.timeSlot ?? null) : null
   const leaveHint =
-    leaveType != null ? formatExpectedHint(leaveType, timeSlot, expectedHours) : null
+    leaveType === 'work_from_home'
+      ? 'WFH'
+      : leaveType != null
+        ? formatExpectedHint(leaveType, timeSlot, expectedHours)
+        : null
 
   return {
     dateKey,

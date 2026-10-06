@@ -9,12 +9,12 @@ import { NextResponse } from 'next/server'
 // /reports/employee redirect. '/analytics' and '/intelligence' stay listed only so
 // their redirects to /overview keep working for old links and notifications.
 export const ROLE_ACCESS: Record<string, string[]> = {
-  Founder: ['/', '/overview', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/salesrobot', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves', '/reports'],
+  Founder: ['/', '/overview', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/salesrobot', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves', '/reports', '/hr/attendance'],
   Manager: ['/', '/overview', '/account', '/intelligence', '/pipeline', '/projects', '/qa', '/team', '/checkin', '/daily', '/analytics', '/salesrobot', '/goals', '/estimate', '/settings', '/mom', '/campaigns', '/leaves', '/reports'],
   BD:      ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
-  HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
+  HR:           ['/me', '/account', '/team', '/daily', '/leaves', '/hr/attendance'],
   SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
   Both:         ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
 }

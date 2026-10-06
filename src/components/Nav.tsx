@@ -13,13 +13,13 @@ import { shortDisplayName } from '@/lib/employee-order'
 
 /** Warm these on idle so the first intentional click is already cached. */
 const PRIMARY_PREFETCH: Record<string, string[]> = {
-  Founder: ['/', '/projects', '/mom', '/leaves'],
+  Founder: ['/', '/projects', '/mom', '/leaves', '/hr/attendance'],
   Manager: ['/', '/projects', '/mom', '/leaves'],
   Dev: ['/me', '/projects', '/daily', '/leaves', '/checkin'],
   BD: ['/me', '/pipeline', '/projects', '/daily', '/leaves'],
   Both: ['/me', '/projects', '/pipeline', '/daily', '/leaves'],
   QA: ['/me', '/qa', '/daily', '/leaves', '/checkin'],
-  HR: ['/me', '/team', '/daily', '/leaves'],
+  HR: ['/me', '/team', '/daily', '/leaves', '/hr/attendance'],
   SocialMedia: ['/me', '/daily', '/leaves', '/checkin'],
 }
 
@@ -57,8 +57,23 @@ const LEAD_NAV = [
   },
 ]
 
+/** Founder People menu includes HR Attendance; Manager does not. */
+const FOUNDER_NAV = [
+  LEAD_NAV[0],
+  {
+    label: 'People',
+    items: [
+      { href: '/leaves', label: 'Leaves & WFH' },
+      { href: '/hr/attendance', label: 'Attendance' },
+      { href: '/daily', label: 'Daily updates' },
+      { href: '/goals', label: 'Goals' },
+    ],
+  },
+  ...LEAD_NAV.slice(2),
+]
+
 const NAV_STRUCTURE = {
-  Founder: LEAD_NAV,
+  Founder: FOUNDER_NAV,
   Manager: LEAD_NAV,
   BD: [
     { href: '/me', label: 'My Day' },
@@ -100,6 +115,7 @@ const NAV_STRUCTURE = {
     { href: '/team', label: 'Team' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/hr/attendance', label: 'Attendance' },
   ],
   SocialMedia: [
     { href: '/me', label: 'My Day' },

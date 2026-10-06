@@ -136,10 +136,16 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/daily')
     ) return true
   }
-  // HR: daily plans, EOD, and team member list
+  // HR: daily plans, EOD, team member list, attendance
   if (role === 'HR') {
-    if (path.startsWith('/api/daily') || path.startsWith('/api/team')) return true
+    if (
+      path.startsWith('/api/daily') ||
+      path.startsWith('/api/team') ||
+      path.startsWith('/api/hr')
+    ) return true
   }
+  // Founder: attendance APIs (page already unrestricted for Founder)
+  if (role === 'Founder' && path.startsWith('/api/hr')) return true
   // Social Media: daily + weekly check-in scores
   if (role === 'SocialMedia') {
     if (path.startsWith('/api/daily') || path.startsWith('/api/scores')) return true
