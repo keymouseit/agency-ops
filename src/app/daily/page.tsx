@@ -7,6 +7,7 @@ import DailyStats from './DailyStats'
 import DailyAlerts from './DailyAlerts'
 import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
+import { getExpectedHoursBatch } from '@/lib/expected-hours'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,9 +63,26 @@ export default async function DailyPage({
 
   const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const membersWithLog = new Set(logs.map(l => l.memberId))
-  const noPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id))
+  const expectedBatch = showTeamView
+    ? await getExpectedHoursBatch(
+        cadenceMembers.map(m => m.id),
+        targetDate,
+        targetDate,
+      )
+    : null
+  const dateKey = businessDayKey(targetDate)
+  const onFullDayLeave = (memberId: string) => {
+    const day = expectedBatch?.get(memberId)?.get(dateKey)
+    return Boolean(day && day.expectedHours <= 0)
+  }
+  const noPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && !onFullDayLeave(m.id))
+  const onLeaveNoPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && onFullDayLeave(m.id))
   const noEOD = logs.filter(
-    l => requiresDailyCadence(l.member.role) && l.planSubmittedAt && !l.eodSubmittedAt
+    l =>
+      requiresDailyCadence(l.member.role) &&
+      l.planSubmittedAt &&
+      !l.eodSubmittedAt &&
+      !onFullDayLeave(l.memberId)
   )
   const hasBlockers = logs.filter(l => l.blockers && l.blockers.trim())
 
@@ -139,7 +157,7 @@ export default async function DailyPage({
       />
 
       {showTeamView && isToday && (
-        <DailyAlerts noPlan={noPlan} noEOD={noEOD} blockers={hasBlockers} />
+        <DailyAlerts noPlan={noPlan} noEOD={noEOD} onLeave={onLeaveNoPlan} blockers={hasBlockers} />
       )}
 
       {(plannedTasks > 0 || logs.length > 0) && <DailyStats stats={stats} />}

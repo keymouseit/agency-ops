@@ -4,6 +4,12 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { MOM_FINAL_STATUSES, MOM_MEETING_TYPES } from '@/lib/utils'
+import {
+  parseMomActionItemsFromForm,
+  validateMomActionsForStatus,
+  summarizeActionsAsNextItem,
+  type ParsedMomActionInput,
+} from '@/lib/mom-actions'
 
 /** Write finalStatus via SQL so it works even if Next is serving a stale Prisma client. */
 export async function setMomThreadFinalStatus(rootId: string, finalStatus: string) {
@@ -124,12 +130,21 @@ export type ParsedMomFields = {
   campaignCallId: string | null
   parentId: string | null
   finalStatus: string
+  actionItems: ParsedMomActionInput[]
 }
 
 /** Parse and validate MOM create/update form body. */
 export async function parseMomFormFields(
   form: FormData,
-  opts?: { keepExistingVideoPath?: string | null }
+  opts?: {
+    keepExistingVideoPath?: string | null
+    /**
+     * When set (non-lead edit on a MOM that already has actions), ignore form
+     * actionItems and use these for validation + nextActionItem so the plan stays locked.
+     * Empty MOMs omit this so BD/Both can set the plan once.
+     */
+    lockedActionItems?: ParsedMomActionInput[]
+  }
 ): Promise<ParsedMomFields> {
   const clientName = momFormStr(form.get('clientName'))
   const meetingType = momFormStr(form.get('meetingType'))
@@ -151,6 +166,18 @@ export async function parseMomFormFields(
     videoFile instanceof File && videoFile.size > 0 ? await saveMeetingVideo(videoFile) : null
   const { json: attendees, memberIds: attendeeMemberIds } = await resolveMomAttendees(form)
 
+  const followUpDate = parseMomDate(form.get('followUpDate'))
+  const actionItems =
+    opts?.lockedActionItems !== undefined
+      ? opts.lockedActionItems
+      : parseMomActionItemsFromForm(form)
+  validateMomActionsForStatus({ finalStatus, followUpDate, actions: actionItems })
+
+  const legacyNext = momFormStr(form.get('nextActionItem'))
+  const nextActionItem = actionItems.length
+    ? summarizeActionsAsNextItem(actionItems)
+    : legacyNext
+
   return {
     clientName,
     meetingType,
@@ -168,14 +195,15 @@ export async function parseMomFormFields(
     clientPainPoints: momFormStr(form.get('clientPainPoints')),
     ourApproach: momFormStr(form.get('ourApproach')),
     requirementsFromClient: momFormStr(form.get('requirementsFromClient')),
-    followUpDate: parseMomDate(form.get('followUpDate')),
+    followUpDate,
     meetingVideoPath: uploadedPath ?? opts?.keepExistingVideoPath ?? null,
     meetingVideoUrl: momFormStr(form.get('meetingVideoUrl')),
     leadSource: momFormStr(form.get('leadSource')),
-    nextActionItem: momFormStr(form.get('nextActionItem')),
+    nextActionItem,
     campaignCallId: momFormStr(form.get('campaignCallId')),
     parentId: momFormStr(form.get('parentId')),
     finalStatus,
+    actionItems,
   }
 }
 

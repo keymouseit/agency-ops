@@ -5,12 +5,7 @@ import { softRefresh } from '@/lib/soft-refresh'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
 import MilestoneBugFixActions from '@/components/MilestoneBugFixActions'
-import {
-  MILESTONE_STATUS_CONFIG,
-  calculateMilestoneProgress,
-  openBugCount,
-  SerializedBug,
-} from '@/lib/milestone-qa'
+import { MILESTONE_STATUS_CONFIG, calculateMilestoneProgress, openBugCount, SerializedBug } from '@/lib/milestone-qa'
 
 type TestCase = {
   id: string

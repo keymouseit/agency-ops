@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   revalidatePath('/goals')
   revalidatePath('/me')
-  revalidatePath('/intelligence')
+  revalidatePath('/reports/team')
 
   return NextResponse.json(goal)
 }

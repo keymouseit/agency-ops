@@ -102,12 +102,17 @@ const HOURS_PATTERN = /^-?\d+(\.\d+)?$/
 const MINUTES_PATTERN = /^(-?\d+(?:\.\d+)?)\s*(?:m|mins?|minutes?)$/i
 /** Optional hours suffix: 2h, 0.25 hours. */
 const HOURS_SUFFIX_PATTERN = /^(-?\d+(?:\.\d+)?)\s*(?:h|hrs?|hours?)$/i
+/** Clock-style duration: 1:30, 0:15, 2:00 → hours. */
+const HM_PATTERN = /^(\d{1,3}):([0-5]\d)$/
 
 export type ParseHoursOk = { ok: true; value: number | null }
 export type ParseHoursErr = { ok: false; error: string }
 export type ParseHoursResult = ParseHoursOk | ParseHoursErr
 
-const HOURS_EXAMPLES = '0.25, 15m, 0.5, or 2'
+const HOURS_EXAMPLES = '1:30, 0:15, 0.5, or 2'
+
+/** Quarter-hour minute options for Hours/Minutes pickers. */
+export const HOUR_MINUTE_STEP_OPTIONS = [0, 15, 30, 45] as const
 
 /**
  * Format decimal hours for UI (Day load, submit button).
@@ -119,10 +124,36 @@ export function formatHoursAmount(hours: number): string {
   return String(rounded)
 }
 
+/** Split decimal hours into whole hours + minutes (nearest minute). */
+export function decimalHoursToParts(raw: unknown): { hours: number; minutes: number } {
+  const parsed = parseHoursInput(raw)
+  if (!parsed.ok || parsed.value == null || parsed.value <= 0) {
+    return { hours: 0, minutes: 0 }
+  }
+  const totalMinutes = Math.round(parsed.value * 60)
+  return {
+    hours: Math.floor(totalMinutes / 60),
+    minutes: totalMinutes % 60,
+  }
+}
+
+/** Combine hours + minutes into decimal hours (for storage/API). */
+export function partsToDecimalHours(hours: number, minutes: number): number {
+  const h = Number.isFinite(hours) ? Math.max(0, hours) : 0
+  const m = Number.isFinite(minutes) ? Math.max(0, Math.min(59, minutes)) : 0
+  return Math.round((h + m / 60) * 1000) / 1000
+}
+
+/** String form used in plan/EOD local state (empty when zero). */
+export function partsToHoursInputString(hours: number, minutes: number): string {
+  const value = partsToDecimalHours(hours, minutes)
+  if (value <= 0) return ''
+  return formatHoursAmount(value)
+}
+
 /**
  * Parse optional decimal hours from form/API input.
- * Empty → null. Accepts plain decimals (0.25), optional h/hrs suffix, or minutes (15m).
- * Rejects time-like strings (2:30), NaN, Infinity, and scientific notation.
+ * Empty → null. Accepts decimals, h/hrs, minutes (15m), or HH:MM (1:30).
  */
 export function parseHoursInput(
   raw: unknown,
@@ -147,10 +178,20 @@ export function parseHoursInput(
   const str = String(raw).trim()
   if (str === '') return { ok: true, value: null }
 
+  const hmMatch = str.match(HM_PATTERN)
+  if (hmMatch) {
+    const h = Number(hmMatch[1])
+    const m = Number(hmMatch[2])
+    if (!Number.isFinite(h) || !Number.isFinite(m)) {
+      return { ok: false, error: `${label} must be a valid duration.` }
+    }
+    return finalizeHours(h + m / 60, label, opts, max)
+  }
+
   if (str.includes(':')) {
     return {
       ok: false,
-      error: `${label} must be decimal hours or minutes (for example ${HOURS_EXAMPLES}), not a time like 2:30.`,
+      error: `${label} must look like 1:30 (hours:minutes).`,
     }
   }
 
@@ -232,3 +273,4 @@ export function parseRequiredPositiveHours(
   }
   return { ok: true, value: parsed.value }
 }
+

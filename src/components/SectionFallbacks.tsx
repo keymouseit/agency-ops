@@ -15,12 +15,11 @@ export function CardSectionFallback({ className = 'mb-5' }: { className?: string
 export function DashboardKpiFallback() {
   return (
     <div className="animate-pulse space-y-6" aria-hidden>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[1, 2, 3, 4, 5].map(i => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
           <div key={i} className="card p-5 h-24 bg-gray-100/80" />
         ))}
       </div>
-      <div className="card p-4 h-28 bg-gray-100/70" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card p-5 h-64 bg-gray-100/60" />
         <div className="card p-5 h-64 bg-gray-100/60" />

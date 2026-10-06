@@ -25,6 +25,7 @@ import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
 import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
 import SimpleSelect from '@/components/SimpleSelect'
+import { shortDisplayName } from '@/lib/employee-order'
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   status: 'Status',
@@ -73,8 +74,8 @@ export default function LeaveDashboardClient({
   accrued,
   used,
   shortLeaves = 0,
-  compOffAccrued: _compOffAccrued = 0,
-  compOffUsed: _compOffUsed = 0,
+  compOffAccrued = 0,
+  compOffUsed = 0,
   allPendingLeaves,
   allMembers,
   allLeaves
@@ -206,6 +207,11 @@ export default function LeaveDashboardClient({
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [adminSection, setAdminSection] = useState<'approvals' | 'history' | 'calendar'>('approvals')
   const [myLeaveFilter, setMyLeaveFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  // Default: current IST month so prior months drop off when a new month starts
+  const [myLeavePeriod, setMyLeavePeriod] = useState(() => {
+    const { year, month } = istYearAndMonth()
+    return `${year}-${String(month).padStart(2, '0')}`
+  })
 
   const isSameDayLeave = leaveType === 'half_day' || leaveType === 'short_leave'
 
@@ -215,6 +221,14 @@ export default function LeaveDashboardClient({
       setEndDate(startDate)
     }
   }, [isSameDayLeave, startDate])
+
+  // Drop Comp Off type if employee has no granted balance (unless editing an existing request)
+  useEffect(() => {
+    const available = Math.max(0, Number(compOffAccrued || 0) - Number(compOffUsed || 0))
+    if (available <= 0 && leaveType === 'comp_off_leave' && !editingLeaveId) {
+      setLeaveType('full_day')
+    }
+  }, [compOffAccrued, compOffUsed, leaveType, editingLeaveId])
 
 
   function onStartDateChange(next: string) {
@@ -396,7 +410,9 @@ export default function LeaveDashboardClient({
       }
       void refetchLeaveLists()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setIsSubmitting(false)
     }
@@ -487,6 +503,17 @@ export default function LeaveDashboardClient({
     return base
   }
 
+  function calendarLeaveChipClass(leaveType: string, status: string) {
+    // Waiting / applied
+    if (status === 'pending') return 'bg-gray-200 text-gray-700'
+    if (leaveType === 'short_leave') return 'bg-sky-200 text-sky-900'
+    if (leaveType === 'half_day') return 'bg-red-100 text-red-800'
+    if (leaveType === 'work_from_home') return 'bg-teal-100 text-teal-800'
+    if (leaveType === 'full_day') return 'bg-red-500 text-white'
+    // birthday / comp-off / other approved types
+    return 'bg-emerald-100 text-emerald-800'
+  }
+
   function unpaidPillLabel(l: any) {
     const paid = Number(l.paidDays || 0)
     const unpaidDays = Number(l.unpaidDays || 0)
@@ -563,6 +590,14 @@ export default function LeaveDashboardClient({
       )
       .toFixed(2)
   )
+  // Prefer balance ledger; fall back to approved leave cost if ledger unused is stale
+  const compOffUsedDisplay = Number(compOffUsed) > 0 ? Number(compOffUsed) : compOffTakenThisYear
+  const compOffGrantedDisplay = Math.max(Number(compOffAccrued) || 0, compOffUsedDisplay)
+  const compOffAvailable = Math.max(
+    0,
+    Number(((Number(compOffAccrued) || 0) - compOffUsedDisplay).toFixed(2))
+  )
+  const canApplyCompOff = compOffAvailable > 0
 
   const approvedThisMonth = companyLeaves.filter(l => {
     if (l.status !== 'approved') return false
@@ -573,18 +608,38 @@ export default function LeaveDashboardClient({
 
   const onLeaveToday = getLeavesForDay(new Date()).filter(l => l.status === 'approved').length
 
+  const myLeavePeriodOptions = (() => {
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1
+      const value = `${istYearNow}-${String(month).padStart(2, '0')}`
+      const label = format(new Date(istYearNow, i, 1), 'MMMM yyyy')
+      return { value, label }
+    })
+    return [
+      { value: 'year', label: `All ${istYearNow}` },
+      ...months,
+    ]
+  })()
+
+  const leavesInPeriod = leaves.filter(l => {
+    const ym = istYearAndMonth(new Date(l.startDate))
+    if (myLeavePeriod === 'year') return ym.year === istYearNow
+    const [y, m] = myLeavePeriod.split('-').map(Number)
+    return ym.year === y && ym.month === m
+  })
+
   const myLeaveCounts = {
-    all: leaves.length,
-    pending: leaves.filter(l => l.status === 'pending').length,
-    approved: leaves.filter(l => l.status === 'approved').length,
-    rejected: leaves.filter(l => l.status === 'rejected' || l.status === 'cancelled').length,
+    all: leavesInPeriod.length,
+    pending: leavesInPeriod.filter(l => l.status === 'pending').length,
+    approved: leavesInPeriod.filter(l => l.status === 'approved').length,
+    rejected: leavesInPeriod.filter(l => l.status === 'rejected' || l.status === 'cancelled').length,
   }
   const filteredMyLeaves =
     myLeaveFilter === 'all'
-      ? leaves
+      ? leavesInPeriod
       : myLeaveFilter === 'rejected'
-        ? leaves.filter(l => l.status === 'rejected' || l.status === 'cancelled')
-        : leaves.filter(l => l.status === myLeaveFilter)
+        ? leavesInPeriod.filter(l => l.status === 'rejected' || l.status === 'cancelled')
+        : leavesInPeriod.filter(l => l.status === myLeaveFilter)
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
@@ -788,7 +843,9 @@ export default function LeaveDashboardClient({
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
                   <option value="birthday_leave">Birthday Leave</option>
-                  <option value="comp_off_leave">Comp Off Leave</option>
+                  {(canApplyCompOff || leaveType === 'comp_off_leave') && (
+                    <option value="comp_off_leave">Comp Off Leave</option>
+                  )}
                   <option value="work_from_home">Work From Home</option>
                 </select>
                 {leaveType === 'half_day' ? (
@@ -1059,8 +1116,15 @@ export default function LeaveDashboardClient({
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600">Comp Off</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">{compOffTakenThisYear}</p>
-              <p className="text-xs text-gray-500 mt-1">taken this year</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                {compOffUsedDisplay}/{compOffGrantedDisplay}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                taken / granted
+                {compOffGrantedDisplay - compOffUsedDisplay > 0
+                  ? ` · ${Number((compOffGrantedDisplay - compOffUsedDisplay).toFixed(2))} left`
+                  : ''}
+              </p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
@@ -1112,7 +1176,9 @@ export default function LeaveDashboardClient({
                       <option value="half_day">Half Day</option>
                       <option value="short_leave">Short Leave (2 hours)</option>
                       <option value="birthday_leave">Birthday Leave</option>
-                      <option value="comp_off_leave">Comp Off Leave</option>
+                      {(canApplyCompOff || leaveType === 'comp_off_leave') && (
+                        <option value="comp_off_leave">Comp Off Leave</option>
+                      )}
                       <option value="work_from_home">Work From Home</option>
                     </select>
                     {leaveType === 'half_day' ? (
@@ -1122,6 +1188,10 @@ export default function LeaveDashboardClient({
                     ) : leaveType === 'short_leave' ? (
                       <p className="text-xs text-sky-700 mt-1.5">
                         You must work at least 7 hours on this day for it to count as a short leave.
+                      </p>
+                    ) : !canApplyCompOff ? (
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Comp Off Leave appears after HR or Founder assigns Comp Off credit.
                       </p>
                     ) : null}
                   </div>
@@ -1216,8 +1286,21 @@ export default function LeaveDashboardClient({
                   <h2 className="text-lg font-bold text-gray-900">Your requests</h2>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {filteredMyLeaves.length} shown
-                    {myLeaveFilter !== 'all' ? ` · ${myLeaveCounts.all} total` : ''}
+                    {myLeaveFilter !== 'all' || myLeavePeriod !== 'year'
+                      ? ` · ${leaves.filter(l => istYearAndMonth(new Date(l.startDate)).year === istYearNow).length} this year`
+                      : ''}
                   </p>
+                </div>
+                <div className="w-full sm:w-48 shrink-0">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                    Period
+                  </label>
+                  <SimpleSelect
+                    aria-label="Filter requests by month"
+                    value={myLeavePeriod}
+                    onChange={setMyLeavePeriod}
+                    options={myLeavePeriodOptions}
+                  />
                 </div>
               </div>
 
@@ -1260,13 +1343,17 @@ export default function LeaveDashboardClient({
                 <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 px-6 py-16 text-center shadow-sm">
                   <p className="text-base font-semibold text-gray-900">
                     {myLeaveFilter === 'all'
-                      ? 'No leave requests yet'
+                      ? myLeavePeriod === 'year'
+                        ? 'No leave requests this year'
+                        : 'No leave requests this month'
                       : `No ${myLeaveFilter} requests`}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     {myLeaveFilter === 'all'
-                      ? 'Use the form to request time off.'
-                      : 'Try another tab or submit a new request.'}
+                      ? myLeavePeriod === 'year'
+                        ? 'Use the form to request time off.'
+                        : 'Pick another month or All to see earlier requests.'
+                      : 'Try another tab, month, or submit a new request.'}
                   </p>
                 </div>
               ) : (
@@ -1622,14 +1709,26 @@ export default function LeaveDashboardClient({
                   <p className="text-xs text-gray-500 mt-0.5">Approved and applied leaves only.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-3 text-[11px] font-semibold text-gray-500">
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-gray-500">
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-green-100 ring-1 ring-green-200" />
-                      Approved
+                      <span className="h-2.5 w-2.5 rounded-sm bg-red-500 ring-1 ring-red-600" />
+                      Full day
                     </span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-amber-200" />
-                      Applied
+                      <span className="h-2.5 w-2.5 rounded-sm bg-red-100 ring-1 ring-red-200" />
+                      Half day
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-sky-200 ring-1 ring-sky-300" />
+                      Short leave
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-teal-100 ring-1 ring-teal-200" />
+                      WFH
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-gray-200 ring-1 ring-gray-300" />
+                      Waiting
                     </span>
                   </div>
                   <select
@@ -1686,11 +1785,10 @@ export default function LeaveDashboardClient({
                               <div
                                 key={l.id}
                                 onClick={() => viewHistory(l)}
-                                className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all
-                                  ${l.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}
-                                title={`${l.member.name} · ${formatLeaveType(l.leaveType, l.timeSlot)} · ${l.status === 'pending' ? 'Applied' : 'Approved'}`}
+                                className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all ${calendarLeaveChipClass(l.leaveType, l.status)}`}
+                                title={`${l.member.name} · ${formatLeaveType(l.leaveType, l.timeSlot)} · ${l.status === 'pending' ? 'Waiting' : 'Approved'}`}
                               >
-                                {l.member.name.split(' ')[0]}
+                                {shortDisplayName(l.member.name)}
                               </div>
                             ))}
                           </div>

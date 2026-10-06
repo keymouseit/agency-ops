@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { canCreateQATestCycles, canManageQATestCycles, canViewQATestCycles } from '@/lib/qa-access'
+import {
+  canCreateQATestCycles,
+  canManageQATestCycles,
+  canViewQATestCycles,
+  qaDashboardProjectWhere,
+} from '@/lib/qa-access'
 import { milestoneListOrderBy } from '@/lib/project-queries'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -10,12 +15,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function QAPage() {
   const session = await auth()
-  if (!canViewQATestCycles(session?.user?.role)) redirect('/')
-  const canManageQA = canManageQATestCycles(session?.user?.role)
-  const canCreateQA = canCreateQATestCycles(session?.user?.role)
-  const [projects, recentIssues] = await Promise.all([
+  if (!session?.user?.id || !canViewQATestCycles(session.user.role)) redirect('/')
+  const canManageQA = canManageQATestCycles(session.user.role)
+  const canCreateQA = canCreateQATestCycles(session.user.role)
+  const projectWhere = qaDashboardProjectWhere({
+    userId: session.user.id,
+    role: session.user.role,
+  })
+
+  const [projects, recentIssues, allIssues] = await Promise.all([
     prisma.project.findMany({
-      where: { status: { in: ['active', 'qa', 'scoping'] } },
+      where: projectWhere,
       include: {
         developer: true,
         bdMember: true,
@@ -40,16 +50,19 @@ export default async function QAPage() {
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.postDeliveryIssue.findMany({
-      where: { resolvedAt: null },
+      where: {
+        resolvedAt: null,
+        project: projectWhere,
+      },
       include: { project: { select: { id: true, name: true } } },
       orderBy: { reportedAt: 'asc' },
       take: 10,
     }),
+    prisma.postDeliveryIssue.findMany({
+      where: { project: projectWhere },
+      select: { id: true, severity: true, wasInScope: true },
+    }),
   ])
-
-  const allIssues = await prisma.postDeliveryIssue.findMany({
-    select: { id: true, severity: true, wasInScope: true },
-  })
 
   const qaProjects = projects.filter(p => p.status === 'qa')
   const failedProjects = projects.filter(p => p.testCycles[0]?.result === 'fail')
@@ -142,7 +155,7 @@ export default async function QAPage() {
 
       <section>
         <div className="flex items-center justify-between gap-3 mb-3">
-          <h2 className="text-sm font-semibold text-gray-900">Active projects</h2>
+          <h2 className="text-sm font-semibold text-gray-900">QA projects</h2>
           <span className="badge bg-gray-100 text-gray-600 text-[11px]">{projects.length}</span>
         </div>
         <div className="space-y-3">
@@ -154,9 +167,9 @@ export default async function QAPage() {
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-xl">
                 🔍
               </div>
-              <p className="text-sm font-medium text-gray-700">No active projects in QA</p>
+              <p className="text-sm font-medium text-gray-700">No projects in QA yet</p>
               <p className="text-xs text-gray-400 mt-1">
-                Projects appear here when their status is active, qa, or scoping.
+                Projects appear here when status is set to QA, or when they are assigned to you.
               </p>
             </div>
           )}

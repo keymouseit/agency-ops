@@ -7,6 +7,7 @@ import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDaily
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
+import HoursMinutesFields from '@/components/HoursMinutesFields'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
@@ -53,14 +54,26 @@ const emptyTask = (role: string): Task => ({
   estimatedHours: '',
 })
 
-function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount: number }) {
-  const pct = Math.min(100, (totalHours / MAX_DAILY_PLAN_HOURS) * 100)
+function HoursSummary({
+  totalHours,
+  taskCount,
+  dayTarget = MAX_DAILY_PLAN_HOURS,
+  leaveHint = null,
+}: {
+  totalHours: number
+  taskCount: number
+  dayTarget?: number
+  leaveHint?: string | null
+}) {
+  const target = dayTarget > 0 ? dayTarget : MAX_DAILY_PLAN_HOURS
+  const pct = Math.min(100, (totalHours / target) * 100)
+  const nearTarget = target * 0.75
   const barColor =
-    totalHours > MAX_DAILY_PLAN_HOURS
+    totalHours > target
       ? 'bg-amber-500'
-      : totalHours >= 6
+      : totalHours >= nearTarget
         ? 'bg-green-500'
-        : totalHours >= 3
+        : totalHours >= target * 0.35
           ? 'bg-blue-400'
           : 'bg-gray-300'
 
@@ -70,14 +83,14 @@ function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Day load</span>
         <span
           className={`text-sm font-semibold tabular-nums ${
-            totalHours > MAX_DAILY_PLAN_HOURS
+            totalHours > target
               ? 'text-amber-700'
-              : totalHours >= 6
+              : totalHours >= nearTarget
                 ? 'text-green-700'
                 : 'text-gray-700'
           }`}
         >
-          {formatHoursAmount(totalHours)}h / {MAX_DAILY_PLAN_HOURS}h
+          {formatHoursAmount(totalHours)}h / {formatHoursAmount(target)}h
         </span>
       </div>
       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -85,8 +98,9 @@ function HoursSummary({ totalHours, taskCount }: { totalHours: number; taskCount
       </div>
       <p className="text-xs text-gray-500 mt-2">
         {taskCount} task{taskCount !== 1 ? 's' : ''}
-        {totalHours > MAX_DAILY_PLAN_HOURS && ' · Over a standard workday'}
-        {totalHours > 0 && totalHours < 3 && ' · Consider adding more tasks'}
+        {leaveHint ? ` · ${leaveHint}` : null}
+        {!leaveHint && totalHours > target && ' · Over expected hours'}
+        {totalHours > 0 && totalHours < Math.min(3, target * 0.4) && ' · Consider adding more tasks'}
       </p>
     </div>
   )
@@ -101,6 +115,8 @@ export default function MorningPlanForm({
   initialTasks,
   initialPlanNotes = '',
   carryOverFromDate,
+  dayTarget = MAX_DAILY_PLAN_HOURS,
+  leaveHint = null,
 }: {
   member: Member
   projects: Project[]
@@ -110,6 +126,8 @@ export default function MorningPlanForm({
   initialTasks?: Task[]
   initialPlanNotes?: string
   carryOverFromDate?: string
+  dayTarget?: number
+  leaveHint?: string | null
 }) {
   const [tasks, setTasks] = useState<Task[]>(
     initialTasks?.length
@@ -408,22 +426,13 @@ export default function MorningPlanForm({
                       </select>
                     </div>
                     <div>
-                      <label className="label">Est. hours *</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        value={task.estimatedHours}
-                        onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
+                      <HoursMinutesFields
+                        id={`est-hours-${i}`}
+                        label="Est. time"
                         required
-                        className="input bg-gray-50/50 focus:bg-white tabular-nums"
-                        placeholder="0.25 or 15m"
-                        aria-describedby={`est-hours-hint-${i}`}
+                        value={task.estimatedHours}
+                        onChange={next => updateTask(i, 'estimatedHours', next)}
                       />
-                      <p id={`est-hours-hint-${i}`} className="text-[11px] text-gray-400 mt-1">
-                        Quarter hours OK — <span className="font-medium text-gray-500">0.25</span> or{' '}
-                        <span className="font-medium text-gray-500">15m</span> = 15 min · 0.5 = 30 min
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -442,7 +451,7 @@ export default function MorningPlanForm({
             Add another task
           </button>
           <div className="sm:w-56">
-            <HoursSummary totalHours={totalHours} taskCount={tasks.length} />
+            <HoursSummary totalHours={totalHours} taskCount={tasks.length} dayTarget={dayTarget} leaveHint={leaveHint} />
           </div>
         </div>
 

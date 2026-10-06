@@ -3,6 +3,7 @@ import './globals.css'
 import Nav from '@/components/Nav'
 import { NavigationProvider } from '@/components/NavigationProvider'
 import { SessionProvider } from 'next-auth/react'
+import AppToaster from '@/components/AppToaster'
 import { auth } from '@/lib/auth'
 import { getBranding } from '@/lib/branding'
 
@@ -28,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body className="bg-gray-50 min-h-screen">
         <SessionProvider session={session}>
+          <AppToaster />
           <NavigationProvider>
             <Nav
               branding={branding}
@@ -41,7 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   : null
               }
             />
-            <main className={session?.user ? 'app-main px-4 py-8' : ''}>
+            <main className={session?.user ? 'app-main px-3 py-5 sm:px-4 sm:py-8' : ''}>
               {children}
             </main>
           </NavigationProvider>

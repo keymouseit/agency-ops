@@ -1,12 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
-import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
+import { businessDayKey, businessDayStart } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
+import { computeExpectedHoursForDay, STANDARD_DAY_HOURS } from '@/lib/expected-hours'
 import { milestoneListOrderBy } from '@/lib/project-queries'
 import { differenceInCalendarDays } from 'date-fns'
 import { formatIstDate, formatIst } from '@/lib/ist'
 
-const DAY_TARGET = MAX_DAILY_PLAN_HOURS // 8h → 40h / week
+const DAY_TARGET = STANDARD_DAY_HOURS // 8h → 40h / week (leave-adjusted per day below)
 
 function istWeekdayShort(date: Date) {
   return new Intl.DateTimeFormat('en-US', {
@@ -279,16 +280,9 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
     const isPast = dayDate < today
     const isToday = dayDate.getTime() === today.getTime()
 
-    // Adjust target for approved leave covering this day
-    let dayTarget = DAY_TARGET
-    for (const leave of leaveUsage.leaves) {
-      const start = leave.startDate.slice(0, 10)
-      const end = leave.endDate.slice(0, 10)
-      if (dateKey < start || dateKey > end) continue
-      if (leave.leaveType === 'full_day' || leave.leaveType === 'birthday_leave' || leave.leaveType === 'comp_off_leave') dayTarget = 0
-      else if (leave.leaveType === 'half_day') dayTarget = 4
-      else if (leave.leaveType === 'short_leave') dayTarget = Math.max(0, DAY_TARGET - 2)
-    }
+    // Leave-adjusted target (approved leave only; leaveUsage is already filtered)
+    const expectedDay = computeExpectedHoursForDay(dateKey, leaveUsage.leaves)
+    const dayTarget = expectedDay.expectedHours
 
     const planned = log
       ? Math.round(log.tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0) * 10) / 10
@@ -336,6 +330,8 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
       phase,
       flags,
       taskCount: log?.tasks.length ?? 0,
+      leaveType: expectedDay.leaveType,
+      leaveHint: expectedDay.leaveHint,
     }
   })
 
@@ -610,7 +606,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
             : 'Repeated mistake on weekly check-in',
           detail: s.selfNotes?.trim() || `Week of ${formatIst(s.weekOf, { month: 'short', day: 'numeric' })}`,
           date: s.weekOf.toISOString(),
-          href: '/team',
+          href: `/reports/team?tab=individual&memberId=${encodeURIComponent(memberId)}`,
         })
       }
 

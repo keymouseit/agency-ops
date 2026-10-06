@@ -23,9 +23,21 @@ type NotificationType =
   | 'test_cycle_fix_ready'
   | 'eod_missing'
   | 'mom_attendee'
+  | 'mom_action_due'
+  | 'mom_action_overdue'
+  | 'mom_action_escalation'
+  | 'mom_action_blocked'
+  | 'mom_action_assigned'
+  | 'mom_action_done'
+  | 'mom_action_status'
+  | 'mom_action_status_alert'
+  | 'mom_followup_completed'
+  | 'mom_action_nudge'
+  | 'founder_digest'
   | 'leave_applied'
   | 'leave_approved'
   | 'leave_rejected'
+  | 'weekly_score_reminder'
 
 /**
  * Notify developer and/or BD when assigned to a project (skips the creator).
