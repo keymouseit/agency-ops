@@ -294,3 +294,53 @@ export function BdAttentionStrip({ stats }: { stats: BdAttentionStats }) {
     </div>
   )
 }
+
+/**
+ * Founder / Manager MOM strip — one line of counts that filter the list below.
+ * The detailed "what needs you" list lives on the lead home (`/`), so this page
+ * no longer repeats the big attention board. Colour rule: red = needs action,
+ * amber = due soon, neutral otherwise.
+ */
+export function LeadMomStrip({ stats }: { stats: AttentionStats }) {
+  const overdue = stats.overdueActions + stats.overdueFollowUps
+  const items: { label: string; count: number; tone: 'red' | 'amber' | 'neutral'; href: string }[] = [
+    { label: 'Overdue', count: overdue, tone: overdue > 0 ? 'red' : 'neutral', href: '/mom?filter=overdue' },
+    {
+      label: 'Blocked',
+      count: stats.blockedActions,
+      tone: stats.blockedActions > 0 ? 'red' : 'neutral',
+      href: '/mom?filter=blocked',
+    },
+    {
+      label: 'Due today',
+      count: stats.dueToday,
+      tone: stats.dueToday > 0 ? 'amber' : 'neutral',
+      href: '/mom?filter=due_soon',
+    },
+    { label: 'Due this week', count: stats.dueNext7Days, tone: 'neutral', href: '/mom?filter=due_soon' },
+  ]
+
+  return (
+    <div className="card mb-4 px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+      {items.map(item => (
+        <Link
+          key={item.label}
+          href={item.href}
+          className="inline-flex items-baseline gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <span
+            className={`font-semibold tabular-nums ${
+              item.tone === 'red' ? 'text-red-700' : item.tone === 'amber' ? 'text-amber-700' : 'text-gray-900'
+            }`}
+          >
+            {item.count}
+          </span>
+          {item.label}
+        </Link>
+      ))}
+      <Link href="/" className="ml-auto text-xs text-gray-500 hover:text-gray-900">
+        What needs you →
+      </Link>
+    </div>
+  )
+}

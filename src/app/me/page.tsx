@@ -14,6 +14,8 @@ import MeRightRail from './MeRightRail'
 import MeProjectsGrid from './MeProjectsGrid'
 import MeWeekScorePanel, { MeWeekScorePanelFallback } from './MeWeekScorePanel'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
+import WeeklyScoreBanner from '@/components/WeeklyScoreBanner'
+import { getWeeklyScoreHomePrompt } from '@/lib/weekly-score-reminder'
 import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate, findCarryOverMovedTasks } from '@/lib/daily'
 import MovedTasksCard from './MovedTasksCard'
 import { shortDisplayName } from '@/lib/employee-order'
@@ -33,7 +35,11 @@ export const dynamic = 'force-dynamic'
 // 4. Projects grid — full-width 2–3 cols
 // 5. Extras — estimates, pipeline, QA, blockers, goals
 
-export default async function MePage() {
+export default async function MePage({
+  searchParams,
+}: {
+  searchParams?: { previewScoreBanner?: string | string[] }
+}) {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
   if (session.user.role === 'Founder') redirect('/')
@@ -43,6 +49,11 @@ export default async function MePage() {
   const today    = businessDayStart()
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
   const isWeekday = !isIstWeekend()
+  const rawPreview = Array.isArray(searchParams?.previewScoreBanner)
+    ? searchParams?.previewScoreBanner[0]
+    : searchParams?.previewScoreBanner
+  const forcePreview =
+    process.env.NODE_ENV !== 'production' && rawPreview === '1'
 
   const isDev = role === 'Dev' || role === 'Both'
   const isBD  = role === 'BD'  || role === 'Both'
@@ -55,6 +66,7 @@ export default async function MePage() {
     bdEstimates,
     thisWeekScore,
     carryOverMoved,
+    scorePrompt,
   ] = await Promise.all([
     prisma.teamMember.findUnique({
       where: { id: memberId },
@@ -115,6 +127,7 @@ export default async function MePage() {
       where: { memberId, weekOf: thisWeek, founderScore: false },
     }),
     findCarryOverMovedTasks(memberId),
+    getWeeklyScoreHomePrompt(memberId, role, new Date(), { forcePreview }),
   ])
 
   if (!member) redirect('/api/auth/signout?callbackUrl=/login')
@@ -160,6 +173,14 @@ export default async function MePage() {
         totalTasks={todayTasks.length}
         totalHours={totalHours}
       />
+
+      {scorePrompt.kind === 'due' && (
+        <WeeklyScoreBanner
+          userId={memberId}
+          weekKey={scorePrompt.weekKey}
+          isFriday={scorePrompt.isFriday}
+        />
+      )}
 
       {/* Urgent: missing past EOD */}
       {missingPastEOD && pendingPastEodLog && (

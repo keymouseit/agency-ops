@@ -73,7 +73,37 @@ function isActionOverdue(action: { dueDate: Date; status: string }, today: Date)
   return differenceInDays(startOfDay(action.dueDate), today) < 0
 }
 
-function MomListRow({ record, today }: { record: NormalizedMom; today: Date }) {
+/**
+ * Founder / Manager rows: at most one status pill (red = needs action,
+ * amber = due soon); everything else as plain grey text.
+ */
+function leadRowPill(opts: {
+  blocked: number
+  overdueActions: number
+  followUpOverdueDays: number | null
+  followUpDays: number | null
+}): { text: string; cls: string } | null {
+  const red = 'bg-red-50 text-red-700 border-red-200'
+  const amber = 'bg-amber-50 text-amber-800 border-amber-200'
+  if (opts.blocked > 0) return { text: `${opts.blocked} blocked`, cls: red }
+  if (opts.overdueActions > 0) {
+    return { text: `${opts.overdueActions} overdue action${opts.overdueActions === 1 ? '' : 's'}`, cls: red }
+  }
+  if (opts.followUpOverdueDays != null) return { text: `Next call ${opts.followUpOverdueDays}d overdue`, cls: red }
+  if (opts.followUpDays === 0) return { text: 'Next call today', cls: amber }
+  if (opts.followUpDays === 1) return { text: 'Next call tomorrow', cls: amber }
+  return null
+}
+
+function MomListRow({
+  record,
+  today,
+  simple = false,
+}: {
+  record: NormalizedMom
+  today: Date
+  simple?: boolean
+}) {
   const title = record.companyName
     ? `${record.clientName} · ${record.companyName}`
     : record.clientName
@@ -88,6 +118,44 @@ function MomListRow({ record, today }: { record: NormalizedMom; today: Date }) {
     differenceInDays(startOfDay(record.followUpDate!), today) < 0
   const needsAttention = overdueActions.length > 0 || followUpOverdue || blockedActions.length > 0
   const showBadges = needsAttention || !!nextCallBadge
+
+  if (simple) {
+    const followUpDays = isFollowUpPending(record)
+      ? differenceInDays(startOfDay(record.followUpDate!), today)
+      : null
+    const pill = leadRowPill({
+      blocked: blockedActions.length,
+      overdueActions: overdueActions.length,
+      followUpOverdueDays: followUpDays != null && followUpDays < 0 ? Math.abs(followUpDays) : null,
+      followUpDays,
+    })
+    const nextCallNote =
+      !pill && followUpDays != null && followUpDays > 1 ? `Next call in ${followUpDays} days` : null
+    return (
+      <Link
+        href={`/mom/${record.id}`}
+        className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(180px,26%)] gap-2 sm:gap-6 px-6 py-4 hover:bg-[#f7f7f7] transition-colors items-center"
+      >
+        <div className="text-sm text-gray-500">
+          <div>{fmtDate(record.meetingDate)}</div>
+          <div className="mt-0.5 text-xs">{formatDistanceToNow(record.meetingDate, { addSuffix: true })}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[15px] text-gray-900 font-medium leading-snug truncate">{title}</div>
+          {pill ? (
+            <div className="mt-1">
+              <span className={`badge border ${pill.cls}`}>{pill.text}</span>
+            </div>
+          ) : nextCallNote ? (
+            <div className="mt-0.5 text-xs text-gray-500">{nextCallNote}</div>
+          ) : null}
+        </div>
+        <div className="text-xs text-gray-500 sm:text-right truncate">
+          {record.meetingType} · {record.createdBy.name}
+        </div>
+      </Link>
+    )
+  }
 
   return (
     <Link
@@ -146,10 +214,12 @@ function StatusCard({
   title,
   records,
   today,
+  simple = false,
 }: {
   title: string
   records: NormalizedMom[]
   today: Date
+  simple?: boolean
 }) {
   return (
     <section className="rounded-2xl border border-[#e0e0e0] bg-white overflow-hidden">
@@ -161,7 +231,7 @@ function StatusCard({
       {records.length > 0 ? (
         <div className="divide-y divide-[#e0e0e0] border-t border-[#e0e0e0]">
           {records.map(record => (
-            <MomListRow key={record.id} record={record} today={today} />
+            <MomListRow key={record.id} record={record} today={today} simple={simple} />
           ))}
         </div>
       ) : (
@@ -182,11 +252,14 @@ export default function MomListPanel({
   records,
   currentMemberId,
   hideImmediateBanner = false,
+  simpleBadges = false,
 }: {
   records: MomRecord[]
   currentMemberId?: string | null
   /** When Founder/Manager attention board already shows overdue/blocked, skip the redundant banner. */
   hideImmediateBanner?: boolean
+  /** Founder/Manager: one pill per row, neutral filters, no duplicate status-chip row. */
+  simpleBadges?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -416,7 +489,9 @@ export default function MomListPanel({
             onClick={() => setExtraFilter(key)}
             className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
               extraFilter === key
-                ? key === 'overdue' || key === 'blocked'
+                ? simpleBadges
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : key === 'overdue' || key === 'blocked'
                   ? 'bg-red-600 text-white border-red-600'
                   : key === 'due_soon'
                     ? 'bg-amber-600 text-white border-amber-600'
@@ -429,6 +504,8 @@ export default function MomListPanel({
         ))}
       </div>
 
+      {/* Status chips duplicate the Status select above — hidden for leads to cut clutter. */}
+      {!simpleBadges && (
       <div className="flex flex-wrap gap-1.5 mb-3">
         <button
           type="button"
@@ -458,6 +535,7 @@ export default function MomListPanel({
           )
         })}
       </div>
+      )}
 
       {records.length === 0 ? (
         <div className="rounded-2xl border border-[#e0e0e0] bg-white px-6 py-16 text-center">
@@ -487,7 +565,13 @@ export default function MomListPanel({
       ) : (
         <div className="space-y-4">
           {visibleStatuses.map(status => (
-            <StatusCard key={status} title={status} records={grouped[status]} today={today} />
+            <StatusCard
+              key={status}
+              title={status}
+              records={grouped[status]}
+              today={today}
+              simple={simpleBadges}
+            />
           ))}
         </div>
       )}

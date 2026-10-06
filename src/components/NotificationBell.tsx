@@ -45,6 +45,9 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
   mom_action_status: { icon: '🔄', box: 'bg-slate-100', label: 'MOM status' },
   mom_action_status_alert: { icon: '🚫', box: 'bg-red-100', label: 'MOM status' },
   mom_followup_completed: { icon: '📞', box: 'bg-sky-100', label: 'MOM' },
+  mom_action_nudge: { icon: '👋', box: 'bg-amber-100', label: 'MOM nudge' },
+  founder_digest: { icon: '☀️', box: 'bg-gray-100', label: 'Morning digest' },
+  weekly_score_reminder: { icon: '📊', box: 'bg-indigo-100', label: 'Weekly score' },
 }
 
 const DEFAULT_STYLE: TypeStyle = { icon: '•', box: 'bg-gray-100', label: 'Update' }

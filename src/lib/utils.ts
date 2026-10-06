@@ -262,6 +262,24 @@ export function isSameWeek(a: Date | string, b: Date | string) {
   return getWeekStart(new Date(a)).getTime() === getWeekStart(new Date(b)).getTime()
 }
 
+/** Prefer founder WeeklyScore over self when both exist for the same member+week. */
+export function preferFounderWeeklyScores<T extends { memberId: string; weekOf: Date | string; founderScore?: boolean }>(
+  scores: T[]
+): T[] {
+  const map = new Map<string, T>()
+  for (const s of scores) {
+    const weekMs = getWeekStart(new Date(s.weekOf)).getTime()
+    const key = `${s.memberId}:${weekMs}`
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, s)
+      continue
+    }
+    if (s.founderScore && !existing.founderScore) map.set(key, s)
+  }
+  return Array.from(map.values())
+}
+
 /** Client-safe unique id; works on HTTP where crypto.randomUUID may be unavailable. */
 export function createClientId() {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {

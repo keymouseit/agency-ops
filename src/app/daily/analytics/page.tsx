@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import DatePicker from './DatePicker'
 import DailyTrendCharts from './DailyTrendCharts'
 import { shortDisplayName } from '@/lib/employee-order'
+import { getExpectedHoursBatch } from '@/lib/expected-hours'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,10 +55,25 @@ export default async function DailyAnalyticsPage({
 
   const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const submittedIds = new Set(dayLogs.filter(l => l.planSubmittedAt).map(l => l.memberId))
+  const expectedBatch = await getExpectedHoursBatch(
+    cadenceMembers.map(m => m.id),
+    selectedDate,
+    selectedDate,
+  )
+  const selectedKey = dayKey(selectedDate)
+  const onFullDayLeave = (memberId: string) => {
+    const day = expectedBatch.get(memberId)?.get(selectedKey)
+    return Boolean(day && day.expectedHours <= 0)
+  }
   const submitted = cadenceMembers.filter(m => submittedIds.has(m.id))
-  const missing = cadenceMembers.filter(m => !submittedIds.has(m.id))
+  const missing = cadenceMembers.filter(m => !submittedIds.has(m.id) && !onFullDayLeave(m.id))
+  const onLeave = cadenceMembers.filter(m => !submittedIds.has(m.id) && onFullDayLeave(m.id))
   const eodPending = dayLogs.filter(
-    l => requiresDailyCadence(l.member.role) && l.planSubmittedAt && !l.eodSubmittedAt
+    l =>
+      requiresDailyCadence(l.member.role) &&
+      l.planSubmittedAt &&
+      !l.eodSubmittedAt &&
+      !onFullDayLeave(l.memberId)
   )
   const dayTasks = dayLogs.flatMap(l => l.tasks)
   const dayDone = dayTasks.filter(t => t.status === 'done').length
@@ -236,7 +252,11 @@ export default async function DailyAnalyticsPage({
             Did not add a daily ({missing.length})
           </h2>
           {missing.length === 0 ? (
-            <p className="text-sm text-green-700 font-medium">Everyone submitted a plan.</p>
+            <p className="text-sm text-green-700 font-medium">
+              {onLeave.length > 0
+                ? 'Everyone else submitted a plan (or is on leave).'
+                : 'Everyone submitted a plan.'}
+            </p>
           ) : (
             <div className="space-y-2">
               {missing.map(m => (
@@ -246,6 +266,22 @@ export default async function DailyAnalyticsPage({
                     <div className="text-xs text-gray-400">{m.role}</div>
                   </div>
                   <span className="badge bg-red-100 text-red-800">No plan</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {onLeave.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+              <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                On leave ({onLeave.length})
+              </h3>
+              {onLeave.map(m => (
+                <div key={m.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                    <div className="text-xs text-gray-400">{m.role}</div>
+                  </div>
+                  <span className="badge bg-slate-100 text-slate-700">On leave</span>
                 </div>
               ))}
             </div>

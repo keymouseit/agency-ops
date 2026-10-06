@@ -30,7 +30,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   revalidatePath('/goals')
   revalidatePath('/me')
-  revalidatePath('/intelligence')
+  revalidatePath('/reports/team')
 
   return NextResponse.json(goal)
 }

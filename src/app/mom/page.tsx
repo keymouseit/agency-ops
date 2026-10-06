@@ -6,8 +6,9 @@ import { actionOverdueDays } from '@/lib/mom-actions'
 import { isMomActionClosed, normalizeMomFinalStatus } from '@/lib/utils'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import MomAnalytics, {
+import {
   BdAttentionStrip,
+  LeadMomStrip,
   type AttentionItem,
   type AttentionStats,
   type BdAttentionStats,
@@ -228,7 +229,7 @@ export default async function MomPage() {
       </div>
 
       {showAttentionBoard ? (
-        <MomAnalytics stats={attentionStats} />
+        <LeadMomStrip stats={attentionStats} />
       ) : (
         <BdAttentionStrip stats={bdAttentionStats} />
       )}
@@ -240,6 +241,7 @@ export default async function MomPage() {
           records={listWithStatus}
           currentMemberId={currentMemberId}
           hideImmediateBanner={showAttentionBoard}
+          simpleBadges={showAttentionBoard}
         />
       </Suspense>
     </div>

@@ -175,7 +175,7 @@ function flagLabel(flag: string) {
     case 'under_logged':
       return 'Hours short'
     case 'on_leave':
-      return 'Leave'
+      return 'On leave'
     case 'upcoming':
       return 'Upcoming'
     case 'today':
@@ -252,13 +252,28 @@ function overallScore(report: EmployeeReport): number {
   )
 }
 
-export default function EmployeeReportClient({ employees }: { employees: Employee[] }) {
-  const [memberId, setMemberId] = useState(employees[0]?.id || '')
-  const [rangeMode, setRangeMode] = useState<RangeMode>('week')
+export default function EmployeeReportClient({
+  employees,
+  embedded = false,
+  initialMemberId,
+  initialRange = 'week',
+  initialFrom,
+  initialTo,
+}: {
+  employees: Employee[]
+  /** Rendered inside Team → Individual: hide the standalone header and keep the URL in sync. */
+  embedded?: boolean
+  initialMemberId?: string
+  initialRange?: RangeMode
+  initialFrom?: string
+  initialTo?: string
+}) {
+  const [memberId, setMemberId] = useState(initialMemberId || employees[0]?.id || '')
+  const [rangeMode, setRangeMode] = useState<RangeMode>(initialRange)
   const [from, setFrom] = useState(
-    toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
+    initialFrom ?? toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
   )
-  const [to, setTo] = useState(toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 })))
+  const [to, setTo] = useState(initialTo ?? toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 })))
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState<EmployeeReport | null>(null)
   const requestId = useRef(0)
@@ -268,6 +283,26 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
     [employees, memberId]
   )
 
+  /** Keep person + range in the URL (Team → Individual) so the view is linkable. */
+  function syncUrl(nextMemberId: string, nextRange: RangeMode, nextFrom: string, nextTo: string) {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('tab', 'individual')
+    params.set('memberId', nextMemberId)
+    params.set('range', nextRange)
+    if (nextRange === 'custom') {
+      params.set('from', nextFrom)
+      params.set('to', nextTo)
+    } else {
+      params.delete('from')
+      params.delete('to')
+    }
+    const next = `${window.location.pathname}?${params}`
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, '', next)
+    }
+  }
+
   async function loadReport(
     nextMemberId = memberId,
     nextRange: RangeMode = rangeMode,
@@ -275,6 +310,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
     nextTo = to
   ) {
     if (!nextMemberId) return
+    if (embedded) syncUrl(nextMemberId, nextRange, nextFrom, nextTo)
     const id = ++requestId.current
     setLoading(true)
     setReport(null)
@@ -321,9 +357,46 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
   const snap = report?.snapshot
   const score = report ? overallScore(report) : null
   const findings = report ? buildFindings(report) : []
-  const latestSelf = report?.scores.self[0]
+  // Prefer founder rating over self when both exist for the same week
+  const weeklyScoreHistory = (() => {
+    if (!report) return [] as {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }[]
+    const byWeek = new Map<string, {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }>()
+    for (const s of report.scores.self) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'self' })
+    }
+    for (const s of report.scores.founder) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'founder' })
+    }
+    return Array.from(byWeek.values()).sort((a, b) => b.weekOf.localeCompare(a.weekOf))
+  })()
+  const latestPreferred = weeklyScoreHistory[0]
+  const latestSelf = report?.scores.self.find(
+    s => latestPreferred && s.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
+  ) ?? report?.scores.self[0]
   const latestFounder = report?.scores.founder.find(
-    f => latestSelf && f.weekOf.slice(0, 10) === latestSelf.weekOf.slice(0, 10)
+    f => latestPreferred && f.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
   )
 
   const chartData =
@@ -358,17 +431,24 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
   const planPct = Math.min(100, snap?.planRate ?? 0)
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className={embedded ? '' : 'max-w-6xl mx-auto px-4 py-6'}>
       <Toaster position="top-right" />
 
       {/* Controls */}
       <div className="mb-4 flex flex-col lg:flex-row lg:items-end gap-3 justify-between">
-        <div>
-          <Link href="/" className="text-xs text-gray-400 hover:text-gray-700">
-            ← Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Employee performance report</h1>
-        </div>
+        {embedded ? (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Employee performance report</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Hours, plans, projects, and scores for one person.</p>
+          </div>
+        ) : (
+          <div>
+            <Link href="/" className="text-xs text-gray-400 hover:text-gray-700">
+              ← Home
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Employee performance report</h1>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
           <div>
             <label className="block text-[10px] font-semibold uppercase text-gray-500 mb-1">
@@ -493,7 +573,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
               </p>
               <p className="text-3xl font-bold mt-1 tabular-nums">{hrs(hours.loggedShort)}</p>
               <p className="text-xs text-white/80 mt-1">
-                {hours.loggedShort >= 1 ? 'Below 8h/day target' : 'On track'}
+                {hours.loggedShort >= 1 ? 'Below leave-adjusted target' : 'On track'}
               </p>
             </div>
             <div className="rounded-xl bg-violet-600 text-white p-4">
@@ -544,25 +624,29 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                 />
               </div>
 
-              {latestSelf && (
+              {latestPreferred && (
                 <div className="mt-5 pt-4 border-t border-gray-100">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">
-                    Latest weekly score · week of {fmtDate(latestSelf.weekOf)}
+                    Latest weekly score · week of {fmtDate(latestPreferred.weekOf)}
+                    {latestPreferred.source === 'founder' ? ' · founder rating' : ' · self'}
                   </p>
                   <div className="grid grid-cols-5 gap-2 text-center">
                     {(
                       [
-                        ['Delivery', latestSelf.delivery, latestFounder?.delivery],
-                        ['Process', latestSelf.process, latestFounder?.process],
-                        ['Comm', latestSelf.communication, latestFounder?.communication],
-                        ['Growth', latestSelf.growth, latestFounder?.growth],
-                        ['Culture', latestSelf.culture, latestFounder?.culture],
+                        ['Delivery', latestPreferred.delivery, latestSelf?.delivery, latestFounder?.delivery],
+                        ['Process', latestPreferred.process, latestSelf?.process, latestFounder?.process],
+                        ['Comm', latestPreferred.communication, latestSelf?.communication, latestFounder?.communication],
+                        ['Growth', latestPreferred.growth, latestSelf?.growth, latestFounder?.growth],
+                        ['Culture', latestPreferred.culture, latestSelf?.culture, latestFounder?.culture],
                       ] as const
-                    ).map(([label, selfV, foundV]) => (
+                    ).map(([label, preferredV, selfV, foundV]) => (
                       <div key={label} className="rounded-lg bg-slate-50 py-2 px-1">
                         <p className="text-[9px] font-semibold uppercase text-gray-400">{label}</p>
-                        <p className="text-lg font-bold text-gray-900">{selfV}</p>
-                        {foundV != null && (
+                        <p className="text-lg font-bold text-gray-900">{preferredV}</p>
+                        {latestPreferred.source === 'founder' && selfV != null && selfV !== preferredV && (
+                          <p className="text-[10px] text-slate-500">Self {selfV}</p>
+                        )}
+                        {latestPreferred.source === 'self' && foundV != null && (
                           <p className="text-[10px] text-slate-500">F {foundV}</p>
                         )}
                       </div>
@@ -599,6 +683,66 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
               </ul>
             </aside>
           </div>
+
+          {/* Weekly score history — founder preferred when both exist */}
+          <section className="rounded-xl bg-white ring-1 ring-gray-900/5 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gray-100">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                Weekly score history
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Deli / Proc / Comm / Grow / Cult · founder rating preferred when both exist
+              </p>
+            </div>
+            {weeklyScoreHistory.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-gray-400">
+                No weekly scores in this period.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr className="text-[10px] uppercase text-gray-400 tracking-wide">
+                      <th className="text-left font-semibold px-4 py-2">Week of</th>
+                      <th className="text-center font-semibold px-2 py-2">Deli</th>
+                      <th className="text-center font-semibold px-2 py-2">Proc</th>
+                      <th className="text-center font-semibold px-2 py-2">Comm</th>
+                      <th className="text-center font-semibold px-2 py-2">Grow</th>
+                      <th className="text-center font-semibold px-2 py-2">Cult</th>
+                      <th className="text-center font-semibold px-2 py-2">Overall</th>
+                      <th className="text-center font-semibold px-2 py-2">Repeat</th>
+                      <th className="text-left font-semibold px-3 py-2">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {weeklyScoreHistory.map(s => (
+                      <tr key={`${s.weekOf}-${s.source}`}>
+                        <td className="px-4 py-2 text-gray-800 whitespace-nowrap">
+                          {fmtDate(s.weekOf)}
+                        </td>
+                        <td className="text-center px-2 py-2 tabular-nums font-semibold">{s.delivery}</td>
+                        <td className="text-center px-2 py-2 tabular-nums font-semibold">{s.process}</td>
+                        <td className="text-center px-2 py-2 tabular-nums font-semibold">{s.communication}</td>
+                        <td className="text-center px-2 py-2 tabular-nums font-semibold">{s.growth}</td>
+                        <td className="text-center px-2 py-2 tabular-nums font-semibold">{s.culture}</td>
+                        <td className="text-center px-2 py-2 tabular-nums font-bold text-gray-900">
+                          {s.overall.toFixed(1)}
+                        </td>
+                        <td className="text-center px-2 py-2">
+                          {s.repeatedMistake ? (
+                            <span className="text-[10px] font-semibold text-red-700">Yes</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500 capitalize">{s.source}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
           {/* Progress ratios */}
           <div>
@@ -752,15 +896,21 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {hours.byDay.map(d => {
-                      const short = d.phase === 'past' && d.loggedShort >= 1
+                      const onLeave = d.flags.includes('on_leave') || d.expected <= 0
+                      const short = !onLeave && d.phase === 'past' && d.loggedShort >= 1
                       const flag = d.flags[0]
                       return (
-                        <tr key={d.date} className={short ? 'bg-red-50/50' : d.phase === 'today' ? 'bg-blue-50/40' : undefined}>
+                        <tr key={d.date} className={short ? 'bg-red-50/50' : onLeave ? 'bg-slate-50/60' : d.phase === 'today' ? 'bg-blue-50/40' : undefined}>
                           <td className="px-3 py-1.5 font-medium text-gray-900 whitespace-nowrap">
                             {fmtDate(d.date, 'EEE d')}
+                            {d.leaveHint ? (
+                              <div className="text-[10px] font-normal text-gray-400 mt-0.5">{d.leaveHint}</div>
+                            ) : null}
                           </td>
-                          <td className="px-2 py-1.5 text-right text-gray-500">{hrs(d.expected)}</td>
-                          <td className="px-2 py-1.5 text-right font-semibold">{hrs(d.logged)}</td>
+                          <td className="px-2 py-1.5 text-right text-gray-500">
+                            {onLeave ? '—' : hrs(d.expected)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-semibold">{onLeave ? '—' : hrs(d.logged)}</td>
                           <td
                             className={`px-2 py-1.5 text-right font-bold ${
                               short ? 'text-red-600' : 'text-gray-300'
@@ -771,7 +921,9 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                           <td className="px-3 py-1.5">
                             <span
                               className={`text-[10px] font-bold ${
-                                short || flag === 'no_plan' || flag === 'no_eod' || flag === 'under_logged'
+                                onLeave
+                                  ? 'text-slate-500'
+                                  : short || flag === 'no_plan' || flag === 'no_eod' || flag === 'under_logged'
                                   ? 'text-red-700'
                                   : flag === 'upcoming'
                                     ? 'text-gray-400'
@@ -780,7 +932,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
                                       : 'text-emerald-600'
                               }`}
                             >
-                              {flag ? flagLabel(flag) : 'OK'}
+                              {onLeave ? 'On leave' : flag ? flagLabel(flag) : 'OK'}
                             </span>
                           </td>
                         </tr>
