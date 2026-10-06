@@ -11,6 +11,7 @@ import { listDailyProjectsForMember } from '@/lib/project-assignees'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
+import { getExpectedHours } from '@/lib/expected-hours'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export default async function MorningPlanPage() {
   const memberId = session.user.id
   const today = businessDayStart()
 
-  const [member, todayLog, pendingPastEodLog, carryOverMoved] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, carryOverMoved, expectedToday] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
 
     prisma.dailyLog.findUnique({
@@ -47,6 +48,8 @@ export default async function MorningPlanPage() {
     findPendingPastEodLogSummary(memberId),
 
     findCarryOverMovedTasks(memberId),
+
+    getExpectedHours(memberId, today),
   ])
 
   const projects = await listDailyProjectsForMember(
@@ -171,6 +174,8 @@ export default async function MorningPlanPage() {
           ? formatDailyLogDate(carryOverMoved.sourceDate)
           : undefined
       }
+      dayTarget={expectedToday.expectedHours}
+      leaveHint={expectedToday.leaveHint}
     />
   )
 }

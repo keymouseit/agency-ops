@@ -15,15 +15,25 @@ const DIM_LABELS: Record<string, string> = {
 export default function SubmitScoreForm({
   members,
   founderMode = false,
+  buttonLabel,
+  buttonClassName,
+  initialMemberId,
+  lockMember = false,
 }: {
   members: Member[]
   founderMode?: boolean
+  buttonLabel?: string
+  buttonClassName?: string
+  initialMemberId?: string
+  lockMember?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
   const router = useRouter()
+  const label = buttonLabel ?? (founderMode ? "+ Submit this week's score" : "+ Submit this week's score")
+  const btnClass = buttonClassName ?? 'btn-primary'
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -33,6 +43,7 @@ export default function SubmitScoreForm({
     const data: Record<string, unknown> = Object.fromEntries(fd)
     DIMS.forEach(d => { data[d] = scores[d] ?? 5 })
     if (founderMode) data.founderScore = true
+    if (lockMember && initialMemberId) data.memberId = initialMemberId
 
     try {
       const res = await fetch('/api/scores', {
@@ -58,7 +69,7 @@ export default function SubmitScoreForm({
 
   return (
     <>
-      <button className="btn-primary" onClick={() => setOpen(true)}>+ Submit this week's score</button>
+      <button type="button" className={btnClass} onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -67,8 +78,8 @@ export default function SubmitScoreForm({
             </h2>
             <p className="text-xs text-gray-400 mb-4">
               {founderMode
-                ? 'Founder score for this week. Shown on the team scorecard table.'
-                : 'Be honest. Scores you give yourself will be compared with the founder\'s view in 1-on-1s.'}
+                ? 'Founder score for this week. Preferred over self-assessment on team reports.'
+                : "Be honest. Scores you give yourself will be compared with the founder’s view in 1-on-1s."}
             </p>
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
@@ -78,10 +89,19 @@ export default function SubmitScoreForm({
             <form onSubmit={submit} className="space-y-4">
               <div>
                 <label className="label">{founderMode ? 'Team member *' : 'Your name *'}</label>
-                <select name="memberId" required className="input">
-                  <option value="">Select...</option>
-                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
+                {lockMember && initialMemberId ? (
+                  <>
+                    <input type="hidden" name="memberId" value={initialMemberId} />
+                    <div className="input bg-gray-50 text-gray-800">
+                      {members.find(m => m.id === initialMemberId)?.name ?? 'Selected member'}
+                    </div>
+                  </>
+                ) : (
+                  <select name="memberId" required className="input" defaultValue={initialMemberId ?? ''}>
+                    <option value="">Select...</option>
+                    {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                )}
               </div>
               {DIMS.map(d => (
                 <div key={d}>

@@ -1,14 +1,27 @@
+import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { avg, scoreColor, scoreBg } from '@/lib/utils'
+import { avg, scoreColor, scoreBg, getWeekStart, preferFounderWeeklyScores } from '@/lib/utils'
 import { startOfWeek, subWeeks } from 'date-fns'
 import { formatIst } from '@/lib/ist'
-import SubmitScoreForm from './SubmitScoreForm'
 
 export const dynamic = 'force-dynamic'
 
 const DIMS = ['delivery', 'process', 'communication', 'growth', 'culture'] as const
 
+/**
+ * Legacy Team scorecards route.
+ * - Founder / Manager → Reports → Team (canonical place for scores + rate).
+ * - Everyone else (HR today) keeps a read-only scorecard. Self-assessment
+ *   submission lives on /checkin (linked from My Day) — least disruption.
+ */
 export default async function TeamPage() {
+  const session = await auth()
+  const role = session?.user?.role
+  if (role === 'Founder' || role === 'Manager') {
+    redirect('/reports/team')
+  }
+
   const [members, allScores] = await Promise.all([
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.weeklyScore.findMany({
@@ -21,19 +34,26 @@ export default async function TeamPage() {
   const weeks = Array.from({ length: 6 }, (_, i) =>
     startOfWeek(subWeeks(new Date(), 5 - i), { weekStartsOn: 1 })
   )
-  const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const thisWeek = getWeekStart()
+  const preferred = preferFounderWeeklyScores(
+    allScores.map(s => ({
+      ...s,
+      memberId: s.memberId,
+      weekOf: s.weekOf,
+      founderScore: s.founderScore,
+    })),
+  )
 
   function getScore(memberId: string, weekOf: Date) {
     const weekKey = weekOf.toISOString().slice(0, 10)
-    const weekScores = allScores.filter(
-      s => s.memberId === memberId && s.weekOf.toISOString().slice(0, 10) === weekKey
+    return (
+      preferred.find(
+        s => s.memberId === memberId && s.weekOf.toISOString().slice(0, 10) === weekKey,
+      ) ?? null
     )
-    // Prefer founder score on team page; fall back to self-assessment
-    return weekScores.find(s => s.founderScore) ?? weekScores.find(s => !s.founderScore) ?? null
   }
 
   const memberSummaries = members.map(m => {
-    const memberScores = allScores.filter(s => s.memberId === m.id)
     const recent = getScore(m.id, thisWeek)
     const overallTrend = weeks.map(w => {
       const s = getScore(m.id, w)
@@ -46,7 +66,7 @@ export default async function TeamPage() {
     const prevOverall = prevWeek
       ? avg([prevWeek.delivery, prevWeek.process, prevWeek.communication, prevWeek.growth, prevWeek.culture])
       : null
-    return { member: m, recent, latestOverall, prevOverall, overallTrend, memberScores }
+    return { member: m, recent, latestOverall, prevOverall, overallTrend }
   })
 
   return (
@@ -58,12 +78,8 @@ export default async function TeamPage() {
             Delivery · Process · Communication · Growth · Culture — tracked weekly.
           </p>
         </div>
-        <div className="shrink-0">
-          <SubmitScoreForm members={members} founderMode />
-        </div>
       </div>
 
-      {/* Score definitions */}
       <div className="card p-4 mb-6 bg-gray-50">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 text-xs">
           {[
@@ -85,9 +101,11 @@ export default async function TeamPage() {
           <span className="text-red-600">4–5 = Needs improvement</span>
           <span className="text-red-800 font-medium">1–3 = At risk — 1-on-1 required</span>
         </div>
+        <p className="text-xs text-gray-400 mt-3">
+          Team members submit weekly self-assessments via Check-In (My Day). Founder ratings and the full team report live under Reports → Team.
+        </p>
       </div>
 
-      {/* This week's scores */}
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
         This week — {formatIst(thisWeek, { day: 'numeric', month: 'short', year: 'numeric' })}
       </h2>
@@ -146,7 +164,6 @@ export default async function TeamPage() {
         </div>
       </div>
 
-      {/* 6-week trend per member */}
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">6-week trend by member</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {memberSummaries.map(({ member, overallTrend }) => (

@@ -13,8 +13,8 @@ import { shortDisplayName } from '@/lib/employee-order'
 
 /** Warm these on idle so the first intentional click is already cached. */
 const PRIMARY_PREFETCH: Record<string, string[]> = {
-  Founder: ['/', '/projects', '/daily', '/leaves', '/team'],
-  Manager: ['/', '/projects', '/daily', '/leaves', '/team'],
+  Founder: ['/', '/projects', '/mom', '/leaves'],
+  Manager: ['/', '/projects', '/mom', '/leaves'],
   Dev: ['/me', '/projects', '/daily', '/leaves', '/checkin'],
   BD: ['/me', '/pipeline', '/projects', '/daily', '/leaves'],
   Both: ['/me', '/projects', '/pipeline', '/daily', '/leaves'],
@@ -23,77 +23,43 @@ const PRIMARY_PREFETCH: Record<string, string[]> = {
   SocialMedia: ['/me', '/daily', '/leaves', '/checkin'],
 }
 
+/**
+ * Founder / Manager (leads) — trimmed to 5 top-level items.
+ * Dev/QA tooling (Check-In, Estimates, QA, QA activity) is intentionally not
+ * listed; those routes stay reachable by URL. Settings lives in the user menu.
+ */
+const LEAD_NAV = [
+  { href: '/', label: 'Needs you' },
+  {
+    label: 'People',
+    items: [
+      { href: '/leaves', label: 'Leaves & WFH' },
+      { href: '/daily', label: 'Daily updates' },
+      { href: '/goals', label: 'Goals' },
+    ],
+  },
+  { href: '/projects', label: 'Projects' },
+  {
+    label: 'Sales',
+    items: [
+      { href: '/mom', label: 'Meetings (MOM)' },
+      { href: '/pipeline', label: 'Pipeline' },
+      { href: '/campaigns', label: 'Campaigns' },
+      { href: '/salesrobot', label: 'SalesRobot' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { href: '/overview', label: 'Business' },
+      { href: '/reports/team', label: 'Team' },
+    ],
+  },
+]
+
 const NAV_STRUCTURE = {
-  Founder: [
-    { href: '/', label: 'Dashboard' },
-    {
-      label: 'Operations',
-      items: [
-        { href: '/pipeline', label: 'BD Pipeline' },
-        { href: '/mom', label: 'MOM' },
-        { href: '/campaigns', label: 'Campaigns' },
-        { href: '/projects', label: 'Projects' },
-        { href: '/estimate', label: 'Estimates' },
-        { href: '/qa', label: 'QA' },
-        { href: '/qa/activity', label: 'QA activity' },
-      ],
-    },
-    {
-      label: 'Team',
-      items: [
-        { href: '/team', label: 'Team Scores' },
-        { href: '/checkin', label: 'Check-In' },
-        { href: '/daily', label: 'Daily' },
-        { href: '/leaves', label: 'Leaves' },
-        { href: '/goals', label: 'Goals' },
-        { href: '/reports/employee', label: 'Employee report' },
-      ],
-    },
-    {
-      label: 'Intelligence',
-      items: [
-        { href: '/intelligence', label: 'Intel' },
-        { href: '/analytics', label: 'Analytics' },
-        { href: '/salesrobot', label: 'SalesRobot' },
-      ],
-    },
-    { href: '/settings', label: 'Settings' },
-  ],
-  Manager: [
-    { href: '/', label: 'Dashboard' },
-    {
-      label: 'Operations',
-      items: [
-        { href: '/pipeline', label: 'BD Pipeline' },
-        { href: '/mom', label: 'MOM' },
-        { href: '/campaigns', label: 'Campaigns' },
-        { href: '/projects', label: 'Projects' },
-        { href: '/estimate', label: 'Estimates' },
-        { href: '/qa', label: 'QA' },
-        { href: '/qa/activity', label: 'QA activity' },
-      ],
-    },
-    {
-      label: 'Team',
-      items: [
-        { href: '/team', label: 'Team Scores' },
-        { href: '/checkin', label: 'Check-In' },
-        { href: '/daily', label: 'Daily' },
-        { href: '/leaves', label: 'Leaves' },
-        { href: '/goals', label: 'Goals' },
-        { href: '/reports/employee', label: 'Employee report' },
-      ],
-    },
-    {
-      label: 'Intelligence',
-      items: [
-        { href: '/intelligence', label: 'Intel' },
-        { href: '/analytics', label: 'Analytics' },
-        { href: '/salesrobot', label: 'SalesRobot' },
-      ],
-    },
-    { href: '/settings', label: 'Settings' },
-  ],
+  Founder: LEAD_NAV,
+  Manager: LEAD_NAV,
   BD: [
     { href: '/me', label: 'My Day' },
     {
@@ -409,6 +375,25 @@ function UserMenuDropdown({
             </div>
           </Link>
 
+          {(role === 'Founder' || role === 'Manager') && (
+            <Link
+              href="/settings"
+              prefetch={false}
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6h16M4 12h10M4 18h7" />
+                </svg>
+              </span>
+              <div>
+                <div className="font-medium text-gray-900">Company settings</div>
+                <div className="text-xs text-gray-500">Team, branding & audit log</div>
+              </div>
+            </Link>
+          )}
+
           <button
             type="button"
             onClick={onSignOut}
@@ -468,8 +453,10 @@ export default function Nav({
   const homeHref = role === 'Founder' || role === 'Manager' ? '/' : '/me'
   const roleLabel = role === 'SocialMedia' ? 'Social' : role
   const prefetched = useRef(new Set<string>())
-  const canReviewLeaves = role === 'HR' || role === 'Founder' || role === 'Manager'
-  const pendingLeaveCount = usePendingLeaveCount(canReviewLeaves)
+  // Pending-leave badge is for HR only — leave approval is HR work. Founder / Manager
+  // can still open and act on /leaves (access unchanged); they just don't get the badge.
+  const showLeaveBadge = role === 'HR'
+  const pendingLeaveCount = usePendingLeaveCount(showLeaveBadge)
 
   function prefetchHref(href: string) {
     if (prefetched.current.has(href)) return
@@ -760,6 +747,16 @@ export default function Nav({
                   <div className="text-xs text-gray-500">Account settings</div>
                 </div>
               </Link>
+              {(role === 'Founder' || role === 'Manager') && (
+                <Link
+                  href="/settings"
+                  prefetch={false}
+                  onClick={handleNavigate}
+                  className="mt-1 flex items-center rounded-xl px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Company settings
+                </Link>
+              )}
             </div>
           </aside>
         </div>
