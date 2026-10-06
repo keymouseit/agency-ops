@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { registerDeviceToken, unregisterDeviceToken } from "@/lib/push-notifications";
+import {
+  registerDeviceToken,
+  unregisterDeviceToken,
+  unregisterAllDeviceTokensForMember,
+} from "@/lib/push-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +66,12 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const token = searchParams.get("token");
+    const all = searchParams.get("all");
+
+    if (all === "1" || all === "true") {
+      await unregisterAllDeviceTokensForMember(session.user.id);
+      return NextResponse.json({ success: true });
+    }
 
     if (!token) {
       return NextResponse.json({ error: "Token is required." }, { status: 400 });

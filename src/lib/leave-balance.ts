@@ -202,6 +202,7 @@ export async function assertNoOverlappingLeave(opts: {
 }) {
   const reqStartKey = istDateInputValue(opts.startDate)
   const reqEndKey = istDateInputValue(opts.endDate)
+  const requestType = opts.leaveType || ''
 
   // Expand query window by 2 days on each side to safely catch any UTC timezone shifts in stored DB timestamps
   const searchStart = new Date(opts.startDate.getTime() - 2 * 24 * 60 * 60 * 1000)
@@ -231,6 +232,15 @@ export async function assertNoOverlappingLeave(opts: {
 
     // Calendar date overlap: intervals [A, B] and [C, D] overlap iff candStartKey <= reqEndKey and candEndKey >= reqStartKey
     if (candStartKey <= reqEndKey && candEndKey >= reqStartKey) {
+      // Allowed coexistence: Work From Home + Short Leave (either direction)
+      const existingIsWfh = candidate.leaveType === 'work_from_home'
+      const existingIsShort = candidate.leaveType === 'short_leave'
+      const requestIsWfh = requestType === 'work_from_home'
+      const requestIsShort = requestType === 'short_leave'
+      if ((existingIsWfh && requestIsShort) || (existingIsShort && requestIsWfh)) {
+        continue
+      }
+
       const typeLabel =
         candidate.leaveType === 'work_from_home'
           ? 'Work From Home'
@@ -239,9 +249,18 @@ export async function assertNoOverlappingLeave(opts: {
         ? formatIstDate(candidate.startDate)
         : `${formatIstDate(candidate.startDate)} to ${formatIstDate(candidate.endDate)}`
 
+      if (requestIsShort && !existingIsWfh) {
+        throw Object.assign(
+          new Error(
+            `Cannot apply short leave — you already have a ${candidate.status} ${typeLabel} request (${dateLabel}).`
+          ),
+          { status: 400 }
+        )
+      }
+
       throw Object.assign(
         new Error(
-          `Overlaps an existing ${candidate.status} ${typeLabel} request (${dateLabel}). Only 1 leave or WFH request is allowed per day.`
+          `Overlaps an existing ${candidate.status} ${typeLabel} request (${dateLabel}). Only 1 leave or WFH request is allowed per day (short leave is allowed with WFH).`
         ),
         { status: 400 }
       )
