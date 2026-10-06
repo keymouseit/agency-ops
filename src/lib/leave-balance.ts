@@ -206,10 +206,14 @@ export async function assertNoOverlappingLeave(opts: {
   leaveType?: string
   excludeId?: string
 }) {
-  // WFH must not overlap pending/approved leave (any non-WFH type).
-  // Non-WFH leave still ignores existing WFH so leave can be filed over a WFH day.
+  // Rules (merged from both branches):
+  // - WFH + Short Leave can coexist (either direction)
+  // - Short Leave cannot overlap other leave types
+  // - WFH cannot overlap other leave types (leave still blocked on WFH days)
+  // - Clearer overlap messages via formatIstLeaveRange
   const reqStartKey = istDateInputValue(opts.startDate)
   const reqEndKey = istDateInputValue(opts.endDate)
+  const requestType = opts.leaveType || ''
 
   // Expand query window by 2 days on each side to safely catch any UTC timezone shifts in stored DB timestamps
   const searchStart = new Date(opts.startDate.getTime() - 2 * 24 * 60 * 60 * 1000)
@@ -219,7 +223,6 @@ export async function assertNoOverlappingLeave(opts: {
     where: {
       memberId: opts.memberId,
       status: { in: ['pending', 'approved'] },
-      leaveType: { not: 'work_from_home' },
       ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
       startDate: { lte: searchEnd },
       endDate: { gte: searchStart },
@@ -240,15 +243,38 @@ export async function assertNoOverlappingLeave(opts: {
 
     // Calendar date overlap: intervals [A, B] and [C, D] overlap iff candStartKey <= reqEndKey and candEndKey >= reqStartKey
     if (candStartKey <= reqEndKey && candEndKey >= reqStartKey) {
-      const typeLabel = candidate.leaveType.replace(/_/g, ' ')
+      const existingIsWfh = candidate.leaveType === 'work_from_home'
+      const existingIsShort = candidate.leaveType === 'short_leave'
+      const requestIsWfh = requestType === 'work_from_home'
+      const requestIsShort = requestType === 'short_leave'
+
+      // Allowed coexistence: Work From Home + Short Leave (either direction)
+      if ((existingIsWfh && requestIsShort) || (existingIsShort && requestIsWfh)) {
+        continue
+      }
+
+      const typeLabel =
+        candidate.leaveType === 'work_from_home'
+          ? 'Work From Home'
+          : candidate.leaveType.replace(/_/g, ' ')
       const rangeLabel = formatIstLeaveRange(candidate.startDate, candidate.endDate)
-      const prefix =
-        opts.leaveType === 'work_from_home'
-          ? 'Cannot request Work From Home — overlaps'
-          : 'Overlaps'
+
+      if (requestIsShort) {
+        throw Object.assign(
+          new Error(
+            `Cannot apply short leave — you already have a ${candidate.status} ${typeLabel} request (${rangeLabel}).`
+          ),
+          { status: 400 }
+        )
+      }
+
+      const prefix = requestIsWfh
+        ? 'Cannot request Work From Home — overlaps'
+        : 'Overlaps'
+
       throw Object.assign(
         new Error(
-          `${prefix} an existing ${candidate.status} ${typeLabel} leave (${rangeLabel})`
+          `${prefix} an existing ${candidate.status} ${typeLabel} request (${rangeLabel}). Short leave is allowed with WFH.`
         ),
         { status: 400 }
       )

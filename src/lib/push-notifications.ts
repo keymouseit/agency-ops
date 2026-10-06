@@ -185,6 +185,25 @@ export async function unregisterDeviceToken(token: string) {
 }
 
 /**
+ * Remove all push device tokens for a member (logout).
+ */
+export async function unregisterAllDeviceTokensForMember(memberId: string) {
+  if (!memberId) return;
+  try {
+    const result = await getDeviceTokenModel().deleteMany({
+      where: { memberId },
+    });
+    console.log(
+      `🗑️ [DEVICE TOKEN DB DELETE ALL] Removed ${result?.count ?? 0} token(s) for member ${memberId}`
+    );
+    logger.info("All device tokens unregistered for member", { memberId, count: result?.count });
+  } catch (error) {
+    console.error("❌ [DEVICE TOKEN UNREGISTER ALL ERROR]:", error);
+    logger.error("Failed to unregister all device tokens", error as Error, { memberId });
+  }
+}
+
+/**
  * Send push notifications to target team members using Expo Push Notification service and Direct APNs/FCM
  */
 export async function sendPushNotification({
