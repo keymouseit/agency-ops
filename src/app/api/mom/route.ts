@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { momClientKey } from '@/lib/mom'
 import { notify } from '@/lib/notify'
+import { notifyMomActionAssigned } from '@/lib/mom-notify'
 import { momFieldsToPrismaData, parseMomFormFields, setMomThreadFinalStatus } from '@/lib/mom-form'
+import { replaceMomActionItems } from '@/lib/mom-actions'
 
 const MOM_ROLES = ['BD', 'Both', 'Founder', 'Manager'] as const
 
@@ -14,7 +16,13 @@ export async function GET() {
   if (deny) return deny
 
   const records = await prisma.meetingMinute.findMany({
-    include: { createdBy: { select: { id: true, name: true } } },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      actionItems: {
+        include: { owner: { select: { id: true, name: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
+      },
+    },
     orderBy: [{ meetingDate: 'desc' }, { createdAt: 'desc' }],
   })
   return NextResponse.json(records)
@@ -50,6 +58,7 @@ export async function POST(req: Request) {
       include: { createdBy: { select: { id: true, name: true } } },
     })
 
+    await replaceMomActionItems(record.id, fields.actionItems)
     await setMomThreadFinalStatus(parentId ?? record.id, fields.finalStatus)
 
     const clientKey = momClientKey(fields.clientName, fields.companyName)
@@ -83,6 +92,21 @@ export async function POST(req: Request) {
       )
     }
 
+    // Notify newly assigned action owners (except creator)
+    const ownerIds = [...new Set(fields.actionItems.map(a => a.ownerId).filter(id => id !== memberId))]
+    if (ownerIds.length) {
+      await notifyMomActionAssigned({
+        actorId: memberId,
+        ownerIds,
+        clientName: fields.clientName,
+        companyName: fields.companyName,
+        momLinkId: parentId ?? record.id,
+        detail: fields.actionItems.length === 1
+          ? `“${fields.actionItems[0].title}”`
+          : `${fields.actionItems.length} actions`,
+      })
+    }
+
     if (fields.campaignCallId) {
       await prisma.campaignCall.updateMany({
         where: { id: fields.campaignCallId, momId: null },
@@ -94,8 +118,19 @@ export async function POST(req: Request) {
       })
     }
 
+    const withActions = await prisma.meetingMinute.findUnique({
+      where: { id: record.id },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        actionItems: {
+          include: { owner: { select: { id: true, name: true } } },
+          orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
+        },
+      },
+    })
+
     return NextResponse.json(
-      { ...record, threadRootId: parentId ?? record.id },
+      { ...withActions, threadRootId: parentId ?? record.id },
       { status: 201 }
     )
   } catch (error) {

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
-import { istYearAndMonth } from '@/lib/ist'
+import { formatIstLeaveRange, istYearAndMonth } from '@/lib/ist'
 import {
   BIRTHDAY_LEAVE_YEARLY_CAP,
   MAX_ANNUAL_LEAVE_DAYS,
@@ -162,7 +162,11 @@ export async function getAvailableLeaveDays(memberId: string, year = istYearAndM
 }
 
 /** Remaining Comp Off days (HR-granted favour — separate from regular leave). */
-export async function getAvailableCompOffDays(memberId: string, year = istYearAndMonth().year) {
+export async function getAvailableCompOffDays(
+  memberId: string,
+  year = istYearAndMonth().year,
+  opts?: { excludeLeaveId?: string }
+) {
   const balance = await syncShortLeaveBalance(memberId, year)
   const accrued = Number(balance.compOffAccrued ?? 0)
   const used = Number(balance.compOffUsed ?? 0)
@@ -175,6 +179,7 @@ export async function getAvailableCompOffDays(memberId: string, year = istYearAn
       leaveType: 'comp_off_leave',
       status: 'pending',
       startDate: { gte: yearStart, lte: yearEnd },
+      ...(opts?.excludeLeaveId ? { id: { not: opts.excludeLeaveId } } : {}),
     },
     select: { startDate: true, endDate: true, timeSlot: true },
   })
@@ -200,8 +205,8 @@ export async function assertNoOverlappingLeave(opts: {
   leaveType?: string
   excludeId?: string
 }) {
-  if (opts.leaveType === 'work_from_home') return
-
+  // WFH must not overlap pending/approved leave (any non-WFH type).
+  // Non-WFH leave still ignores existing WFH so leave can be filed over a WFH day.
   const overlap = await prisma.leaveRequest.findFirst({
     where: {
       memberId: opts.memberId,
@@ -214,9 +219,15 @@ export async function assertNoOverlappingLeave(opts: {
     select: { id: true, startDate: true, endDate: true, status: true, leaveType: true },
   })
   if (overlap) {
+    const typeLabel = overlap.leaveType.replace(/_/g, ' ')
+    const rangeLabel = formatIstLeaveRange(overlap.startDate, overlap.endDate)
+    const prefix =
+      opts.leaveType === 'work_from_home'
+        ? 'Cannot request Work From Home — overlaps'
+        : 'Overlaps'
     throw Object.assign(
       new Error(
-        `Overlaps an existing ${overlap.status} ${overlap.leaveType.replace(/_/g, ' ')} leave`
+        `${prefix} an existing ${overlap.status} ${typeLabel} leave (${rangeLabel})`
       ),
       { status: 400 }
     )
@@ -254,12 +265,25 @@ export async function assertLeaveTypePolicy(opts: {
 
 
   if (opts.leaveType === 'comp_off_leave') {
-    // Same simple flow as birthday: employee applies, HR approves. No pre-assigned credit required.
     const cost = compOffRequestDayCost(opts.startDate, opts.endDate ?? opts.startDate, opts.timeSlot)
     if (cost <= 0) {
       throw Object.assign(new Error('Comp Off leave must cover at least one working day'), {
         status: 400,
       })
+    }
+    const year = istYearAndMonth(opts.startDate).year
+    const { available } = await getAvailableCompOffDays(opts.memberId, year, {
+      excludeLeaveId: opts.excludeId,
+    })
+    if (available < cost) {
+      throw Object.assign(
+        new Error(
+          available <= 0
+            ? 'No Comp Off credit available. Ask HR or Founder to assign Comp Off first.'
+            : `Not enough Comp Off credit (need ${cost}, have ${available}). Ask HR or Founder to assign more.`
+        ),
+        { status: 400 }
+      )
     }
   }
 

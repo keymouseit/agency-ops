@@ -2,11 +2,13 @@ import Link from 'next/link'
 import type { OnLeaveTodayPerson } from '@/lib/leave-today'
 
 function typeBadgeClass(leaveType: string) {
-  if (leaveType === 'short_leave') return 'bg-sky-50 text-sky-700 border-sky-200'
-  if (leaveType === 'half_day') return 'bg-amber-50 text-amber-800 border-amber-200'
+  if (leaveType === 'short_leave') return 'bg-sky-100 text-sky-900 border-sky-200'
+  if (leaveType === 'half_day') return 'bg-red-100 text-red-800 border-red-200'
   if (leaveType === 'birthday_leave') return 'bg-pink-50 text-pink-800 border-pink-200'
-  if (leaveType === 'work_from_home') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
-  return 'bg-violet-50 text-violet-800 border-violet-200'
+  if (leaveType === 'work_from_home') return 'bg-teal-100 text-teal-800 border-teal-200'
+  if (leaveType === 'comp_off_leave') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
+  // full_day
+  return 'bg-red-500 text-white border-red-600'
 }
 
 export default function OnLeaveTodayCard({

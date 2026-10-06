@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { parseManualBdActivityJson } from '@/lib/bd-activity-manual'
 import { businessDayStart } from '@/lib/daily'
 import { Fragment } from 'react'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -434,7 +435,7 @@ export default async function AnalyticsPage({
                   ) : (
                     Array.from(
                       bdProspectStats.reduce((acc, p) => {
-                        const mName = p.member.name.split(' ')[0]
+                        const mName = shortDisplayName(p.member.name)
                         const dateStr = formatIst(p.date, { month: 'short', day: 'numeric' })
                         const groupKey = `${dateStr} – ${mName}`
                         if (!acc.has(groupKey)) acc.set(groupKey, [])

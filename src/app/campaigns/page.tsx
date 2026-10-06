@@ -10,6 +10,7 @@ import {
 import { isFollowUpDue, isFollowUpUpcoming } from '@/lib/mom'
 import Link from 'next/link'
 import { addDays, startOfDay } from 'date-fns'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -242,7 +243,7 @@ export default async function CampaignsPage() {
                       <td className="px-4 py-3.5">{c._count.calls}</td>
                       <td className="px-4 py-3.5 text-blue-700">{scheduled}</td>
                       <td className="px-4 py-3.5 text-green-700">{done}</td>
-                      <td className="px-4 py-3.5 text-gray-500 text-xs">{c.createdBy.name.split(' ')[0]}</td>
+                      <td className="px-4 py-3.5 text-gray-500 text-xs">{shortDisplayName(c.createdBy.name)}</td>
                       <td className="px-4 py-3.5 text-right">
                         <Link href={`/campaigns/${c.id}`} className="text-gray-400 hover:text-gray-700">→</Link>
                       </td>

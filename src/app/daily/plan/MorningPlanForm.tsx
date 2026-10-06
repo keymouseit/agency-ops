@@ -7,6 +7,7 @@ import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDaily
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
+import HoursMinutesFields from '@/components/HoursMinutesFields'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 
 type Member = { id: string; name: string; role: string }
@@ -408,22 +409,13 @@ export default function MorningPlanForm({
                       </select>
                     </div>
                     <div>
-                      <label className="label">Est. hours *</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        value={task.estimatedHours}
-                        onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
+                      <HoursMinutesFields
+                        id={`est-hours-${i}`}
+                        label="Est. time"
                         required
-                        className="input bg-gray-50/50 focus:bg-white tabular-nums"
-                        placeholder="0.25 or 15m"
-                        aria-describedby={`est-hours-hint-${i}`}
+                        value={task.estimatedHours}
+                        onChange={next => updateTask(i, 'estimatedHours', next)}
                       />
-                      <p id={`est-hours-hint-${i}`} className="text-[11px] text-gray-400 mt-1">
-                        Quarter hours OK — <span className="font-medium text-gray-500">0.25</span> or{' '}
-                        <span className="font-medium text-gray-500">15m</span> = 15 min · 0.5 = 30 min
-                      </p>
                     </div>
                   </div>
                 </div>

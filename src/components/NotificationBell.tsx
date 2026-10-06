@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 type Notification = {
   id: string
@@ -34,9 +35,32 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
   leave_applied: { icon: '🏖', box: 'bg-sky-100', label: 'Leave' },
   leave_approved: { icon: '✓', box: 'bg-green-100', label: 'Leave' },
   leave_rejected: { icon: '✕', box: 'bg-red-100', label: 'Leave' },
+  mom_attendee: { icon: '📅', box: 'bg-violet-100', label: 'MOM' },
+  mom_action_due: { icon: '📌', box: 'bg-amber-100', label: 'MOM' },
+  mom_action_overdue: { icon: '⏰', box: 'bg-orange-100', label: 'MOM' },
+  mom_action_escalation: { icon: '🚨', box: 'bg-red-100', label: 'MOM' },
+  mom_action_blocked: { icon: '🚫', box: 'bg-red-100', label: 'MOM blocked' },
+  mom_action_assigned: { icon: '📋', box: 'bg-indigo-100', label: 'MOM' },
+  mom_action_done: { icon: '✅', box: 'bg-green-100', label: 'MOM' },
+  mom_action_status: { icon: '🔄', box: 'bg-slate-100', label: 'MOM status' },
+  mom_action_status_alert: { icon: '🚫', box: 'bg-red-100', label: 'MOM status' },
+  mom_followup_completed: { icon: '📞', box: 'bg-sky-100', label: 'MOM' },
 }
 
 const DEFAULT_STYLE: TypeStyle = { icon: '•', box: 'bg-gray-100', label: 'Update' }
+
+/** Toast duration / style hints for high-priority types. */
+const TOAST_PRIORITY: Record<string, { duration: number; icon: string }> = {
+  mom_action_blocked: { duration: 10000, icon: '🚫' },
+  mom_action_escalation: { duration: 8000, icon: '🚨' },
+  blocker_escalated: { duration: 8000, icon: '🚨' },
+  mom_action_assigned: { duration: 6000, icon: '📋' },
+  mom_action_done: { duration: 5000, icon: '✅' },
+  mom_action_status: { duration: 10000, icon: '🔄' },
+  mom_action_status_alert: { duration: 10000, icon: '🚫' },
+  mom_followup_completed: { duration: 6000, icon: '📞' },
+  leave_applied: { duration: 6000, icon: '🏖' },
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -104,17 +128,117 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const seenIdsRef = useRef<Set<string>>(new Set())
+  const primedRef = useRef(false)
   const router = useRouter()
+
+  const showToastFor = useCallback(
+    (n: Notification) => {
+      const style = TYPE_STYLES[n.type] ?? DEFAULT_STYLE
+      const priority = TOAST_PRIORITY[n.type]
+      const { headline, detail } = parseMessage(n.message)
+      const icon = priority?.icon ?? style.icon
+      const duration = priority?.duration ?? 5000
+      const isDanger =
+        n.type === 'mom_action_blocked' || n.type === 'mom_action_status_alert'
+
+      toast(
+        t => (
+          <button
+            type="button"
+            onClick={() => {
+              toast.dismiss(t.id)
+              if (!n.read) {
+                void fetch(`/api/notifications/${n.id}`, {
+                  method: 'PATCH',
+                  credentials: 'include',
+                }).catch(() => {})
+              }
+              if (n.linkTo) router.push(n.linkTo)
+            }}
+            className="flex items-start gap-2.5 text-left max-w-xs"
+          >
+            <span className="text-base leading-none mt-0.5 shrink-0">{icon}</span>
+            <span className="min-w-0">
+              <span
+                className={`block text-[10px] font-semibold uppercase tracking-wide ${
+                  isDanger ? 'text-red-700/70' : 'text-gray-400'
+                }`}
+              >
+                {style.label}
+              </span>
+              <span
+                className={`block text-sm font-medium leading-snug ${
+                  isDanger ? 'text-red-950' : 'text-gray-900'
+                }`}
+              >
+                {headline}
+              </span>
+              {detail && (
+                <span
+                  className={`block text-xs mt-0.5 leading-snug line-clamp-2 ${
+                    isDanger ? 'text-red-900/70' : 'text-gray-500'
+                  }`}
+                >
+                  {detail}
+                </span>
+              )}
+              {n.linkTo && (
+                <span
+                  className={`block text-[11px] mt-1 font-medium ${
+                    isDanger ? 'text-red-700' : 'text-blue-600'
+                  }`}
+                >
+                  Click to open
+                </span>
+              )}
+            </span>
+          </button>
+        ),
+        {
+          duration,
+          id: `notif-${n.id}`,
+          ...(isDanger
+            ? {
+                style: {
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#7F1D1D',
+                },
+              }
+            : {}),
+        }
+      )
+    },
+    [router]
+  )
 
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications', { cache: 'no-store', credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
-      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
+      const list: Notification[] = Array.isArray(data.notifications) ? data.notifications : []
+
+      if (!primedRef.current) {
+        // First load: seed seen ids so we don't toast historical unread
+        for (const n of list) seenIdsRef.current.add(n.id)
+        primedRef.current = true
+      } else {
+        const fresh = list.filter(n => !n.read && !seenIdsRef.current.has(n.id))
+        // Newest first already; toast oldest-of-fresh first so last toast is newest
+        for (const n of [...fresh].reverse()) {
+          showToastFor(n)
+          seenIdsRef.current.add(n.id)
+        }
+        // Also track any other ids we haven't seen (read ones from other tabs)
+        for (const n of list) seenIdsRef.current.add(n.id)
+      }
+
+      setNotifications(list)
       setUnread(typeof data.unread === 'number' ? data.unread : 0)
     } catch {}
-  }, [])
+  }, [showToastFor])
 
   useEffect(() => {
     fetchNotifications()
@@ -125,7 +249,8 @@ export default function NotificationBell() {
       }
     }
 
-    const interval = setInterval(pollIfVisible, 60000)
+    // 5s poll so in-app recipients see toast promptly (blocked / status / assigned)
+    const interval = setInterval(pollIfVisible, 5000)
 
     function onVisibilityChange() {
       if (document.visibilityState === 'visible') {
@@ -240,7 +365,7 @@ export default function NotificationBell() {
                   🔔
                 </div>
                 <p className="text-sm font-medium text-gray-700">No notifications yet</p>
-                <p className="text-xs text-gray-400 mt-1">Updates on projects, QA, and daily ops appear here.</p>
+                <p className="text-xs text-gray-400 mt-1">Updates on projects, QA, MOM, and daily ops appear here.</p>
               </div>
             ) : (
               <div className="space-y-0.5">

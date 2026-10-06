@@ -21,12 +21,34 @@ const VISHAL_NO_BY_LAST_NAME: Record<string, number> = {
   g: 231,
 }
 
+function nameParts(name: string) {
+  return name.trim().split(/\s+/).filter(Boolean)
+}
+
+function isVishalGhangale(parts: string[]) {
+  if (parts.length === 0) return false
+  const first = parts[0].toLowerCase()
+  const last = parts[parts.length - 1].toLowerCase()
+  return first === 'vishal' && (last === 'g' || last.startsWith('ghangale'))
+}
+
+/**
+ * Compact label for crowded UI (calendar chips, dashboards).
+ * Distinguishes the two Vishals: Ghangale → "Vishal G", Sharma → "Vishal".
+ */
+export function shortDisplayName(name: string): string {
+  const parts = nameParts(name)
+  if (parts.length === 0) return name
+  if (isVishalGhangale(parts)) return 'Vishal G'
+  return parts[0]
+}
+
 export function employeeStaffNo(name: string): number | null {
-  const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const parts = nameParts(name)
   if (parts.length === 0) return null
 
-  const first = parts[0]
-  const last = parts[parts.length - 1]
+  const first = parts[0].toLowerCase()
+  const last = parts[parts.length - 1].toLowerCase()
 
   if (first === 'vishal') {
     if (last === 'g' || last.startsWith('ghangale')) return 231

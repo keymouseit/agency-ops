@@ -51,17 +51,21 @@ export default async function TeamPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Team scorecards</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Delivery · Process · Communication · Growth · Culture — tracked weekly.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Team scorecards</h1>
+          <p className="text-sm text-gray-500 mt-0.5 leading-snug">
+            Delivery · Process · Communication · Growth · Culture — tracked weekly.
+          </p>
         </div>
-        <SubmitScoreForm members={members} founderMode />
+        <div className="shrink-0">
+          <SubmitScoreForm members={members} founderMode />
+        </div>
       </div>
 
       {/* Score definitions */}
       <div className="card p-4 mb-6 bg-gray-50">
-        <div className="grid grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 text-xs">
           {[
             ['Delivery', 'Commits met, milestones hit, QA pass rate, no client-found bugs'],
             ['Process', 'Rules followed: scope CO, estimation template, handover notes, test coverage'],
@@ -69,13 +73,13 @@ export default async function TeamPage() {
             ['Growth', 'Same mistake not repeated, new skill applied, feedback implemented'],
             ['Culture', 'No ego, takes feedback, supports teammates, owns mistakes openly'],
           ].map(([dim, desc]) => (
-            <div key={dim}>
+            <div key={dim} className="min-w-0">
               <div className="font-semibold text-gray-700 mb-0.5">{dim}</div>
-              <div className="text-gray-400">{desc}</div>
+              <div className="text-gray-400 leading-snug">{desc}</div>
             </div>
           ))}
         </div>
-        <div className="flex gap-6 mt-3 text-xs">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 pt-3 border-t border-gray-200/80 text-xs">
           <span className="text-green-700">8–10 = Strong</span>
           <span className="text-amber-700">6–7 = Acceptable</span>
           <span className="text-red-600">4–5 = Needs improvement</span>
@@ -88,7 +92,8 @@ export default async function TeamPage() {
         This week — {formatIst(thisWeek, { day: 'numeric', month: 'short', year: 'numeric' })}
       </h2>
       <div className="card overflow-hidden mb-8">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-xs text-gray-400 uppercase tracking-wide">
               <th className="text-left px-4 py-3 font-medium">Member</th>
@@ -138,11 +143,12 @@ export default async function TeamPage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* 6-week trend per member */}
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">6-week trend by member</h2>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {memberSummaries.map(({ member, overallTrend }) => (
           <div key={member.id} className="card p-4">
             <div className="flex items-center justify-between mb-3">

@@ -86,10 +86,21 @@ textarea.input {
   100% { transform: translateX(400%); }
 }
 
+@keyframes nav-drawer-in {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* ── My Day (/me) — professional dashboard surfaces ── */
 
 .me-page {
-  @apply w-full pb-12;
+  @apply w-full pb-8 sm:pb-12;
 }
 
 /* Stacked layout — no 8/4 rail. Secondary = Attendance | Score. */

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DatePicker from './DatePicker'
 import DailyTrendCharts from './DailyTrendCharts'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +92,7 @@ export default async function DailyAnalyticsPage({
   const memberTrends = members.map(m => {
     const mine = logs.filter(l => l.memberId === m.id)
     return {
-      name: m.name.split(' ')[0],
+      name: shortDisplayName(m.name),
       tasks: mine.reduce((n, l) => n + l.tasks.length, 0),
       plans: mine.filter(l => l.planSubmittedAt).length,
     }

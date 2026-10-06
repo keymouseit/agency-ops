@@ -1,3 +1,4 @@
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseMomAttendeesJson, splitMomAttendees } from '@/lib/mom-form'
 import Link from 'next/link'
@@ -7,8 +8,19 @@ import MomForm from '../../MomForm'
 export const dynamic = 'force-dynamic'
 
 export default async function EditMomPage({ params }: { params: { id: string } }) {
+  const session = await auth()
+  const viewerRole = session?.user?.role
+
   const [record, members] = await Promise.all([
-    prisma.meetingMinute.findUnique({ where: { id: params.id } }),
+    prisma.meetingMinute.findUnique({
+      where: { id: params.id },
+      include: {
+        actionItems: {
+          include: { owner: { select: { id: true, name: true } } },
+          orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
+        },
+      },
+    }),
     prisma.teamMember.findMany({
       where: { active: true },
       select: { id: true, name: true, role: true },
@@ -37,6 +49,7 @@ export default async function EditMomPage({ params }: { params: { id: string } }
 
       <MomForm
         members={members}
+        viewerRole={viewerRole}
         initialMom={{
           id: record.id,
           meetingDate: record.meetingDate.toISOString().slice(0, 10),
@@ -60,6 +73,15 @@ export default async function EditMomPage({ params }: { params: { id: string } }
           meetingVideoUrl: record.meetingVideoUrl ?? '',
           attendeeIds: memberIds,
           customAttendees,
+          actionItems: (record.actionItems ?? []).map(a => ({
+            key: a.id,
+            id: a.id,
+            title: a.title,
+            ownerId: a.ownerId,
+            dueDate: a.dueDate.toISOString().slice(0, 10),
+            status: a.status,
+            blockedReason: a.blockedReason ?? '',
+          })),
         }}
       />
     </div>
