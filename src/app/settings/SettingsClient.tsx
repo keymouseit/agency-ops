@@ -14,6 +14,7 @@ type Member = {
   role: string
   active: boolean
   createdAt: Date
+  birthday?: Date | string | null
 }
 
 type NotificationGroup = {
@@ -42,6 +43,7 @@ export default function SettingsClient({
   members,
   branding,
   canEditBranding,
+  canManageTeam = true,
   notificationGroups,
   dailyTaskTypes,
   initialTab,
@@ -49,6 +51,7 @@ export default function SettingsClient({
   members: Member[]
   branding: Branding
   canEditBranding: boolean
+  canManageTeam?: boolean
   notificationGroups: NotificationGroup[]
   dailyTaskTypes: DailyTaskTypeRecord[]
   initialTab?: string
@@ -99,7 +102,7 @@ export default function SettingsClient({
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'team' && <TeamMembersTab members={members} />}
+        {activeTab === 'team' && <TeamMembersTab members={members} canManage={canManageTeam} />}
 
         {activeTab === 'company' && (
           <CompanyProfileTab initialBranding={branding} canEdit={canEditBranding} />

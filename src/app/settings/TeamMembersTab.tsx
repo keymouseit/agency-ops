@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 type Member = {
@@ -9,9 +10,23 @@ type Member = {
   role: string
   active: boolean
   createdAt: Date
+  birthday?: Date | string | null
 }
 
-export default function TeamMembersTab({ members: initialMembers }: { members: Member[] }) {
+function toDateInput(v: Date | string | null | undefined): string {
+  if (!v) return ''
+  const d = typeof v === 'string' ? new Date(v) : v
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toISOString().slice(0, 10)
+}
+
+export default function TeamMembersTab({
+  members: initialMembers,
+  canManage = true,
+}: {
+  members: Member[]
+  canManage?: boolean
+}) {
   const router = useRouter()
   const [members, setMembers] = useState(initialMembers)
   const [searchQuery, setSearchQuery] = useState('')
@@ -27,6 +42,7 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
     role: 'Dev',
     password: '',
     active: true,
+    birthday: '',
   })
 
   const filteredMembers = members.filter(m =>
@@ -39,7 +55,7 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
   const inactiveCount = members.filter(m => !m.active).length
 
   function openAddForm() {
-    setFormData({ name: '', email: '', role: 'Dev', password: '', active: true })
+    setFormData({ name: '', email: '', role: 'Dev', password: '', active: true, birthday: '' })
     setEditingMember(null)
     setShowAddForm(true)
     setError('')
@@ -52,6 +68,7 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
       role: member.role,
       password: '', // Don't show password
       active: member.active,
+      birthday: toDateInput(member.birthday),
     })
     setEditingMember(member)
     setShowAddForm(true)
@@ -61,7 +78,14 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
   function closeForm() {
     setShowAddForm(false)
     setEditingMember(null)
-    setFormData({ name: '', email: '', role: 'Dev', password: '', active: true })
+    setFormData({
+      name: '',
+      email: '',
+      role: 'Dev',
+      password: '',
+      active: true,
+      birthday: '',
+    })
     setError('')
   }
 
@@ -79,6 +103,7 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
         email: formData.email,
         role: formData.role,
         active: formData.active,
+        birthday: formData.birthday || null,
       }
 
       // Only include password for new members or if changed
@@ -144,9 +169,11 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
             Manage team member accounts, roles, and access
           </p>
         </div>
-        <button onClick={openAddForm} className="btn-primary text-sm">
-          + Add Member
-        </button>
+        {canManage && (
+          <button onClick={openAddForm} className="btn-primary text-sm">
+            + Add Member
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -192,7 +219,12 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
             {filteredMembers.map(member => (
               <tr key={member.id} className={`hover:bg-gray-50 ${!member.active ? 'opacity-50' : ''}`}>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{member.name}</div>
+                  <Link
+                    href={`/settings/team/${member.id}`}
+                    className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                  >
+                    {member.name}
+                  </Link>
                 </td>
                 <td className="px-3 py-3 text-gray-600">{member.email}</td>
                 <td className="px-3 py-3">
@@ -217,22 +249,36 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
                   </span>
                 </td>
                 <td className="px-3 py-3 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => openEditForm(member)}
-                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <Link
+                      href={`/settings/team/${member.id}`}
+                      className="text-xs text-gray-600 hover:text-gray-900 hover:underline"
                     >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => toggleActive(member)}
-                      className={`text-xs hover:underline ${
-                        member.active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'
-                      }`}
-                      disabled={loading}
-                    >
-                      {member.active ? 'Deactivate' : 'Activate'}
-                    </button>
+                      View
+                    </Link>
+                    {canManage && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(member)}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleActive(member)}
+                          className={`text-xs hover:underline ${
+                            member.active
+                              ? 'text-red-600 hover:text-red-800'
+                              : 'text-green-600 hover:text-green-800'
+                          }`}
+                          disabled={loading}
+                        >
+                          {member.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -303,6 +349,16 @@ export default function TeamMembersTab({ members: initialMembers }: { members: M
                   <option value="Manager">Manager</option>
                   <option value="Founder">Founder</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="label">Birthday</label>
+                <input
+                  type="date"
+                  value={formData.birthday}
+                  onChange={e => setFormData({ ...formData, birthday: e.target.value })}
+                  className="input w-full"
+                />
               </div>
 
               <div>

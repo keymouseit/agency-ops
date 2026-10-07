@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth, checkRole } from '@/lib/auth'
 import { getEmployeeReport } from '@/lib/employee-report'
 import { businessDayStart } from '@/lib/daily'
-import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from 'date-fns'
+import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, subDays } from 'date-fns'
 
 export async function GET(req: Request) {
   const deny = await checkRole(['Founder', 'Manager'])
@@ -32,6 +32,11 @@ export async function GET(req: Request) {
     from = businessDayStart(fromStr)
     to = businessDayStart(toStr)
   } else if (range === 'month') {
+    // Last 30 calendar days ending today (inclusive)
+    to = businessDayStart()
+    from = businessDayStart(subDays(to, 29))
+  } else if (range === 'this_month') {
+    // Current calendar month (1st → month end); future weeks stay in range for grey chart placeholders
     from = startOfMonth(new Date())
     to = endOfMonth(new Date())
   } else {

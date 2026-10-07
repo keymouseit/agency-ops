@@ -29,7 +29,7 @@ const projectListSelect = {
     select: { onTrack: true, blockers: true, progressPct: true },
   },
   scopeChanges: { select: { changeOrderSigned: true } },
-  milestones: { select: { status: true } },
+  milestones: { select: { status: true, dueDate: true } },
   releaseSignOff: { select: { id: true } },
 } as const
 
@@ -54,7 +54,7 @@ export function getProjectListCached(developerId?: string) {
   const scope = developerId ?? 'all'
   return unstable_cache(
     () => fetchProjectList(developerId),
-    ['projects-list-v5', scope],
+    ['projects-list-v6', scope],
     { revalidate: 30, tags: [CACHE_TAGS.projectsList] },
   )()
 }
