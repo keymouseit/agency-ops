@@ -16,8 +16,8 @@ export default async function SettingsPage({
   const session = await auth()
   const userRole = session?.user?.role
 
-  // Only Founder and Manager can access Settings
-  if (!userRole || !['Founder', 'Manager'].includes(userRole)) {
+  // Founder / Manager / HR can access Settings (HR: team view; branding edit stays Founder-only)
+  if (!userRole || !['Founder', 'Manager', 'HR'].includes(userRole)) {
     redirect('/')
   }
 
@@ -40,6 +40,7 @@ export default async function SettingsPage({
       members={members}
       branding={branding}
       canEditBranding={userRole === 'Founder'}
+      canManageTeam={userRole === 'Founder' || userRole === 'Manager'}
       notificationGroups={notificationGroups}
       dailyTaskTypes={dailyTaskTypes}
       initialTab={searchParams?.tab}

@@ -2,7 +2,9 @@ import { addDays, differenceInCalendarDays, startOfDay, subDays } from 'date-fns
 import { prisma } from '@/lib/prisma'
 import { momClientLabel } from '@/lib/mom'
 import { getMomFinalStatusMap } from '@/lib/mom-form'
-import { fmtDate, normalizeMomFinalStatus } from '@/lib/utils'
+import { istDateInputValue } from '@/lib/ist'
+import { getLoggedHoursByProjectIds } from '@/lib/project-hours'
+import { fmtDate, getWeekStart, normalizeMomFinalStatus } from '@/lib/utils'
 
 /**
  * Founder / Manager "Needs you" home.
@@ -31,6 +33,14 @@ export type AttentionRowAction =
   | { kind: 'reopen'; momId: string; actionId: string }
   | { kind: 'open'; label?: string }
 
+export type AttentionChip = {
+  label: string
+  /** Visual tone for the pill. */
+  tone?: 'red' | 'amber' | 'slate'
+  /** Native tooltip with extra detail (e.g. logged vs estimate). */
+  title?: string
+}
+
 export type AttentionRow = {
   id: string
   title: string
@@ -38,6 +48,8 @@ export type AttentionRow = {
   meta: string
   /** Short urgency text shown in the row tone colour, e.g. "3d overdue". */
   urgency?: string
+  /** Optional reason pills (Projects at risk). */
+  chips?: AttentionChip[]
   href: string
   action: AttentionRowAction
 }
@@ -94,6 +106,8 @@ export async function getFounderAttention(opts: {
   const tomorrowEnd = addDays(today, 2) // due today or tomorrow
   const weekAgo = subDays(now, 7)
   const dayAgo = subDays(now, 1)
+  // Mon–Sun buckets: this week + last week (same getWeekStart as check-in submit)
+  const checkInWindowStart = subDays(getWeekStart(now), 7)
 
   const [allActions, allStuckActions, allPendingFollowUps, scopeChanges, blockers, projects] =
     await Promise.all([
@@ -179,8 +193,19 @@ export async function getFounderAttention(opts: {
         select: {
           id: true,
           name: true,
+          status: true,
+          estimatedEnd: true,
+          estimatedHours: true,
+          actualHours: true,
           developer: { select: { name: true } },
-          checkIns: { orderBy: { weekOf: 'desc' }, take: 1, select: { onTrack: true, progressPct: true } },
+          milestones: { select: { status: true, dueDate: true } },
+          // Only check-ins from this week or last week
+          checkIns: {
+            where: { weekOf: { gte: checkInWindowStart } },
+            orderBy: { weekOf: 'desc' },
+            take: 1,
+            select: { onTrack: true, progressPct: true, weekOf: true },
+          },
         },
       }),
     ])
@@ -304,25 +329,92 @@ export async function getFounderAttention(opts: {
     })),
   ]
 
-  // ── At risk: active projects whose latest check-in says late / at risk ─────
+  // ── Projects at risk: delivery exceptions (one row per project, multi-reason chips)
+  const todayKey = istDateInputValue(now)
+  const loggedByProject = await getLoggedHoursByProjectIds(projects.map(p => p.id))
+
+  type ProjectRiskAccum = AttentionRow & {
+    hasPastEnd: boolean
+    hasEstimate: boolean
+    overdueMilestoneCount: number
+    checkInRank: number // 0 late, 1 at_risk, 2 missing, 3 none
+  }
+
   const atRiskRows: AttentionRow[] = projects
-    .filter(p => {
-      const ci = p.checkIns[0]
-      return ci && (ci.onTrack === 'no' || ci.onTrack === 'at_risk')
-    })
-    // Late first, then at risk
-    .sort((a, b) => (a.checkIns[0]!.onTrack === 'no' ? 0 : 1) - (b.checkIns[0]!.onTrack === 'no' ? 0 : 1))
     .map(p => {
-      const ci = p.checkIns[0]!
-      return {
+      const chips: AttentionChip[] = []
+      const pastEnd =
+        !!p.estimatedEnd &&
+        istDateInputValue(p.estimatedEnd) < todayKey &&
+        !['delivered', 'cancelled'].includes(p.status)
+      if (pastEnd) {
+        chips.push({ label: 'Past end date', tone: 'red' })
+      }
+
+      const logged = loggedByProject.get(p.id) ?? p.actualHours ?? 0
+      const est = p.estimatedHours
+      let hasEstimateOver = false
+      if (est != null && est > 0 && logged > est) {
+        hasEstimateOver = true
+        const overHours = Math.round((logged - est) * 10) / 10
+        const overLabel = Number.isInteger(overHours) ? String(overHours) : overHours.toFixed(1)
+        const loggedLabel = Math.round(logged * 10) / 10
+        const estLabel = Math.round(est * 10) / 10
+        const estimatePct = Math.round((logged / est) * 100)
+        chips.push({
+          label: `${overLabel}h over estimate`,
+          tone: 'red',
+          title: `${loggedLabel}h logged / ${estLabel}h estimated (${estimatePct}%)`,
+        })
+      }
+
+      const overdueMilestoneCount = p.milestones.filter(
+        m => m.dueDate && istDateInputValue(m.dueDate) < todayKey && m.status !== 'done',
+      ).length
+      if (overdueMilestoneCount > 0) {
+        chips.push({
+          label: `${overdueMilestoneCount} milestone${overdueMilestoneCount === 1 ? '' : 's'} overdue`,
+          tone: 'red',
+        })
+      }
+
+      const ci = p.checkIns[0] ?? null
+      let checkInRank = 3
+      if (ci && ci.onTrack === 'no') {
+        chips.push({ label: 'Late', tone: 'red' })
+        checkInRank = 0
+      } else if (ci && ci.onTrack === 'at_risk') {
+        chips.push({ label: 'At risk', tone: 'amber' })
+        checkInRank = 1
+      }
+      // Missing check-in intentionally omitted — too noisy for this list.
+
+      if (chips.length === 0) return null
+
+      const row: ProjectRiskAccum = {
         id: `project-${p.id}`,
         title: p.name,
-        meta: `${p.developer.name} · ${ci.progressPct}% done`,
-        urgency: ci.onTrack === 'no' ? 'Late' : 'At risk',
+        meta: p.developer.name,
+        chips,
         href: `/projects/${p.id}`,
         action: { kind: 'open' as const },
+        hasPastEnd: pastEnd,
+        hasEstimate: hasEstimateOver,
+        overdueMilestoneCount,
+        checkInRank,
       }
+      return row
     })
+    .filter((r): r is ProjectRiskAccum => r != null)
+    .sort((a, b) => {
+      if (a.hasPastEnd !== b.hasPastEnd) return a.hasPastEnd ? -1 : 1
+      if (a.hasEstimate !== b.hasEstimate) return a.hasEstimate ? -1 : 1
+      if (a.overdueMilestoneCount !== b.overdueMilestoneCount) {
+        return b.overdueMilestoneCount - a.overdueMilestoneCount
+      }
+      return a.checkInRank - b.checkInRank
+    })
+    .map(({ hasPastEnd: _pe, hasEstimate: _he, overdueMilestoneCount: _om, checkInRank: _cr, ...row }) => row)
 
   // ── Due soon: today / tomorrow (not yet overdue) ───────────────────────────
   const dueSoonRows: AttentionRow[] = [
@@ -375,7 +467,7 @@ export async function getFounderAttention(opts: {
     },
     {
       key: 'overdue',
-      label: 'Overdue',
+      label: 'MOM overdue',
       tone: 'red',
       hint: 'MOM actions and next calls past their date.',
       count: overdueRows.length,
@@ -397,7 +489,7 @@ export async function getFounderAttention(opts: {
       key: 'at_risk',
       label: 'Projects at risk',
       tone: 'amber',
-      hint: 'Latest weekly check-in says late or at risk.',
+      hint: 'Past end date, over estimate, overdue milestones, or a recent late/at-risk check-in.',
       count: atRiskRows.length,
       rows: atRiskRows.slice(0, ROW_LIMIT),
       seeAllHref: '/projects',

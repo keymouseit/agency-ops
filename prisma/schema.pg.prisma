@@ -14,6 +14,10 @@ model TeamMember {
   email     String   @unique
   role      String   // "BD" | "Dev" | "QA" | "Both" | "Founder" | "Manager" | "HR" | "SocialMedia"
   active    Boolean  @default(true)
+  /// Birthday (date portion used; year may be placeholder)
+  birthday  DateTime?
+  /// When true, member is omitted from HR attendance tracking
+  attendanceExcluded Boolean @default(false)
   createdAt DateTime @default(now())
 
   leadsOwned       Lead[]

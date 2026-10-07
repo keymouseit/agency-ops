@@ -193,6 +193,25 @@ function GroupList({ group }: { group: AttentionGroup }) {
                 {row.urgency ? <span className="mx-1 text-gray-300">·</span> : null}
                 {row.meta}
               </div>
+              {row.chips && row.chips.length > 0 ? (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {row.chips.map(chip => (
+                    <span
+                      key={chip.label}
+                      title={chip.title}
+                      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        chip.tone === 'red'
+                          ? 'bg-red-50 text-red-800 ring-1 ring-red-200'
+                          : chip.tone === 'amber'
+                            ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200'
+                            : 'bg-slate-50 text-slate-700 ring-1 ring-slate-200'
+                      }`}
+                    >
+                      {chip.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="shrink-0">
               <RowAction row={row} />

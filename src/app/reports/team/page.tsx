@@ -27,7 +27,10 @@ async function IndividualTab({ searchParams }: { searchParams: SearchParams }) {
   const range = one(searchParams.range)
   const from = one(searchParams.from)
   const to = one(searchParams.to)
-  const initialRange = range === 'month' || range === 'custom' ? range : 'week'
+  const initialRange =
+    range === 'week' || range === 'this_month' || range === 'custom' || range === 'month'
+      ? range
+      : 'month'
   const validCustom = initialRange === 'custom' && !!from && !!to && DATE_RE.test(from) && DATE_RE.test(to)
 
   return (
@@ -36,7 +39,7 @@ async function IndividualTab({ searchParams }: { searchParams: SearchParams }) {
       employees={employees}
       embedded
       initialMemberId={memberId && employees.some(e => e.id === memberId) ? memberId : undefined}
-      initialRange={initialRange === 'custom' && !validCustom ? 'week' : initialRange}
+      initialRange={initialRange === 'custom' && !validCustom ? 'month' : initialRange}
       initialFrom={validCustom ? from : undefined}
       initialTo={validCustom ? to : undefined}
     />

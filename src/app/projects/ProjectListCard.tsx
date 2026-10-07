@@ -21,6 +21,7 @@ export type ProjectListCardProject = {
   checkIns: Array<{ blockers?: string | null }>
   scopeChanges: Array<{ changeOrderSigned: boolean }>
   releaseSignOff: object | null
+  milestones?: Array<{ status: string; dueDate?: Date | string | null }>
 }
 
 function formatHours(n: number | null | undefined) {

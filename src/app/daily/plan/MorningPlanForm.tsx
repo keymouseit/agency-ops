@@ -189,13 +189,22 @@ export default function MorningPlanForm({
   }, 0)
   const canSubmit =
     tasks.length > 0 &&
-    tasks.every(t => t.title.trim() && parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours').ok)
+    tasks.every(
+      t =>
+        t.title.trim() &&
+        t.projectId.trim() &&
+        parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours').ok,
+    )
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     for (const t of tasks) {
       if (!t.title.trim()) {
         setError('Every task needs a description.')
+        return
+      }
+      if (!t.projectId.trim()) {
+        setError('Every task needs a project. Select a project before submitting.')
         return
       }
       const hours = parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours')
@@ -338,13 +347,14 @@ export default function MorningPlanForm({
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="label">Project</label>
+                      <label className="label">Project *</label>
                       <select
                         value={task.projectId}
                         onChange={e => updateTask(i, 'projectId', e.target.value)}
+                        required
                         className="input bg-gray-50/50 focus:bg-white"
                       >
-                        <option value="">— None —</option>
+                        <option value="">— Select project —</option>
                         {projects.map(p => (
                           <option key={p.id} value={p.id}>
                             {p.name}

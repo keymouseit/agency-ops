@@ -78,6 +78,7 @@ export async function POST(req: Request) {
       email: data.email,
       role: data.role,
       active: data.active !== false, // Default to true
+      birthday: data.birthday ? new Date(data.birthday) : null,
     },
   })
 

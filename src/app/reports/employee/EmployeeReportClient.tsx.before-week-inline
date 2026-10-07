@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, subDays } from 'date-fns'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
 import { formatIst, formatIstDate, istDateInputValue } from '@/lib/ist'
 import toast, { Toaster } from 'react-hot-toast'
 import {
@@ -27,7 +27,7 @@ import {
 } from './week-group-utils'
 
 type Employee = { id: string; name: string; email: string; role: string }
-type RangeMode = 'week' | 'month' | 'this_month' | 'custom'
+type RangeMode = 'week' | 'month' | 'custom'
 
 function toInputDate(d: Date) {
   return istDateInputValue(d)
@@ -376,104 +376,6 @@ function toWorkWeek(r: {
   }
 }
 
-/** Full report range as a WorkWeek — for Projects-in-this-period drawer (all hours date-wise). */
-function toPeriodWorkWeek(report: EmployeeReport): WorkWeek {
-  const startKey = istDateInputValue(report.range.from)
-  const endKey = istDateInputValue(report.range.to)
-  const label = `${formatIst(report.range.from, { day: 'numeric', month: 'short' })}–${formatIst(report.range.to, { day: 'numeric', month: 'short' })}`
-
-  const summaries = report.projectActivity?.summaries ?? []
-  const projects: WorkWeek['projects'] = summaries.map(s => ({
-    projectId: s.projectId,
-    projectName: s.projectName,
-    hoursLogged: s.hoursLogged,
-    hoursPlanned: s.hoursPlanned,
-    sharePct: s.sharePct,
-    done: s.done,
-    partial: s.partial,
-    planned: s.planned,
-    moved: s.moved,
-    tasks: s.tasks.map(t => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      hours: t.hours,
-      dateKey: t.dateKey,
-    })),
-    milestones: (s.milestones ?? []).map(m => ({
-      id: m.id,
-      title: m.title,
-      status: m.status,
-      chip: m.chip,
-      label: m.label,
-      daysLate: m.daysLate,
-      dueDate: m.dueDate,
-    })),
-    missedDeadline: s.missedDeadline
-      ? {
-          dueDate: s.missedDeadline.dueDate,
-          daysLate: s.missedDeadline.daysLate,
-          detail: s.missedDeadline.detail,
-        }
-      : null,
-    blockers: (s.blockers ?? []).map(b => ({
-      id: b.id,
-      description: b.description,
-      category: b.category,
-      status: b.status,
-      raisedAt: b.raisedAt,
-    })),
-  }))
-
-  const dayMetaMap = new Map<string, WorkWeek['dayMeta'][number]>()
-  for (const row of report.weekByWeek?.rows ?? []) {
-    for (const d of row.dayMeta ?? []) {
-      dayMetaMap.set(d.dateKey, d)
-    }
-  }
-  // Fallback stubs from hours.byDay when week meta missing
-  for (const d of report.hours.byDay) {
-    if (dayMetaMap.has(d.dateKey)) continue
-    dayMetaMap.set(d.dateKey, {
-      dateKey: d.dateKey,
-      date: `${d.dateKey}T00:00:00.000Z`,
-      leaveBadge: null,
-      isHoliday: false,
-      isFullDayLeave: false,
-      holidayName: null,
-      logged: d.logged ?? 0,
-    })
-  }
-
-  const hoursLogged = Math.round(projects.reduce((s, p) => s + p.hoursLogged, 0) * 10) / 10
-  const weekRows = (report.weekByWeek?.rows ?? []).filter(r => r.hasWorkingDays)
-  const planDays = weekRows.reduce((s, r) => s + (r.planDays ?? 0), 0)
-  const workingDays = weekRows.reduce((s, r) => s + (r.workingDays ?? 0), 0)
-  const eodDays = weekRows.reduce((s, r) => s + (r.eodDays ?? 0), 0)
-  const eodEligible = weekRows.reduce((s, r) => s + (r.eodEligible ?? 0), 0)
-  const tasksDone = projects.reduce((s, p) => s + p.done, 0)
-  const tasksTotal = projects.reduce(
-    (s, p) => s + p.done + p.partial + p.planned + p.moved,
-    0,
-  )
-
-  return {
-    startKey,
-    endKey,
-    label,
-    hoursLogged,
-    hoursExpected: report.hours.expectedElapsed ?? report.hours.expected ?? undefined,
-    planDays,
-    workingDays,
-    eodDays,
-    eodEligible,
-    tasksDone,
-    tasksTotal,
-    projects,
-    dayMeta: [...dayMetaMap.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey)),
-  }
-}
-
 type ProjectIssueTag = {
   key: string
   label: string
@@ -569,7 +471,7 @@ export default function EmployeeReportClient({
   employees,
   embedded = false,
   initialMemberId,
-  initialRange = 'month',
+  initialRange = 'week',
   initialFrom,
   initialTo,
 }: {
@@ -584,9 +486,9 @@ export default function EmployeeReportClient({
   const [memberId, setMemberId] = useState(initialMemberId || employees[0]?.id || '')
   const [rangeMode, setRangeMode] = useState<RangeMode>(initialRange)
   const [from, setFrom] = useState(
-    initialFrom ?? toInputDate(subDays(new Date(), 29))
+    initialFrom ?? toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
   )
-  const [to, setTo] = useState(initialTo ?? toInputDate(new Date()))
+  const [to, setTo] = useState(initialTo ?? toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 })))
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState<EmployeeReport | null>(null)
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(() => {
@@ -598,7 +500,6 @@ export default function EmployeeReportClient({
   const monthsDefaultApplied = useRef<string | null>(null)
   const [workWeek, setWorkWeek] = useState<WorkWeek | null>(null)
   const [workProjectKey, setWorkProjectKey] = useState<string | null>(null)
-  const [workFocusDateKey, setWorkFocusDateKey] = useState<string | null>(null)
   const weekParamApplied = useRef(false)
   const requestId = useRef(0)
 
@@ -660,7 +561,6 @@ export default function EmployeeReportClient({
         return next
       })
       setWorkProjectKey(null)
-      setWorkFocusDateKey(null)
       setWorkWeek(toWorkWeek(row))
     }
     weekParamApplied.current = true
@@ -727,14 +627,6 @@ export default function EmployeeReportClient({
       setFrom(nextFrom)
       setTo(nextTo)
     } else if (rangeMode === 'month') {
-      // Last 30 days ending today
-      const end = new Date()
-      nextTo = toInputDate(end)
-      nextFrom = toInputDate(subDays(end, 29))
-      setFrom(nextFrom)
-      setTo(nextTo)
-    } else if (rangeMode === 'this_month') {
-      // Calendar month 1st → month end (future weeks greyed in chart)
       nextFrom = toInputDate(startOfMonth(new Date()))
       nextTo = toInputDate(endOfMonth(new Date()))
       setFrom(nextFrom)
@@ -838,19 +730,28 @@ export default function EmployeeReportClient({
   const periodBizDays = hours?.byDay.filter(d => d.expected > 0).length ?? 0
   const planPct = Math.min(100, snap?.planRate ?? 0)
 
-  function openWeekRow(row: (typeof weekRows)[number], focusDateKey?: string) {
+  function openWeekRow(row: (typeof weekRows)[number]) {
     setWorkProjectKey(null)
-    setWorkFocusDateKey(focusDateKey ?? null)
     setWorkWeek(toWorkWeek(row))
   }
 
-  function openPeriodProject(projectId: string | null, _projectName: string) {
-    if (!report) return
+  function openPeriodProject(projectId: string | null, projectName: string) {
     const key = projectId ?? '__none__'
-    // Full report range for this project (date-wise), not a single peak week
+    // Prefer the week where this project logged the most hours
+    let best: (typeof weekRows)[number] | null = null
+    let bestHours = -1
+    for (const row of weekRows) {
+      const p = row.projects.find(x => (x.projectId ?? '__none__') === key)
+      const h = p?.hoursLogged ?? 0
+      if (h > bestHours) {
+        bestHours = h
+        best = row
+      }
+    }
+    if (!best && weekRows.length) best = weekRows[weekRows.length - 1]
+    if (!best) return
     setWorkProjectKey(key)
-    setWorkFocusDateKey(null)
-    setWorkWeek(toPeriodWorkWeek(report))
+    setWorkWeek(toWorkWeek(best))
   }
 
   return (
@@ -894,23 +795,12 @@ export default function EmployeeReportClient({
             onClose={() => {
               setWorkWeek(null)
               setWorkProjectKey(null)
-              setWorkFocusDateKey(null)
             }}
             memberId={memberId}
             from={from}
             to={to}
             week={workWeek}
             initialProjectKey={workProjectKey}
-            initialFocusDateKey={workFocusDateKey}
-            dayHoursStatus={
-              report.hours.byDay.map(d => ({
-                dateKey: d.dateKey,
-                hasPlan: d.hasPlan,
-                hasEod: d.hasEod,
-                expected: d.expected,
-                phase: d.phase,
-              }))
-            }
           />
         </>
       ) : (
