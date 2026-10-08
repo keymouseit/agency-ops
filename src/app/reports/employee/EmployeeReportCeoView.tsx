@@ -447,10 +447,20 @@ export default function EmployeeReportCeoView({
 
   const lookAt = findings.slice(0, 4)
 
+  // Same breakdown as the Leave section: full-day + birthday + comp-off requests count as "Leaves".
+  const leaveTileCount =
+    report.leaves.fullDayCount + report.leaves.birthdayLeaveCount + report.leaves.compOffLeaveCount
+
   const lookDot = (text: string) => {
     const t = text.toLowerCase()
     if (t.includes('on track') || t.includes('strong') || t.includes('no major')) return CEO.green
-    if (t.includes('short') || t.includes('missed') || t.includes('blocker') || t.includes('weak'))
+    if (
+      t.includes('short') ||
+      t.includes('missed') ||
+      t.includes('under target') ||
+      t.includes('blocker') ||
+      t.includes('weak')
+    )
       return CEO.red
     return CEO.amber
   }
@@ -637,6 +647,27 @@ export default function EmployeeReportCeoView({
                   {snap.avgFounderScore != null ? ` · Founder ${snap.avgFounderScore}/10` : ''}
                 </p>
               )}
+              {/* Leave counts for the selected range (approved leave; same data as Leave section) */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-baseline gap-1 rounded-md bg-slate-50 px-2 py-1">
+                  <span className="text-sm font-bold text-gray-900 tabular-nums">{leaveTileCount}</span>
+                  <span className="text-[11px] font-semibold text-gray-500">Leaves</span>
+                </span>
+                <span
+                  className="inline-flex items-baseline gap-1 rounded-md px-2 py-1"
+                  style={{ background: CEO.amberBg, color: CEO.amber }}
+                >
+                  <span className="text-sm font-bold tabular-nums">{report.leaves.halfDayCount}</span>
+                  <span className="text-[11px] font-semibold">Half days</span>
+                </span>
+                <span className="inline-flex items-baseline gap-1 rounded-md bg-sky-50 px-2 py-1">
+                  <span className="text-sm font-bold text-sky-900 tabular-nums">{report.leaves.shortLeaveCount}</span>
+                  <span className="text-[11px] font-semibold text-sky-700">Short leaves</span>
+                </span>
+                <Link href="/leaves/usage" className="text-[11px] font-semibold text-blue-600 hover:underline ml-0.5">
+                  Full usage →
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -867,6 +898,26 @@ export default function EmployeeReportCeoView({
         )}
       </section>
 
+      <section  className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        {selectedWeek && (
+          <div id="week-inline-detail">
+            <WeekInlinePanel
+              week={selectedWeek}
+              weekRows={weekRows}
+              employeeName={selected.name}
+              hoursByDay={report.hours.byDay}
+              onSelectWeek={selectWeek}
+              onClose={() => setSelectedWeekKey(null)}
+              onDayBarClick={
+                onOpenWeek
+                  ? (dateKey) => onOpenWeek(selectedWeek, dateKey)
+                  : undefined
+              }
+            />
+          </div>
+        )}
+      </section>
+
       {/* 6. Projects in this period */}
       <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
@@ -930,73 +981,6 @@ export default function EmployeeReportCeoView({
             </button>
           </div>
         )}
-      </section>
-      <section  className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        {selectedWeek && (
-          <div id="week-inline-detail">
-            <WeekInlinePanel
-              week={selectedWeek}
-              weekRows={weekRows}
-              employeeName={selected.name}
-              hoursByDay={report.hours.byDay}
-              onSelectWeek={selectWeek}
-              onClose={() => setSelectedWeekKey(null)}
-              onDayBarClick={
-                onOpenWeek
-                  ? (dateKey) => onOpenWeek(selectedWeek, dateKey)
-                  : undefined
-              }
-            />
-          </div>
-        )}
-      </section>
-
-
-      {/* 8. Leave */}
-      <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">Leave</h3>
-          <Link href="/leaves/usage" className="text-xs font-semibold text-blue-600 hover:underline">
-            Full usage →
-          </Link>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-              <p className="text-xl font-bold text-gray-900">
-                {report.leaves.fullDayCount +
-                  report.leaves.birthdayLeaveCount +
-                  report.leaves.compOffLeaveCount}
-              </p>
-              <p className="text-[11px] font-semibold text-gray-500">Leaves</p>
-            </div>
-            <div className="rounded-lg px-3 py-2.5" style={{ background: CEO.amberBg }}>
-              <p className="text-xl font-bold" style={{ color: CEO.amber }}>
-                {report.leaves.halfDayCount}
-              </p>
-              <p className="text-[11px] font-semibold" style={{ color: CEO.amber }}>
-                Half days
-              </p>
-            </div>
-            <div className="rounded-lg bg-sky-50 px-3 py-2.5">
-              <p className="text-xl font-bold text-sky-900">{report.leaves.shortLeaveCount}</p>
-              <p className="text-[11px] font-semibold text-sky-700">Short leaves</p>
-            </div>
-          </div>
-          {report.leaves.leaves.length > 0 && (
-            <ul className="mt-3 divide-y divide-gray-50 border-t border-gray-100">
-              {report.leaves.leaves.slice(0, 6).map(l => (
-                <li key={l.id} className="py-2 flex items-center justify-between gap-2 text-sm">
-                  <span className="capitalize text-gray-800">
-                    {l.leaveType.replace(/_/g, ' ')}
-                    {l.timeSlot ? ` · ${l.timeSlot.replace(/_/g, ' ')}` : ''}
-                  </span>
-                  <span className="text-xs text-gray-500 shrink-0">{fmtDate(l.startDate)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </section>
     </div>
   )

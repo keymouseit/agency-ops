@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, subDays } from 'date-fns'
+import { setSelectedReportMember } from '@/app/reports/team/TeamScope'
 import { formatIst, formatIstDate, istDateInputValue } from '@/lib/ist'
 import toast, { Toaster } from 'react-hot-toast'
 import {
@@ -202,6 +203,17 @@ function fmtDayShort(iso: string) {
   return formatIst(iso, { day: 'numeric', month: 'short' })
 }
 
+/** "Tue 23 Sept" — weekday + date, for findings that name specific days. */
+function fmtDayWeekday(iso: string) {
+  return formatIst(iso, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+/** "Tue 23 Sept 6h/8h, Thu 2 Oct 7h/8h" (max 3 days, then "+N more"). */
+function listDays<T extends { date: string }>(days: T[], fmt: (d: T) => string, max = 3) {
+  const shown = days.slice(0, max).map(d => `${fmtDayWeekday(d.date)} ${fmt(d)}`)
+  return days.length > max ? `${shown.join(', ')} +${days.length - max} more` : shown.join(', ')
+}
+
 function milestoneChipCls(chip: string) {
   switch (chip) {
     case 'approved':
@@ -246,13 +258,42 @@ function buildFindings(report: EmployeeReport): string[] {
   const underLoggedHours =
     Math.round(underLoggedWithPlan.reduce((s, d) => s + d.loggedShort, 0) * 10) / 10
 
-  // Hours gap — only the shortfall on days that DID have a plan (no-plan days covered below)
-  if (underLoggedHours >= 4) {
+  // Two different measures on days that DID have a plan (no-plan days covered below):
+  //  • logged  = EOD actual hours vs the leave-adjusted day target (closed days only)
+  //  • planned = morning-plan estimated hours vs the same target (incl. today)
+  // A day short on BOTH is one problem (planned low → logged low), so it is reported
+  // once in a combined finding; each date appears in exactly one finding.
+  const dayS = (d: { date: string }) => d.date
+  const loggedShortKeys = new Set(underLoggedWithPlan.map(dayS))
+  const plannedShortKeys = new Set(underPlannedWithPlan.map(dayS))
+  const bothDays = underLoggedWithPlan.filter(d => plannedShortKeys.has(d.date))
+  const loggedOnlyDays = underLoggedWithPlan.filter(d => !plannedShortKeys.has(d.date))
+  const plannedOnlyDays = underPlannedWithPlan.filter(d => !loggedShortKeys.has(d.date))
+  const sumBy = <T,>(xs: T[], f: (x: T) => number) => Math.round(xs.reduce((a, x) => a + f(x), 0) * 10) / 10
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
+
+  if (bothDays.length > 0) {
     findings.push(
-      `Hours gap on planned days: ${hrs(underLoggedHours)} short of leave-adjusted target (${underLoggedWithPlan.length} day${underLoggedWithPlan.length === 1 ? '' : 's'}).`,
+      `Planned and logged under target on ${plural(bothDays.length, 'day')} — ${hrs(sumBy(bothDays, d => d.loggedShort))} gap: ${listDays(
+        bothDays,
+        d =>
+          Math.abs(d.planned - d.logged) <= 0.5
+            ? `${hrs(d.logged)}/${hrs(d.expected)}`
+            : `planned ${hrs(d.planned)}, logged ${hrs(d.logged)} of ${hrs(d.expected)}`,
+      )}.`,
     )
-  } else if (underLoggedHours >= 1) {
-    findings.push(`Slightly under hours on planned days — short ${hrs(underLoggedHours)}.`)
+  }
+  if (loggedOnlyDays.length > 0) {
+    findings.push(
+      `Logged hours under target on ${plural(loggedOnlyDays.length, 'planned day')} — ${hrs(sumBy(loggedOnlyDays, d => d.loggedShort))} missing: ${listDays(
+        loggedOnlyDays,
+        d => `${hrs(d.logged)}/${hrs(d.expected)} logged`,
+      )}.`,
+    )
+  }
+
+  if (underLoggedHours >= 1) {
+    // Covered by the logged / combined findings above.
   } else if (noPlanDays.length === 0 && hours.expectedElapsed > 0) {
     findings.push(`Hours on track — ${hrs(hours.logged)} of ${hrs(hours.expectedElapsed)} expected so far.`)
   } else if (noPlanDays.length > 0 && underLoggedHours < 1 && hours.loggedShort >= 1) {
@@ -268,9 +309,12 @@ function buildFindings(report: EmployeeReport): string[] {
       `No morning plan on ${noPlanDays.length} day${noPlanDays.length === 1 ? '' : 's'} (${dates}) — ${hrs(noPlanHours)} unplanned.`,
     )
   }
-  if (underPlannedHours >= 1 && underPlannedWithPlan.length > 0) {
+  if (underPlannedHours >= 1 && plannedOnlyDays.length > 0) {
     findings.push(
-      `Plans on ${underPlannedWithPlan.length} day${underPlannedWithPlan.length === 1 ? '' : 's'} were under ${hours.dayTarget}h — ${hrs(underPlannedHours)} short.`,
+      `Morning plan under target on ${plural(plannedOnlyDays.length, 'day')} — ${hrs(sumBy(plannedOnlyDays, d => d.plannedShort))} not planned: ${listDays(
+        plannedOnlyDays,
+        d => `${hrs(d.planned)}/${hrs(d.expected)} planned`,
+      )}.`,
     )
   }
 
@@ -666,11 +710,21 @@ export default function EmployeeReportClient({
     weekParamApplied.current = true
   }, [report])
 
-  /** Keep person + range in the URL (Team → Individual) so the view is linkable. */
+  // Embedded on /reports/team: let the people overview below scope itself to this employee.
+  useEffect(() => {
+    if (!embedded) return
+    setSelectedReportMember(memberId || null)
+  }, [embedded, memberId])
+  useEffect(() => {
+    if (!embedded) return
+    return () => setSelectedReportMember(null)
+  }, [embedded])
+
+  /** Keep person + range in the URL so the view is linkable. */
   function syncUrl(nextMemberId: string, nextRange: RangeMode, nextFrom: string, nextTo: string) {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    params.set('tab', 'individual')
+    params.delete('tab')
     params.set('memberId', nextMemberId)
     params.set('range', nextRange)
     if (nextRange === 'custom') {

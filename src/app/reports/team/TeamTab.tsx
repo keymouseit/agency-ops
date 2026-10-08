@@ -9,10 +9,20 @@ import {
   sumExpectedHoursForKeys,
   STANDARD_DAY_HOURS,
 } from '@/lib/expected-hours'
-import ScoreTrendTable from '@/components/ScoreTrendTable'
 import ScoreRubricLegend from '@/components/ScoreRubricLegend'
 import ClickableRow from '@/components/ClickableRow'
 import SubmitScoreForm from '@/app/team/SubmitScoreForm'
+import {
+  FullOnly,
+  LowActivityNote,
+  PeopleCount,
+  ScopedRow,
+  ScopedScoreTrend,
+  ShowAllToggle,
+  SelectedWeeklyCard,
+  TeamScopeProvider,
+  WeeklyScoreStatus,
+} from './TeamScope'
 
 /** Roles expected to log daily plans / EOD hours (utilisation is only meaningful for them). */
 const DAILY_LOGGING_ROLES = ['Dev', 'Both', 'QA']
@@ -41,12 +51,15 @@ function weekdayKeysInclusive(from: Date, to: Date) {
 }
 
 /**
- * Team → Team: one row per person — score + trend, active goals, 7-day
- * utilisation, billable %, tasks done. Merges the old Intelligence
- * "People vs goals" and "Team productivity" tables, plus rubric / this-week
- * submit status / Founder rate from the former /team scorecards page.
+ * People overview under the individual report: one row per person — score +
+ * trend, active goals, 7-day utilisation, billable %, tasks done. Rubric /
+ * this-week submit status / Founder rate included.
+ *
+ * Scoped to the employee selected in the individual report above
+ * (`selectedMemberId` = URL memberId; live changes come via TeamScope),
+ * with a "Show all" toggle to see everyone.
  */
-export default async function TeamTab() {
+export default async function TeamTab({ selectedMemberId }: { selectedMemberId?: string } = {}) {
   const session = await auth()
   const canRate = session?.user?.role === 'Founder'
 
@@ -105,7 +118,6 @@ export default async function TeamTab() {
     avg([s.delivery, s.process, s.communication, s.growth, s.culture])
 
   // This week self-assessment submit status (self only — founder ratings don't count as "submitted")
-  const expectedSubmitters = members.filter(m => SELF_SCORE_ROLES.includes(m.role))
   const selfSubmittedIds = new Set(
     weeklyScores
       .filter(
@@ -115,8 +127,6 @@ export default async function TeamTab() {
       )
       .map(s => s.memberId),
   )
-  const submittedThisWeek = expectedSubmitters.filter(m => selfSubmittedIds.has(m.id))
-  const missingThisWeek = expectedSubmitters.filter(m => !selfSubmittedIds.has(m.id))
 
   const formMembers = members.map(m => ({ id: m.id, name: m.name, role: m.role }))
 
@@ -152,29 +162,61 @@ export default async function TeamTab() {
     }
   })
 
-  const lowActivity = rows.filter(r => r.lowActivity).length
+  const lowActivityIds = rows.filter(r => r.lowActivity).map(r => r.member.id)
+
+  // Same default as the individual report: URL memberId if valid, else first employee by name.
+  const initialSelectedId =
+    (selectedMemberId && members.some(m => m.id === selectedMemberId) ? selectedMemberId : members[0]?.id) ??
+    null
+  const submitPeople = members.map(m => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    expected: SELF_SCORE_ROLES.includes(m.role),
+    submitted: selfSubmittedIds.has(m.id),
+  }))
+  const trendScores = preferredScores.map(s => ({
+    memberId: s.memberId,
+    weekOf: new Date(s.weekOf).toISOString(),
+    delivery: s.delivery,
+    process: s.process,
+    culture: s.culture,
+  }))
+  const memberNames = Object.fromEntries(members.map(m => [m.id, m.name]))
+  const compactPeople = rows.map(r => ({
+    id: r.member.id,
+    name: r.member.name,
+    role: r.member.role,
+    expected: SELF_SCORE_ROLES.includes(r.member.role),
+    submitted: r.submittedSelf,
+    recentAvg: r.recentAvg,
+    scoreTrend: r.scoreTrend,
+    logsDaily: r.logsDaily,
+    loggedHours: r.loggedHours,
+    utilisation: r.utilisation,
+    billability: r.billability,
+    doneTasks: r.doneTasks,
+    totalTasks: r.totalTasks,
+    lowActivity: r.lowActivity,
+    goals: r.member.goals,
+  }))
 
   return (
+    <TeamScopeProvider initialMemberId={initialSelectedId}>
+    {/* Selected-only: one compact card. Show all: the full layout below. */}
+    <SelectedWeeklyCard
+      people={compactPeople}
+      scores={trendScores}
+      canRate={canRate}
+      formMembers={formMembers}
+      weeksBack={8}
+    />
+    <FullOnly>
     <div className="space-y-6">
       <ScoreRubricLegend />
 
       <div className="card px-5 py-3.5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">
-            Scores this week:{' '}
-            <span className="tabular-nums">
-              {submittedThisWeek.length} of {expectedSubmitters.length} submitted
-            </span>
-          </p>
-          {missingThisWeek.length > 0 ? (
-            <p className="text-xs text-gray-400 mt-1 leading-snug">
-              Not submitted:{' '}
-              {missingThisWeek.map(m => m.name).join(', ')}
-            </p>
-          ) : expectedSubmitters.length > 0 ? (
-            <p className="text-xs text-gray-400 mt-1">Everyone expected has submitted.</p>
-          ) : null}
-        </div>
+        <WeeklyScoreStatus people={submitPeople} />
         {canRate && (
           <div className="shrink-0">
             <SubmitScoreForm members={formMembers} founderMode />
@@ -186,22 +228,20 @@ export default async function TeamTab() {
         <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-gray-900">
-              People <span className="text-gray-400 font-normal">· {rows.length}</span>
+              People <PeopleCount memberIds={rows.map(r => r.member.id)} />
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
               Score = avg of last 4 weekly scores (founder rating preferred when both exist) · utilisation, billable and tasks over the last 7 days (Dev / QA roles)
-              {lowActivity > 0 ? (
-                <>
-                  {' · '}
-                  <span className="text-red-600">{lowActivity} low activity</span>
-                </>
-              ) : null}
+              <LowActivityNote lowActivityIds={lowActivityIds} />
               . Click a row for the individual report.
             </p>
           </div>
-          <Link href="/goals" className="text-xs text-gray-500 hover:text-gray-900 shrink-0">
-            Manage goals →
-          </Link>
+          <div className="flex items-center gap-3 shrink-0">
+            <ShowAllToggle total={rows.length} />
+            <Link href="/goals" className="text-xs text-gray-500 hover:text-gray-900 shrink-0">
+              Manage goals →
+            </Link>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -220,10 +260,11 @@ export default async function TeamTab() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {rows.map(r => {
-                const href = `/reports/team?tab=individual&memberId=${encodeURIComponent(r.member.id)}`
+                const href = `/reports/team?memberId=${encodeURIComponent(r.member.id)}`
                 const hasHours = r.logsDaily || r.loggedHours > 0
                 return (
-                  <ClickableRow key={r.member.id} href={href} className="hover:bg-gray-50">
+                  <ScopedRow key={r.member.id} memberId={r.member.id}>
+                  <ClickableRow href={href} className="hover:bg-gray-50">
                     <td className="px-5 py-2.5">
                       <Link href={href} className="font-medium text-gray-900 hover:underline">
                         {r.member.name}
@@ -318,6 +359,7 @@ export default async function TeamTab() {
                       </td>
                     )}
                   </ClickableRow>
+                  </ScopedRow>
                 )
               })}
             </tbody>
@@ -330,7 +372,9 @@ export default async function TeamTab() {
         </div>
       </section>
 
-      <ScoreTrendTable scores={preferredScores} weeksBack={8} />
+      <ScopedScoreTrend scores={trendScores} names={memberNames} weeksBack={8} />
     </div>
+    </FullOnly>
+    </TeamScopeProvider>
   )
 }

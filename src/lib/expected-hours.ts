@@ -37,11 +37,13 @@ export type ExpectedHoursDay = {
   isFullDayLeave: boolean
 }
 
+/**
+ * IST business-day key for leave matching.
+ * Pure `YYYY-MM-DD` is already a calendar key. ISO datetimes must NOT use
+ * `.slice(0, 10)` — IST midnight is prior-day 18:30 UTC, so the UTC prefix
+ * is the wrong calendar day (short leave then fails to reduce expected hours).
+ */
 function toDateKey(input: Date | string): string {
-  if (typeof input === 'string') {
-    if (/^\d{4}-\d{2}-\d{2}/.test(input)) return input.slice(0, 10)
-    return businessDayKey(new Date(input))
-  }
   return businessDayKey(input)
 }
 
@@ -113,10 +115,18 @@ export function computeExpectedHoursForDay(
 
   const expectedHours = Math.max(0, Math.round((STANDARD_DAY_HOURS - bestDeduction) * 10) / 10)
   const isFullDayLeave = expectedHours <= 0 && bestDeduction >= STANDARD_DAY_HOURS
-  const leaveType = best && bestDeduction > 0 ? best.leaveType : null
-  const timeSlot = best && bestDeduction > 0 ? (best.timeSlot ?? null) : null
+  // Prefer hour-reducing leave; otherwise surface WFH for attendance/report colors.
+  const wfh = covering.find(l => l.leaveType === 'work_from_home') ?? null
+  const leaveType =
+    best && bestDeduction > 0 ? best.leaveType : wfh ? 'work_from_home' : null
+  const timeSlot =
+    best && bestDeduction > 0 ? (best.timeSlot ?? null) : wfh ? (wfh.timeSlot ?? null) : null
   const leaveHint =
-    leaveType != null ? formatExpectedHint(leaveType, timeSlot, expectedHours) : null
+    leaveType === 'work_from_home'
+      ? 'WFH'
+      : leaveType != null
+        ? formatExpectedHint(leaveType, timeSlot, expectedHours)
+        : null
 
   return {
     dateKey,
