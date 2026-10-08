@@ -185,7 +185,7 @@ export default async function EmployeeDetailPage({
       ? Math.max(0, leaveAccrued - leaveUsed)
       : null
 
-  const individualReportHref = `/reports/team?tab=individual&memberId=${encodeURIComponent(member.id)}`
+  const individualReportHref = `/reports/team?memberId=${encodeURIComponent(member.id)}`
   const now = Date.now()
 
   return (

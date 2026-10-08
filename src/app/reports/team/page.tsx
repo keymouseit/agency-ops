@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import ReportTabs from '@/components/ReportTabs'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
 import EmployeeReportClient from '../employee/EmployeeReportClient'
 import TeamTab from './TeamTab'
@@ -17,7 +16,7 @@ function one(v: string | string[] | undefined) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-async function IndividualTab({ searchParams }: { searchParams: SearchParams }) {
+async function IndividualSection({ searchParams }: { searchParams: SearchParams }) {
   const employees = await prisma.teamMember.findMany({
     where: { active: true },
     select: { id: true, name: true, email: true, role: true },
@@ -46,7 +45,7 @@ async function IndividualTab({ searchParams }: { searchParams: SearchParams }) {
   )
 }
 
-function TeamFallback() {
+function SectionFallback() {
   return (
     <div aria-hidden>
       <CardSectionFallback className="mb-6" />
@@ -56,8 +55,9 @@ function TeamFallback() {
 }
 
 /**
- * Team report (Founder / Manager): Team overview table + Individual
- * (the former Employee report). `/reports/employee` redirects here.
+ * Team report (Founder / Manager): individual employee report on top,
+ * full people overview (scores / util) at the bottom.
+ * `/reports/employee` redirects here.
  */
 export default async function TeamReportPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await auth()
@@ -69,28 +69,27 @@ export default async function TeamReportPage({ searchParams }: { searchParams: S
   if (!member) return null
   if (!['Founder', 'Manager'].includes(member.role)) redirect('/')
 
-  const tab = one(searchParams.tab) === 'individual' ? 'individual' : 'team'
-
   return (
     <div>
       <div className="mb-5 sm:mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 leading-tight">Team</h1>
         <p className="text-sm text-gray-500 mt-1 sm:mt-0.5 leading-snug">
-          Scores, goals, and utilisation for everyone — open a person for their full report.
+          Open a person for their full report. Everyone&apos;s scores and utilisation are listed below.
         </p>
       </div>
 
-      <ReportTabs
-        active={tab}
-        tabs={[
-          { key: 'team', label: 'Team', href: '/reports/team' },
-          { key: 'individual', label: 'Individual', href: '/reports/team?tab=individual' },
-        ]}
-      />
-
-      <Suspense key={tab} fallback={<TeamFallback />}>
-        {tab === 'individual' ? <IndividualTab searchParams={searchParams} /> : <TeamTab />}
+      <Suspense
+        key={`individual:${one(searchParams.memberId) ?? ''}:${one(searchParams.range) ?? ''}`}
+        fallback={<SectionFallback />}
+      >
+        <IndividualSection searchParams={searchParams} />
       </Suspense>
+
+      <div className="mt-10 pt-8 border-t border-gray-200">
+        <Suspense fallback={<SectionFallback />}>
+          <TeamTab selectedMemberId={one(searchParams.memberId)} />
+        </Suspense>
+      </div>
     </div>
   )
 }

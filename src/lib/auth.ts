@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
 
 // ── Role-based page access ────────────────────────────────────────────────────
-// Founder/Manager: '/reports' covers /reports/team (Team + Individual) and the
+// Founder/Manager: '/reports' covers /reports/team (individual + people overview) and the
 // /reports/employee redirect. '/analytics' and '/intelligence' stay listed only so
 // their redirects to /overview keep working for old links and notifications.
 export const ROLE_ACCESS: Record<string, string[]> = {

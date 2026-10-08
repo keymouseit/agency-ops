@@ -1354,7 +1354,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
             : 'Repeated mistake on weekly check-in',
           detail: s.selfNotes?.trim() || `Week of ${formatIst(s.weekOf, { month: 'short', day: 'numeric' })}`,
           date: s.weekOf.toISOString(),
-          href: `/reports/team?tab=individual&memberId=${encodeURIComponent(memberId)}`,
+          href: `/reports/team?memberId=${encodeURIComponent(memberId)}`,
         })
       }
 
@@ -1431,7 +1431,7 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
             : 'Repeated mistake on weekly check-in',
           detail: s.selfNotes?.trim() || `Week of ${formatIst(s.weekOf, { month: 'short', day: 'numeric' })}`,
           date: s.weekOf.toISOString(),
-          href: `/reports/team?tab=individual&memberId=${encodeURIComponent(memberId)}`,
+          href: `/reports/team?memberId=${encodeURIComponent(memberId)}`,
           projectId: null,
         })
       }
