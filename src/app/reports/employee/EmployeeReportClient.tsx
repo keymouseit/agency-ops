@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, subDays } from 'date-fns'
+import { setSelectedReportMember } from '@/app/reports/team/TeamScope'
 import { formatIst, formatIstDate, istDateInputValue } from '@/lib/ist'
 import toast, { Toaster } from 'react-hot-toast'
 import {
@@ -16,9 +17,18 @@ import {
   Legend,
 } from 'recharts'
 import type { EmployeeReport } from '@/lib/employee-report'
+import ShowMoreRows from '@/components/ShowMoreRows'
+import LinkifiedText from '@/components/LinkifiedText'
+import WorkDrawer, { type WorkWeek, PROJECT_BAR_COLORS } from './WorkDrawer'
+import EmployeeReportCeoView from './EmployeeReportCeoView'
+import {
+  WEEK_MONTH_GROUP_THRESHOLD,
+  groupWeeksByMonth,
+  monthKeyFromWeekStart,
+} from './week-group-utils'
 
 type Employee = { id: string; name: string; email: string; role: string }
-type RangeMode = 'week' | 'month' | 'custom'
+type RangeMode = 'week' | 'month' | 'this_month' | 'custom'
 
 function toInputDate(d: Date) {
   return istDateInputValue(d)
@@ -175,7 +185,9 @@ function flagLabel(flag: string) {
     case 'under_logged':
       return 'Hours short'
     case 'on_leave':
-      return 'Leave'
+      return 'Full day leave'
+    case 'holiday':
+      return 'Holiday'
     case 'upcoming':
       return 'Upcoming'
     case 'today':
@@ -187,29 +199,123 @@ function flagLabel(flag: string) {
   }
 }
 
+function fmtDayShort(iso: string) {
+  return formatIst(iso, { day: 'numeric', month: 'short' })
+}
+
+/** "Tue 23 Sept" — weekday + date, for findings that name specific days. */
+function fmtDayWeekday(iso: string) {
+  return formatIst(iso, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+/** "Tue 23 Sept 6h/8h, Thu 2 Oct 7h/8h" (max 3 days, then "+N more"). */
+function listDays<T extends { date: string }>(days: T[], fmt: (d: T) => string, max = 3) {
+  const shown = days.slice(0, max).map(d => `${fmtDayWeekday(d.date)} ${fmt(d)}`)
+  return days.length > max ? `${shown.join(', ')} +${days.length - max} more` : shown.join(', ')
+}
+
+function milestoneChipCls(chip: string) {
+  switch (chip) {
+    case 'approved':
+      return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+    case 'needs_attention':
+      return 'bg-amber-50 text-amber-900 ring-amber-200'
+    case 'delayed':
+      return 'bg-red-50 text-red-800 ring-red-200'
+    default:
+      return 'bg-slate-50 text-slate-700 ring-slate-200'
+  }
+}
+
+function toneForPct(pct: number | null, good = 90, ok = 70) {
+  if (pct == null) return 'text-gray-400'
+  if (pct >= good) return 'text-emerald-700'
+  if (pct >= ok) return 'text-amber-700'
+  return 'text-red-700'
+}
+
+function bgForPct(pct: number | null, good = 90, ok = 70) {
+  if (pct == null) return ''
+  if (pct >= good) return 'bg-emerald-50/80'
+  if (pct >= ok) return 'bg-amber-50/70'
+  return 'bg-red-50/70'
+}
+
 function buildFindings(report: EmployeeReport): string[] {
   const findings: string[] = []
   const { hours, snapshot } = report
 
-  if (hours.loggedShort >= 4) {
+  const noPlanDays = hours.byDay.filter(d => d.flags.includes('no_plan'))
+  const noPlanHours = Math.round(noPlanDays.reduce((s, d) => s + d.expected, 0) * 10) / 10
+  const underPlannedWithPlan = hours.byDay.filter(
+    d => d.hasPlan && d.plannedShort >= 1 && d.phase !== 'future' && d.expected > 0,
+  )
+  const underPlannedHours =
+    Math.round(underPlannedWithPlan.reduce((s, d) => s + d.plannedShort, 0) * 10) / 10
+  const underLoggedWithPlan = hours.byDay.filter(
+    d => d.hasPlan && d.loggedShort >= 1 && d.phase === 'past' && d.expected > 0,
+  )
+  const underLoggedHours =
+    Math.round(underLoggedWithPlan.reduce((s, d) => s + d.loggedShort, 0) * 10) / 10
+
+  // Two different measures on days that DID have a plan (no-plan days covered below):
+  //  • logged  = EOD actual hours vs the leave-adjusted day target (closed days only)
+  //  • planned = morning-plan estimated hours vs the same target (incl. today)
+  // A day short on BOTH is one problem (planned low → logged low), so it is reported
+  // once in a combined finding; each date appears in exactly one finding.
+  const dayS = (d: { date: string }) => d.date
+  const loggedShortKeys = new Set(underLoggedWithPlan.map(dayS))
+  const plannedShortKeys = new Set(underPlannedWithPlan.map(dayS))
+  const bothDays = underLoggedWithPlan.filter(d => plannedShortKeys.has(d.date))
+  const loggedOnlyDays = underLoggedWithPlan.filter(d => !plannedShortKeys.has(d.date))
+  const plannedOnlyDays = underPlannedWithPlan.filter(d => !loggedShortKeys.has(d.date))
+  const sumBy = <T,>(xs: T[], f: (x: T) => number) => Math.round(xs.reduce((a, x) => a + f(x), 0) * 10) / 10
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
+
+  if (bothDays.length > 0) {
     findings.push(
-      `Hours gap: ${hrs(hours.logged)} logged vs ${hrs(hours.expectedElapsed)} expected so far — missing ${hrs(hours.loggedShort)}.`
+      `Planned and logged under target on ${plural(bothDays.length, 'day')} — ${hrs(sumBy(bothDays, d => d.loggedShort))} gap: ${listDays(
+        bothDays,
+        d =>
+          Math.abs(d.planned - d.logged) <= 0.5
+            ? `${hrs(d.logged)}/${hrs(d.expected)}`
+            : `planned ${hrs(d.planned)}, logged ${hrs(d.logged)} of ${hrs(d.expected)}`,
+      )}.`,
     )
-  } else if (hours.loggedShort >= 1) {
-    findings.push(`Slightly under hours — short ${hrs(hours.loggedShort)} so far.`)
-  } else if (hours.expectedElapsed > 0) {
+  }
+  if (loggedOnlyDays.length > 0) {
+    findings.push(
+      `Logged hours under target on ${plural(loggedOnlyDays.length, 'planned day')} — ${hrs(sumBy(loggedOnlyDays, d => d.loggedShort))} missing: ${listDays(
+        loggedOnlyDays,
+        d => `${hrs(d.logged)}/${hrs(d.expected)} logged`,
+      )}.`,
+    )
+  }
+
+  if (underLoggedHours >= 1) {
+    // Covered by the logged / combined findings above.
+  } else if (noPlanDays.length === 0 && hours.expectedElapsed > 0) {
+    findings.push(`Hours on track — ${hrs(hours.logged)} of ${hrs(hours.expectedElapsed)} expected so far.`)
+  } else if (noPlanDays.length > 0 && underLoggedHours < 1 && hours.loggedShort >= 1) {
+    // Entire hours gap explained by no-plan days — don't duplicate; covered by plan finding.
+  } else if (hours.loggedShort < 1 && hours.expectedElapsed > 0) {
     findings.push(`Hours on track — ${hrs(hours.logged)} of ${hrs(hours.expectedElapsed)} expected so far.`)
   }
 
-  if (hours.plannedShort >= 4) {
+  // Merge no-plan + under-filled when under-fill is entirely from missing-plan days
+  if (noPlanDays.length > 0) {
+    const dates = noPlanDays.map(d => fmtDayShort(d.date)).join(', ')
     findings.push(
-      `Morning plans under-filled by ${hrs(hours.plannedShort)} (target ${hours.dayTarget}h/day).`
+      `No morning plan on ${noPlanDays.length} day${noPlanDays.length === 1 ? '' : 's'} (${dates}) — ${hrs(noPlanHours)} unplanned.`,
     )
   }
-
-  const noPlanDays = hours.byDay.filter(d => d.flags.includes('no_plan')).length
-  if (noPlanDays > 0) {
-    findings.push(`${noPlanDays} day${noPlanDays === 1 ? '' : 's'} with no morning plan.`)
+  if (underPlannedHours >= 1 && plannedOnlyDays.length > 0) {
+    findings.push(
+      `Morning plan under target on ${plural(plannedOnlyDays.length, 'day')} — ${hrs(sumBy(plannedOnlyDays, d => d.plannedShort))} not planned: ${listDays(
+        plannedOnlyDays,
+        d => `${hrs(d.planned)}/${hrs(d.expected)} planned`,
+      )}.`,
+    )
   }
 
   if (snapshot.eodMissed > 0) {
@@ -220,9 +326,9 @@ function buildFindings(report: EmployeeReport): string[] {
     findings.push(`${snapshot.openBlockers} open blocker${snapshot.openBlockers === 1 ? '' : 's'} need attention.`)
   }
 
-  if ((snapshot.planRate ?? 100) < 70) {
+  if ((snapshot.planRate ?? 100) < 70 && noPlanDays.length === 0) {
     findings.push(
-      `Plan cadence weak — only ${snapshot.plannedDays} plan${snapshot.plannedDays === 1 ? '' : 's'} in so far.`
+      `Plan cadence weak — only ${snapshot.plannedDays} plan${snapshot.plannedDays === 1 ? '' : 's'} in so far.`,
     )
   }
 
@@ -252,21 +358,387 @@ function overallScore(report: EmployeeReport): number {
   )
 }
 
-export default function EmployeeReportClient({ employees }: { employees: Employee[] }) {
-  const [memberId, setMemberId] = useState(employees[0]?.id || '')
-  const [rangeMode, setRangeMode] = useState<RangeMode>('week')
-  const [from, setFrom] = useState(
-    toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
+
+/** One week accordion open at a time. */
+function toggleWeekOpen(_set: Set<string>, key: string) {
+  // Toggle: closing the open week, or opening only this one
+  if (_set.has(key)) return new Set<string>()
+  return new Set<string>([key])
+}
+
+function toggleMonthOpen(set: Set<string>, key: string) {
+  const next = new Set(set)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  return next
+}
+
+function isNoProjectRow(p: { projectId: string | null; projectName: string }) {
+  return !p.projectId || p.projectName === 'No project'
+}
+
+function sortWeekProjects<T extends { projectId: string | null; projectName: string; hoursLogged: number }>(
+  list: T[],
+) {
+  return [...list].sort((a, b) => {
+    const aNone = isNoProjectRow(a)
+    const bNone = isNoProjectRow(b)
+    if (aNone !== bNone) return aNone ? 1 : -1
+    return b.hoursLogged - a.hoursLogged
+  })
+}
+
+function toWorkWeek(r: {
+  startKey: string
+  endKey: string
+  label: string
+  hoursLogged: number
+  hoursExpected: number
+  planDays: number
+  workingDays: number
+  eodDays: number
+  eodEligible: number
+  tasksDone: number
+  tasksTotal: number
+  projects: WorkWeek['projects']
+  dayMeta?: WorkWeek['dayMeta']
+}): WorkWeek {
+  return {
+    startKey: r.startKey,
+    endKey: r.endKey,
+    label: r.label,
+    hoursLogged: r.hoursLogged,
+    hoursExpected: r.hoursExpected,
+    planDays: r.planDays,
+    workingDays: r.workingDays,
+    eodDays: r.eodDays,
+    eodEligible: r.eodEligible,
+    tasksDone: r.tasksDone,
+    tasksTotal: r.tasksTotal,
+    projects: r.projects,
+    dayMeta: r.dayMeta ?? [],
+  }
+}
+
+/** Full report range as a WorkWeek — for Projects-in-this-period drawer (all hours date-wise). */
+function toPeriodWorkWeek(report: EmployeeReport): WorkWeek {
+  const startKey = istDateInputValue(report.range.from)
+  const endKey = istDateInputValue(report.range.to)
+  const label = `${formatIst(report.range.from, { day: 'numeric', month: 'short' })}–${formatIst(report.range.to, { day: 'numeric', month: 'short' })}`
+
+  const summaries = report.projectActivity?.summaries ?? []
+  const projects: WorkWeek['projects'] = summaries.map(s => ({
+    projectId: s.projectId,
+    projectName: s.projectName,
+    hoursLogged: s.hoursLogged,
+    hoursPlanned: s.hoursPlanned,
+    sharePct: s.sharePct,
+    done: s.done,
+    partial: s.partial,
+    planned: s.planned,
+    moved: s.moved,
+    tasks: s.tasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      hours: t.hours,
+      dateKey: t.dateKey,
+    })),
+    milestones: (s.milestones ?? []).map(m => ({
+      id: m.id,
+      title: m.title,
+      status: m.status,
+      chip: m.chip,
+      label: m.label,
+      daysLate: m.daysLate,
+      dueDate: m.dueDate,
+    })),
+    missedDeadline: s.missedDeadline
+      ? {
+          dueDate: s.missedDeadline.dueDate,
+          daysLate: s.missedDeadline.daysLate,
+          detail: s.missedDeadline.detail,
+        }
+      : null,
+    blockers: (s.blockers ?? []).map(b => ({
+      id: b.id,
+      description: b.description,
+      category: b.category,
+      status: b.status,
+      raisedAt: b.raisedAt,
+    })),
+  }))
+
+  const dayMetaMap = new Map<string, WorkWeek['dayMeta'][number]>()
+  for (const row of report.weekByWeek?.rows ?? []) {
+    for (const d of row.dayMeta ?? []) {
+      dayMetaMap.set(d.dateKey, d)
+    }
+  }
+  // Fallback stubs from hours.byDay when week meta missing
+  for (const d of report.hours.byDay) {
+    if (dayMetaMap.has(d.dateKey)) continue
+    dayMetaMap.set(d.dateKey, {
+      dateKey: d.dateKey,
+      date: `${d.dateKey}T00:00:00.000Z`,
+      leaveBadge: null,
+      isHoliday: false,
+      isFullDayLeave: false,
+      holidayName: null,
+      logged: d.logged ?? 0,
+    })
+  }
+
+  const hoursLogged = Math.round(projects.reduce((s, p) => s + p.hoursLogged, 0) * 10) / 10
+  const weekRows = (report.weekByWeek?.rows ?? []).filter(r => r.hasWorkingDays)
+  const planDays = weekRows.reduce((s, r) => s + (r.planDays ?? 0), 0)
+  const workingDays = weekRows.reduce((s, r) => s + (r.workingDays ?? 0), 0)
+  const eodDays = weekRows.reduce((s, r) => s + (r.eodDays ?? 0), 0)
+  const eodEligible = weekRows.reduce((s, r) => s + (r.eodEligible ?? 0), 0)
+  const tasksDone = projects.reduce((s, p) => s + p.done, 0)
+  const tasksTotal = projects.reduce(
+    (s, p) => s + p.done + p.partial + p.planned + p.moved,
+    0,
   )
-  const [to, setTo] = useState(toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 })))
+
+  return {
+    startKey,
+    endKey,
+    label,
+    hoursLogged,
+    hoursExpected: report.hours.expectedElapsed ?? report.hours.expected ?? undefined,
+    planDays,
+    workingDays,
+    eodDays,
+    eodEligible,
+    tasksDone,
+    tasksTotal,
+    projects,
+    dayMeta: [...dayMetaMap.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey)),
+  }
+}
+
+type ProjectIssueTag = {
+  key: string
+  label: string
+  count: number
+  cls: string
+  titles: string[]
+}
+
+/** Same issue set as WorkDrawer Needs attention, scoped to one project. */
+function projectIssueTags(p: WorkWeek['projects'][number]): ProjectIssueTag[] {
+  const tags: ProjectIssueTag[] = []
+  const needs = p.milestones.filter(m => m.chip === 'needs_attention')
+  if (needs.length > 0) {
+    tags.push({
+      key: 'needs',
+      label: 'Needs attention',
+      count: needs.length,
+      cls: 'bg-amber-50 text-amber-900 ring-1 ring-amber-200',
+      titles: needs.map(m => m.title),
+    })
+  }
+  const delayed = p.milestones.filter(m => m.chip === 'delayed')
+  if (delayed.length > 0) {
+    tags.push({
+      key: 'delayed',
+      label: 'Delayed',
+      count: delayed.length,
+      cls: 'bg-orange-50 text-orange-900 ring-1 ring-orange-200',
+      titles: delayed.map(m => m.title),
+    })
+  }
+  if (p.missedDeadline) {
+    tags.push({
+      key: 'deadline',
+      label: 'Deadline missed',
+      count: 1,
+      cls: 'bg-red-50 text-red-800 ring-1 ring-red-200',
+      titles: [p.missedDeadline.detail],
+    })
+  }
+  // Match drawer: blockers raised this week on the project
+  if (p.blockers.length > 0) {
+    tags.push({
+      key: 'blocked',
+      label: 'Blocked',
+      count: p.blockers.length,
+      cls: 'bg-rose-50 text-rose-800 ring-1 ring-rose-200',
+      titles: p.blockers.map(b => b.description),
+    })
+  }
+  return tags
+}
+
+function projectHasIssues(p: WorkWeek['projects'][number]) {
+  return projectIssueTags(p).length > 0
+}
+
+/**
+ * Summary line only for issues not tied to a real project (No project / null id).
+ * Per-project tags on the rows cover everything else.
+ */
+function orphanAttentionLine(projects: WorkWeek['projects']): string | null {
+  let delayed = 0
+  let needs = 0
+  let deadlines = 0
+  let blocked = 0
+  for (const p of projects) {
+    if (p.projectId && p.projectName !== 'No project') continue
+    if (p.missedDeadline) deadlines += 1
+    for (const m of p.milestones) {
+      if (m.chip === 'delayed') delayed += 1
+      else if (m.chip === 'needs_attention') needs += 1
+    }
+    blocked += p.blockers.length
+  }
+  const parts: string[] = []
+  if (delayed > 0) {
+    parts.push(`${delayed} milestone${delayed === 1 ? '' : 's'} delayed`)
+  }
+  if (needs > 0) {
+    parts.push(`${needs} need${needs === 1 ? 's' : ''} attention`)
+  }
+  if (deadlines > 0) {
+    parts.push(`${deadlines} deadline${deadlines === 1 ? '' : 's'} missed`)
+  }
+  if (blocked > 0) {
+    parts.push(`${blocked} blocker${blocked === 1 ? '' : 's'}`)
+  }
+  return parts.length ? parts.join(' · ') : null
+}
+
+export default function EmployeeReportClient({
+  employees,
+  embedded = false,
+  initialMemberId,
+  initialRange = 'month',
+  initialFrom,
+  initialTo,
+}: {
+  employees: Employee[]
+  /** Rendered inside Team → Individual: hide the standalone header and keep the URL in sync. */
+  embedded?: boolean
+  initialMemberId?: string
+  initialRange?: RangeMode
+  initialFrom?: string
+  initialTo?: string
+}) {
+  const [memberId, setMemberId] = useState(initialMemberId || employees[0]?.id || '')
+  const [rangeMode, setRangeMode] = useState<RangeMode>(initialRange)
+  const [from, setFrom] = useState(
+    initialFrom ?? toInputDate(subDays(new Date(), 29))
+  )
+  const [to, setTo] = useState(initialTo ?? toInputDate(new Date()))
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState<EmployeeReport | null>(null)
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    const week = new URLSearchParams(window.location.search).get('week')
+    return week ? new Set([week]) : new Set()
+  })
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
+  const monthsDefaultApplied = useRef<string | null>(null)
+  const [workWeek, setWorkWeek] = useState<WorkWeek | null>(null)
+  const [workProjectKey, setWorkProjectKey] = useState<string | null>(null)
+  const [workFocusDateKey, setWorkFocusDateKey] = useState<string | null>(null)
+  const weekParamApplied = useRef(false)
   const requestId = useRef(0)
 
   const selected = useMemo(
     () => employees.find(e => e.id === memberId) || null,
     [employees, memberId]
   )
+
+  const weekRows = useMemo(
+    () => (report?.weekByWeek?.rows ?? []).filter(r => r.hasWorkingDays),
+    [report],
+  )
+  const groupWeeksByMonthUi = weekRows.length > WEEK_MONTH_GROUP_THRESHOLD
+  const monthGroups = useMemo(
+    () => (groupWeeksByMonthUi ? groupWeeksByMonth(weekRows) : []),
+    [groupWeeksByMonthUi, weekRows],
+  )
+
+  // Long ranges: default-expand the most recent month (and its latest week if none open yet)
+  useEffect(() => {
+    if (!report?.weekByWeek) return
+    const rows = report.weekByWeek.rows.filter(r => r.hasWorkingDays)
+    const sig = `${rows[0]?.startKey ?? ''}:${rows[rows.length - 1]?.startKey ?? ''}:${rows.length}`
+    if (monthsDefaultApplied.current === sig) return
+    monthsDefaultApplied.current = sig
+
+    if (rows.length <= WEEK_MONTH_GROUP_THRESHOLD) {
+      setOpenMonths(new Set())
+      return
+    }
+    const groups = groupWeeksByMonth(rows)
+    const latest = groups[groups.length - 1]
+    if (!latest) return
+    setOpenMonths(new Set([latest.key]))
+    setOpenWeeks(prev => {
+      if (prev.size > 0) return prev
+      const lastWeek = latest.weeks[latest.weeks.length - 1]
+      return lastWeek ? new Set([lastWeek.startKey]) : prev
+    })
+  }, [report])
+
+  // Deep-link: ?week=YYYY-MM-DD expands that week accordion and opens the drawer
+  useEffect(() => {
+    if (!report?.weekByWeek || weekParamApplied.current) return
+    if (typeof window === 'undefined') return
+    const weekKey = new URLSearchParams(window.location.search).get('week')
+    if (!weekKey) {
+      weekParamApplied.current = true
+      return
+    }
+    const row = report.weekByWeek.rows.find(r => r.startKey === weekKey && r.hasWorkingDays)
+    if (row) {
+      setOpenWeeks(new Set([weekKey]))
+      setOpenMonths(s => {
+        const mk = monthKeyFromWeekStart(row.startKey)
+        if (s.has(mk)) return s
+        const next = new Set(s)
+        next.add(mk)
+        return next
+      })
+      setWorkProjectKey(null)
+      setWorkFocusDateKey(null)
+      setWorkWeek(toWorkWeek(row))
+    }
+    weekParamApplied.current = true
+  }, [report])
+
+  // Embedded on /reports/team: let the people overview below scope itself to this employee.
+  useEffect(() => {
+    if (!embedded) return
+    setSelectedReportMember(memberId || null)
+  }, [embedded, memberId])
+  useEffect(() => {
+    if (!embedded) return
+    return () => setSelectedReportMember(null)
+  }, [embedded])
+
+  /** Keep person + range in the URL so the view is linkable. */
+  function syncUrl(nextMemberId: string, nextRange: RangeMode, nextFrom: string, nextTo: string) {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.delete('tab')
+    params.set('memberId', nextMemberId)
+    params.set('range', nextRange)
+    if (nextRange === 'custom') {
+      params.set('from', nextFrom)
+      params.set('to', nextTo)
+    } else {
+      params.delete('from')
+      params.delete('to')
+    }
+    const next = `${window.location.pathname}?${params}`
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, '', next)
+    }
+  }
 
   async function loadReport(
     nextMemberId = memberId,
@@ -275,6 +747,7 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
     nextTo = to
   ) {
     if (!nextMemberId) return
+    if (embedded) syncUrl(nextMemberId, nextRange, nextFrom, nextTo)
     const id = ++requestId.current
     setLoading(true)
     setReport(null)
@@ -308,6 +781,14 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
       setFrom(nextFrom)
       setTo(nextTo)
     } else if (rangeMode === 'month') {
+      // Last 30 days ending today
+      const end = new Date()
+      nextTo = toInputDate(end)
+      nextFrom = toInputDate(subDays(end, 29))
+      setFrom(nextFrom)
+      setTo(nextTo)
+    } else if (rangeMode === 'this_month') {
+      // Calendar month 1st → month end (future weeks greyed in chart)
       nextFrom = toInputDate(startOfMonth(new Date()))
       nextTo = toInputDate(endOfMonth(new Date()))
       setFrom(nextFrom)
@@ -321,28 +802,82 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
   const snap = report?.snapshot
   const score = report ? overallScore(report) : null
   const findings = report ? buildFindings(report) : []
-  const latestSelf = report?.scores.self[0]
+  // Prefer founder rating over self when both exist for the same week
+  const weeklyScoreHistory = (() => {
+    if (!report) return [] as {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }[]
+    const byWeek = new Map<string, {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }>()
+    for (const s of report.scores.self) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'self' })
+    }
+    for (const s of report.scores.founder) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'founder' })
+    }
+    return Array.from(byWeek.values()).sort((a, b) => b.weekOf.localeCompare(a.weekOf))
+  })()
+  const latestPreferred = weeklyScoreHistory[0]
+  const latestSelf = report?.scores.self.find(
+    s => latestPreferred && s.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
+  ) ?? report?.scores.self[0]
   const latestFounder = report?.scores.founder.find(
-    f => latestSelf && f.weekOf.slice(0, 10) === latestSelf.weekOf.slice(0, 10)
+    f => latestPreferred && f.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
   )
 
   const chartData =
-    hours?.byDay
-      .filter(d => d.expected > 0)
-      .map(d => {
-        const remainingToday =
-          d.phase === 'today' ? Math.max(0, Math.round((d.expected - d.logged) * 10) / 10) : 0
-        return {
-          label: fmtDate(d.date, 'EEE d'),
-          logged: d.logged,
-          missing: d.loggedShort,
-          remaining: remainingToday,
-          upcoming: d.phase === 'future' ? d.expected : 0,
-          expected: d.expected,
-          flag: d.flags[0] || '',
-          phase: d.phase,
-        }
-      }) ?? []
+    hours?.byDay.map(d => {
+      const isHoliday = d.flags.includes('holiday') || Boolean(d.isHoliday)
+      const isFullLeave = d.flags.includes('on_leave') || Boolean(d.isFullDayLeave)
+      const remainingToday =
+        d.phase === 'today' && d.expected > 0
+          ? Math.max(0, Math.round((d.expected - d.logged) * 10) / 10)
+          : 0
+      // Full-day leave / holiday: show a distinct marker bar (no red missing).
+      // Partial leave (short/half): only blue+red against leave-adjusted target.
+      const dayTarget = hours?.dayTarget ?? 8
+      const leaveBar = isFullLeave && !isHoliday ? Math.max(d.logged, dayTarget * 0.35) : 0
+      const holidayBar = isHoliday ? Math.max(d.logged, dayTarget * 0.35) : 0
+      const missing =
+        isHoliday || isFullLeave
+          ? 0
+          : d.phase === 'past'
+            ? d.loggedShort
+            : 0
+      return {
+        label: fmtDate(d.date, 'EEE d'),
+        logged: isHoliday || isFullLeave ? (d.logged > 0 ? d.logged : 0) : d.logged,
+        missing,
+        remaining: isHoliday || isFullLeave ? 0 : remainingToday,
+        upcoming: !isHoliday && !isFullLeave && d.phase === 'future' ? d.expected : 0,
+        leave: d.logged > 0 ? 0 : leaveBar,
+        holiday: d.logged > 0 ? 0 : holidayBar,
+        expected: d.expected,
+        flag: d.flags[0] || '',
+        phase: d.phase,
+        leaveBadge: d.leaveBadge ?? null,
+        leaveHint: d.leaveHint ?? null,
+      }
+    }) ?? []
 
   const projectsActive = report
     ? [...report.projects.asDev, ...report.projects.asBd].filter(p =>
@@ -357,664 +892,83 @@ export default function EmployeeReportClient({ employees }: { employees: Employe
   const periodBizDays = hours?.byDay.filter(d => d.expected > 0).length ?? 0
   const planPct = Math.min(100, snap?.planRate ?? 0)
 
+  function openWeekRow(row: (typeof weekRows)[number], focusDateKey?: string) {
+    setWorkProjectKey(null)
+    setWorkFocusDateKey(focusDateKey ?? null)
+    setWorkWeek(toWorkWeek(row))
+  }
+
+  function openPeriodProject(projectId: string | null, _projectName: string) {
+    if (!report) return
+    const key = projectId ?? '__none__'
+    // Full report range for this project (date-wise), not a single peak week
+    setWorkProjectKey(key)
+    setWorkFocusDateKey(null)
+    setWorkWeek(toPeriodWorkWeek(report))
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className={embedded ? '' : 'max-w-6xl mx-auto px-4 py-6'}>
       <Toaster position="top-right" />
 
-      {/* Controls */}
-      <div className="mb-4 flex flex-col lg:flex-row lg:items-end gap-3 justify-between">
-        <div>
+      {!embedded && (
+        <div className="mb-4">
           <Link href="/" className="text-xs text-gray-400 hover:text-gray-700">
-            ← Dashboard
+            ← Home
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Employee performance report</h1>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-          <div>
-            <label className="block text-[10px] font-semibold uppercase text-gray-500 mb-1">
-              Employee
-            </label>
-            <select
-              value={memberId}
-              onChange={e => setMemberId(e.target.value)}
-              className="text-sm rounded-lg border-gray-200 px-3 py-2 min-w-[200px]"
-            >
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.name} · {e.role}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex bg-gray-100 p-0.5 rounded-lg">
-            {(['week', 'month', 'custom'] as RangeMode[]).map(mode => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setRangeMode(mode)}
-                className={`px-3 py-2 rounded-md text-sm font-semibold capitalize ${
-                  rangeMode === mode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
-                } ${loading ? 'opacity-70' : ''}`}
-              >
-                {mode === 'week' ? 'Week' : mode === 'month' ? 'Month' : 'Custom'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {rangeMode === 'custom' && (
-        <div className="mb-4 flex flex-wrap gap-2 items-end bg-white rounded-xl ring-1 ring-gray-900/5 p-3">
-          <div>
-            <label className="block text-[10px] font-semibold uppercase text-gray-500 mb-1">From</label>
-            <input
-              type="date"
-              value={from}
-              onChange={e => setFrom(e.target.value)}
-              className="text-sm rounded-lg border-gray-200 px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] font-semibold uppercase text-gray-500 mb-1">To</label>
-            <input
-              type="date"
-              value={to}
-              onChange={e => setTo(e.target.value)}
-              className="text-sm rounded-lg border-gray-200 px-3 py-2"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => loadReport()}
-            disabled={loading}
-            className="rounded-lg py-2 px-4 text-sm font-bold bg-slate-900 text-white disabled:opacity-50"
-          >
-            Apply
-          </button>
+          <h1 className="text-2xl font-bold text-gray-900 mt-1">Individual report</h1>
         </div>
       )}
 
       {loading ? (
         <ReportGeneratingLoader />
-      ) : report && hours && snap && selected ? (
-        <div className="space-y-4">
-          {/* Hero: name + overall score */}
-          <div className="rounded-2xl bg-slate-900 text-white px-5 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {selected.role} · {fmtDate(report.range.from)} – {fmtDate(report.range.to, 'MMM d, yyyy')}
-              </p>
-              <h2 className="text-3xl font-bold tracking-tight mt-1">{selected.name}</h2>
-              <p className="text-sm text-slate-300 mt-1">
-                {hrs(hours.logged)} logged · {snap.plannedDays} plans · {snap.eodDays} EODs ·{' '}
-                {report.tasksByStatus.done}/{report.tasksByStatus.total} tasks done
-              </p>
-            </div>
-            <div className="text-center sm:text-right shrink-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Overall performance
-              </p>
-              <p
-                className={`text-5xl font-bold tabular-nums ${
-                  (score ?? 0) >= 80
-                    ? 'text-emerald-400'
-                    : (score ?? 0) >= 60
-                      ? 'text-amber-300'
-                      : 'text-red-300'
-                }`}
-              >
-                {score}
-                <span className="text-xl text-slate-500 font-semibold">/100</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Color KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl bg-blue-600 text-white p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-100">
-                Hours logged
-              </p>
-              <p className="text-3xl font-bold mt-1 tabular-nums">{hrs(hours.logged)}</p>
-              <p className="text-xs text-blue-100 mt-1">
-                of {hrs(hours.expectedElapsed)} so far
-                {hours.expected > hours.expectedElapsed
-                  ? ` · ${hrs(hours.expected)} period`
-                  : ''}
-              </p>
-            </div>
-            <div
-              className={`rounded-xl p-4 text-white ${
-                hours.loggedShort >= 1 ? 'bg-red-600' : 'bg-emerald-600'
-              }`}
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/80">
-                Hours missing
-              </p>
-              <p className="text-3xl font-bold mt-1 tabular-nums">{hrs(hours.loggedShort)}</p>
-              <p className="text-xs text-white/80 mt-1">
-                {hours.loggedShort >= 1 ? 'Below 8h/day target' : 'On track'}
-              </p>
-            </div>
-            <div className="rounded-xl bg-violet-600 text-white p-4">
-              <p className="text-xs font-medium text-violet-100">Plan cadence</p>
-              <p className="text-3xl font-bold mt-1 tabular-nums">{planPct}%</p>
-              <p className="text-xs text-violet-100 mt-1">
-                {plannedElapsedDays}/{elapsedBizDays || report.range.expectedBusinessDays} days so far
-                {periodBizDays > elapsedBizDays ? ` · ${periodBizDays} in period` : ''}
-              </p>
-            </div>
-            <div className="rounded-xl bg-amber-500 text-white p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-100">
-                Open blockers
-              </p>
-              <p className="text-3xl font-bold mt-1 tabular-nums">{snap.openBlockers}</p>
-              <p className="text-xs text-amber-100 mt-1">{projectsActive} active projects</p>
-            </div>
-          </div>
-
-          {/* Rings + findings */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-            <section className="rounded-xl bg-white ring-1 ring-gray-900/5 p-5">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-4">
-                Period health
-              </h3>
-              <div className="flex flex-wrap justify-around gap-4">
-                <ScoreRing
-                  label="Hours"
-                  value={hours.utilisationPct}
-                  color="#2563eb"
-                />
-                <ScoreRing label="Plans" value={planPct} color="#7c3aed" />
-                <ScoreRing label="EOD" value={snap.eodRate} color="#059669" />
-                <ScoreRing
-                  label="Done"
-                  value={snap.avgCompletionRate}
-                  color="#d97706"
-                />
-                <ScoreRing
-                  label="How was your day?"
-                  value={
-                    snap.avgDayRating != null
-                      ? Math.round((snap.avgDayRating / 5) * 100)
-                      : null
-                  }
-                  center={snap.avgDayRating != null ? `${snap.avgDayRating}/5` : undefined}
-                  color="#e11d48"
-                />
-              </div>
-
-              {latestSelf && (
-                <div className="mt-5 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">
-                    Latest weekly score · week of {fmtDate(latestSelf.weekOf)}
-                  </p>
-                  <div className="grid grid-cols-5 gap-2 text-center">
-                    {(
-                      [
-                        ['Delivery', latestSelf.delivery, latestFounder?.delivery],
-                        ['Process', latestSelf.process, latestFounder?.process],
-                        ['Comm', latestSelf.communication, latestFounder?.communication],
-                        ['Growth', latestSelf.growth, latestFounder?.growth],
-                        ['Culture', latestSelf.culture, latestFounder?.culture],
-                      ] as const
-                    ).map(([label, selfV, foundV]) => (
-                      <div key={label} className="rounded-lg bg-slate-50 py-2 px-1">
-                        <p className="text-[9px] font-semibold uppercase text-gray-400">{label}</p>
-                        <p className="text-lg font-bold text-gray-900">{selfV}</p>
-                        {foundV != null && (
-                          <p className="text-[10px] text-slate-500">F {foundV}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <aside className="rounded-xl bg-slate-50 ring-1 ring-slate-200 p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-3">
-                Key findings
-              </h3>
-              <ul className="space-y-2.5">
-                {findings.map((f, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-slate-700 leading-snug">
-                    <span
-                      className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
-                        f.toLowerCase().includes('gap') ||
-                        f.toLowerCase().includes('miss') ||
-                        f.toLowerCase().includes('weak') ||
-                        f.toLowerCase().includes('blocker') ||
-                        f.toLowerCase().includes('under')
-                          ? 'bg-red-500'
-                          : f.toLowerCase().includes('on track') ||
-                              f.toLowerCase().includes('strong')
-                            ? 'bg-emerald-500'
-                            : 'bg-amber-500'
-                      }`}
-                    />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </aside>
-          </div>
-
-          {/* Progress ratios */}
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2 px-0.5">
-              Progress snapshot
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-              <ProgressPill
-                label="Hours"
-                current={Math.round(hours.logged)}
-                total={Math.round(hours.expectedElapsed) || 0}
-                color="#2563eb"
-              />
-              <ProgressPill
-                label="Plans"
-                current={plannedElapsedDays}
-                total={elapsedBizDays || report.range.expectedBusinessDays}
-                color="#7c3aed"
-              />
-              <ProgressPill
-                label="EODs"
-                current={snap.eodDays}
-                total={Math.max(snap.plannedDays, 1)}
-                color="#059669"
-              />
-              <ProgressPill
-                label="Tasks done"
-                current={report.tasksByStatus.done}
-                total={report.tasksByStatus.total || 1}
-                color="#d97706"
-              />
-              <ProgressPill
-                label="Goals active"
-                current={snap.activeGoals}
-                total={Math.max(report.goals.length, 1)}
-                color="#e11d48"
-              />
-            </div>
-          </div>
-
-          {/* Hours chart + day table */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <section className="rounded-xl bg-white ring-1 ring-gray-900/5 p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">
-                Hours by day
-              </h3>
-              <p className="text-xs text-gray-400 mb-3">
-                Blue = logged · Red = missing (past days) · Light = still today · Grey = upcoming
-              </p>
-              <div className="h-52">
-                {chartData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-400">
-                    No weekdays in range yet.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: rangeMode === 'month' ? 9 : 10, fill: '#94a3b8' }}
-                        interval={rangeMode === 'month' ? 1 : 0}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        allowDecimals={false}
-                        domain={[0, hours.dayTarget]}
-                      />
-                      <Tooltip
-                        contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
-                        formatter={(value: number, name: string) => {
-                          if (!value) return [null, null]
-                          const names: Record<string, string> = {
-                            logged: 'Logged',
-                            missing: 'Missing',
-                            remaining: 'Left today',
-                            upcoming: 'Upcoming',
-                          }
-                          return [`${value}h`, names[name] ?? name]
-                        }}
-                        labelFormatter={(label, payload) => {
-                          const row = payload?.[0]?.payload as
-                            | { expected?: number; flag?: string }
-                            | undefined
-                          return `${label} · need ${row?.expected ?? hours.dayTarget}h`
-                        }}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: 11 }}
-                        formatter={(value: string) =>
-                          value === 'logged'
-                            ? 'Logged'
-                            : value === 'missing'
-                              ? 'Missing'
-                              : value === 'remaining'
-                                ? 'Left today'
-                                : 'Upcoming'
-                        }
-                      />
-                      <Bar
-                        dataKey="logged"
-                        name="logged"
-                        stackId="hours"
-                        fill="#2563eb"
-                        maxBarSize={rangeMode === 'month' ? 12 : 22}
-                      />
-                      <Bar
-                        dataKey="missing"
-                        name="missing"
-                        stackId="hours"
-                        fill="#ef4444"
-                        maxBarSize={rangeMode === 'month' ? 12 : 22}
-                      />
-                      <Bar
-                        dataKey="remaining"
-                        name="remaining"
-                        stackId="hours"
-                        fill="#93c5fd"
-                        maxBarSize={rangeMode === 'month' ? 12 : 22}
-                      />
-                      <Bar
-                        dataKey="upcoming"
-                        name="upcoming"
-                        stackId="hours"
-                        fill="#e2e8f0"
-                        radius={[3, 3, 0, 0]}
-                        maxBarSize={rangeMode === 'month' ? 12 : 22}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white ring-1 ring-gray-900/5 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-gray-100">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                  Where are the hours?
-                </h3>
-              </div>
-              <div className="max-h-56 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-[10px] uppercase text-gray-400 border-b border-gray-100">
-                      <th className="text-left font-semibold px-3 py-2">Day</th>
-                      <th className="text-right font-semibold px-2 py-2">Need</th>
-                      <th className="text-right font-semibold px-2 py-2">Got</th>
-                      <th className="text-right font-semibold px-2 py-2">Short</th>
-                      <th className="text-left font-semibold px-3 py-2">Flag</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {hours.byDay.map(d => {
-                      const short = d.phase === 'past' && d.loggedShort >= 1
-                      const flag = d.flags[0]
-                      return (
-                        <tr key={d.date} className={short ? 'bg-red-50/50' : d.phase === 'today' ? 'bg-blue-50/40' : undefined}>
-                          <td className="px-3 py-1.5 font-medium text-gray-900 whitespace-nowrap">
-                            {fmtDate(d.date, 'EEE d')}
-                          </td>
-                          <td className="px-2 py-1.5 text-right text-gray-500">{hrs(d.expected)}</td>
-                          <td className="px-2 py-1.5 text-right font-semibold">{hrs(d.logged)}</td>
-                          <td
-                            className={`px-2 py-1.5 text-right font-bold ${
-                              short ? 'text-red-600' : 'text-gray-300'
-                            }`}
-                          >
-                            {short ? hrs(d.loggedShort) : '—'}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <span
-                              className={`text-[10px] font-bold ${
-                                short || flag === 'no_plan' || flag === 'no_eod' || flag === 'under_logged'
-                                  ? 'text-red-700'
-                                  : flag === 'upcoming'
-                                    ? 'text-gray-400'
-                                    : flag === 'today' || flag === 'today_no_plan'
-                                      ? 'text-blue-700'
-                                      : 'text-emerald-600'
-                              }`}
-                            >
-                              {flag ? flagLabel(flag) : 'OK'}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 text-xs font-semibold text-gray-600 flex justify-between">
-                <span>
-                  Total {hrs(hours.logged)} / {hrs(hours.expectedElapsed)} so far
-                  {hours.expected > hours.expectedElapsed ? ` (${hrs(hours.expected)} period)` : ''}
-                </span>
-                <span className={hours.loggedShort > 0 ? 'text-red-700' : 'text-emerald-700'}>
-                  {hours.loggedShort > 0 ? `Missing ${hrs(hours.loggedShort)}` : 'Covered'}
-                </span>
-              </div>
-            </section>
-          </div>
-
-          {/* Project activity — hours & tasks from daily plans */}
-          <section className="rounded-xl bg-white ring-1 ring-gray-900/5 overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                  Project activity
-                </h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  Time invested on each project from daily tasks
-                </p>
-              </div>
-              <span className="text-[11px] text-gray-400">
-                {report.tasksByStatus.done} done · {report.tasksByStatus.partial} partial ·{' '}
-                {report.tasksByStatus.planned} planned · {report.tasksByStatus.moved} moved ·{' '}
-                {hrs(hours.logged)} logged
-              </span>
-            </div>
-
-            {report.projectActivity.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-400">
-                No project tasks in this period.
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {report.projectActivity.map(p => (
-                  <div key={p.projectId ?? 'none'} className="px-4 py-4">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      {p.projectId ? (
-                        <Link
-                          href={`/projects/${p.projectId}`}
-                          className="text-base font-semibold text-gray-900 hover:text-blue-600"
-                        >
-                          {p.projectName}
-                        </Link>
-                      ) : (
-                        <span className="text-base font-semibold text-gray-500">{p.projectName}</span>
-                      )}
-                      <span className="text-lg font-bold tabular-nums text-gray-900">
-                        {hrs(p.hoursLogged)}
-                        <span className="text-xs font-medium text-gray-400 ml-1">
-                          logged / {hrs(p.hoursPlanned)} planned
-                        </span>
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      <div className="rounded-lg bg-emerald-50 px-2 py-2 text-center">
-                        <p className="text-lg font-bold text-emerald-800">{p.done}</p>
-                        <p className="text-[10px] font-semibold uppercase text-emerald-700">Done</p>
-                      </div>
-                      <div className="rounded-lg bg-blue-50 px-2 py-2 text-center">
-                        <p className="text-lg font-bold text-blue-800">{p.planned}</p>
-                        <p className="text-[10px] font-semibold uppercase text-blue-700">Planned</p>
-                      </div>
-                      <div className="rounded-lg bg-amber-50 px-2 py-2 text-center">
-                        <p className="text-lg font-bold text-amber-800">{p.partial}</p>
-                        <p className="text-[10px] font-semibold uppercase text-amber-700">Partial</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">
-                        <p className="text-lg font-bold text-slate-800">{p.moved}</p>
-                        <p className="text-[10px] font-semibold uppercase text-slate-600">Moved</p>
-                      </div>
-                    </div>
-
-                    <ul className="space-y-1.5">
-                      {p.tasks.map(t => (
-                        <li key={t.id} className="flex items-center gap-2 text-sm">
-                          {statusBadge(t.status)}
-                          <span className="text-gray-700 flex-1 min-w-0 truncate">{t.title}</span>
-                          <span className="text-xs tabular-nums text-gray-500 shrink-0">
-                            {t.hours > 0 ? `${t.hours}h` : '—'}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Bottom grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <section className="rounded-xl bg-white ring-1 ring-gray-900/5 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-gray-100">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                  Deadlines, blunders & blockers
-                </h3>
-              </div>
-              {report.issues.length === 0 && report.blockers.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-gray-400 text-center">
-                  No missed deadlines, blunders, or blockers.
-                </div>
-              ) : (
-                <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-                  {report.issues.map((issue, i) => (
-                    <li key={`${issue.kind}-${issue.date}-${i}`} className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            issue.kind === 'deadline'
-                              ? 'bg-red-50 text-red-800'
-                              : issue.kind === 'blunder'
-                                ? 'bg-amber-50 text-amber-800'
-                                : 'bg-orange-50 text-orange-800'
-                          }`}
-                        >
-                          {issue.kind === 'deadline'
-                            ? 'Deadline missed'
-                            : issue.kind === 'blunder'
-                              ? 'Blunder'
-                              : 'At risk'}
-                        </span>
-                        {issue.date && (
-                          <span className="text-[10px] text-gray-400">{fmtDate(issue.date)}</span>
-                        )}
-                      </div>
-                      {issue.href ? (
-                        <Link href={issue.href} className="text-sm font-medium text-gray-900 hover:text-blue-600">
-                          {issue.title}
-                        </Link>
-                      ) : (
-                        <p className="text-sm font-medium text-gray-900">{issue.title}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-0.5">{issue.detail}</p>
-                    </li>
-                  ))}
-                  {report.blockers.map(b => (
-                    <li key={b.id} className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        {statusBadge(b.status)}
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                          Blocker
-                        </span>
-                        <span className="text-[10px] text-gray-400">{fmtDate(b.raisedAt)}</span>
-                      </div>
-                      <p className="text-sm text-gray-800">{b.description}</p>
-                      {b.project && (
-                        <Link href={`/projects/${b.project.id}`} className="text-xs text-blue-600 hover:underline">
-                          {b.project.name}
-                        </Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="rounded-xl bg-white ring-1 ring-gray-900/5 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Leave</h3>
-                <Link href="/leaves/usage" className="text-[11px] font-semibold text-blue-600 hover:underline">
-                  Full usage →
-                </Link>
-              </div>
-              <div className="p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-gray-900">{report.leaves.fullDayCount}</p>
-                    <p className="text-[10px] font-semibold uppercase text-gray-500">Full day</p>
-                    <p className="text-[11px] text-gray-400">{report.leaves.fullDayDays} day(s)</p>
-                  </div>
-                  <div className="rounded-lg bg-amber-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-amber-900">{report.leaves.halfDayCount}</p>
-                    <p className="text-[10px] font-semibold uppercase text-amber-700">Half day</p>
-                    <p className="text-[11px] text-amber-700/70">{report.leaves.halfDayDays} day(s)</p>
-                  </div>
-                  <div className="rounded-lg bg-sky-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-sky-900">{report.leaves.shortLeaveCount}</p>
-                    <p className="text-[10px] font-semibold uppercase text-sky-700">Short leave</p>
-                    <p className="text-[11px] text-sky-700/70">2 hours each</p>
-                  </div>
-                  <div className="rounded-lg bg-violet-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-violet-900">{report.leaves.workFromHomeCount}</p>
-                    <p className="text-[10px] font-semibold uppercase text-violet-700">Work from home</p>
-                  </div>
-                  <div className="rounded-lg bg-pink-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-pink-900">{report.leaves.birthdayLeaveCount}</p>
-                    <p className="text-[10px] font-semibold uppercase text-pink-700">Birthday</p>
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 px-3 py-2.5">
-                    <p className="text-xl font-bold text-emerald-900">
-                      {report.leaveBalance
-                        ? Math.max(0, report.leaveBalance.accrued - report.leaveBalance.used)
-                        : '—'}
-                    </p>
-                    <p className="text-[10px] font-semibold uppercase text-emerald-700">Balance left</p>
-                    {report.leaveBalance && (
-                      <p className="text-[11px] text-emerald-700/70">
-                        {report.leaveBalance.used} used of {report.leaveBalance.accrued}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {report.leaves.leaves.length > 0 && (
-                  <ul className="mt-3 divide-y divide-gray-50 border-t border-gray-100">
-                    {report.leaves.leaves.slice(0, 6).map(l => (
-                      <li key={l.id} className="py-2 flex items-center justify-between gap-2 text-sm">
-                        <span className="capitalize text-gray-800">
-                          {l.leaveType.replace(/_/g, ' ')}
-                          {l.timeSlot ? ` · ${l.timeSlot.replace(/_/g, ' ')}` : ''}
-                        </span>
-                        <span className="text-xs text-gray-500 shrink-0">{fmtDate(l.startDate)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          </div>
-        </div>
+      ) : report && hours && snap && selected && score != null ? (
+        <>
+          <EmployeeReportCeoView
+            employees={employees}
+            selected={selected}
+            memberId={memberId}
+            onMemberChange={setMemberId}
+            rangeMode={rangeMode}
+            onRangeModeChange={setRangeMode}
+            from={from}
+            to={to}
+            onFromChange={setFrom}
+            onToChange={setTo}
+            onApplyCustom={() => loadReport()}
+            loading={loading}
+            report={report}
+            score={score}
+            findings={findings}
+            onOpenWeek={openWeekRow}
+            onOpenProject={openPeriodProject}
+          />
+          <WorkDrawer
+            open={workWeek != null}
+            onClose={() => {
+              setWorkWeek(null)
+              setWorkProjectKey(null)
+              setWorkFocusDateKey(null)
+            }}
+            memberId={memberId}
+            from={from}
+            to={to}
+            week={workWeek}
+            initialProjectKey={workProjectKey}
+            initialFocusDateKey={workFocusDateKey}
+            dayHoursStatus={
+              report.hours.byDay.map(d => ({
+                dateKey: d.dateKey,
+                hasPlan: d.hasPlan,
+                hasEod: d.hasEod,
+                expected: d.expected,
+                phase: d.phase,
+              }))
+            }
+          />
+        </>
       ) : (
-        <div className="rounded-xl bg-white ring-1 ring-gray-900/5 py-12 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-500">
           Select an employee to view their report.
         </div>
       )}

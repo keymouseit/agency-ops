@@ -1,29 +1,19 @@
-import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import EmployeeReportClient from './EmployeeReportClient'
 
-export const dynamic = 'force-dynamic'
-
-export default async function EmployeeReportPage() {
-  const session = await auth()
-  if (!session?.user?.id) return null
-
-  const member = await prisma.teamMember.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, role: true },
-  })
-
-  if (!member) return null
-  if (!['Founder', 'Manager'].includes(member.role)) {
-    redirect('/')
+/**
+ * Retired: the Employee report lives on `/reports/team`.
+ * Preserves query params (memberId, range, from, to).
+ */
+export default function EmployeeReportRedirect({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>
+}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === 'tab' || value == null) continue
+    for (const v of Array.isArray(value) ? value : [value]) params.append(key, v)
   }
-
-  const employees = await prisma.teamMember.findMany({
-    where: { active: true },
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { name: 'asc' },
-  })
-
-  return <EmployeeReportClient employees={employees} />
+  const qs = params.toString()
+  redirect(qs ? `/reports/team?${qs}` : '/reports/team')
 }

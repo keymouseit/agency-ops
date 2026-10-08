@@ -7,6 +7,9 @@ import {
   computeLeaveBalanceSplit,
 } from '@/lib/leave-balance'
 import { revalidateLeavePages } from '@/lib/cache-tags'
+import { runInBackground } from '@/lib/background'
+import { formatIstDate } from '@/lib/ist'
+import { notifyFounderLeaveEvent } from '@/lib/push-notifications'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
 
@@ -120,7 +123,29 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       })
     }
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+
+        const member = await prisma.teamMember.findUnique({
+          where: { id: updatedLeave.memberId },
+          select: { name: true },
+        })
+        const memberName = member?.name || 'A team member'
+        const startLabel = formatIstDate(updatedLeave.startDate)
+        const endLabel = formatIstDate(updatedLeave.endDate)
+        await notifyFounderLeaveEvent({
+          eventType: 'updated',
+          applicantName: memberName,
+          leaveType: updatedLeave.leaveType,
+          dates: `${startLabel} to ${endLabel}`,
+          leaveId: updatedLeave.id,
+          reason: updatedLeave.reason,
+          applicantMemberId: updatedLeave.memberId,
+        })
+      })(),
+      'leave-update-side-effects'
+    )
     return NextResponse.json(updatedLeave, { status: 200 })
   } catch (error: unknown) {
     console.error('Error updating leave request:', error)
@@ -177,7 +202,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
     await prisma.leaveRequest.delete({ where: { id } })
 
-    revalidateLeavePages()
+    runInBackground(
+      (async () => {
+        revalidateLeavePages()
+      })(),
+      'revalidate-leave-pages'
+    )
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
     console.error('Error deleting leave request:', error)

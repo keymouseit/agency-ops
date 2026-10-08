@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const projectPart = b.project ? ` on ${b.project.name}` : ''
       await notify('blocker_escalated', founders.map(f => f.id),
         `${b.member.name}'s blocker${projectPart} was escalated: ${b.description.slice(0, 80)}`,
-        '/intelligence')
+        '/?open=waiting')
     }
   }
 

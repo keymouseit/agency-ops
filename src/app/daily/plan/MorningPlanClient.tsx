@@ -7,6 +7,8 @@ import { useDailyTaskTypeCatalog, taskTypeGroupsForRole } from '@/hooks/useDaily
 import { insertNewlineOnEnter } from '@/lib/multiline-input'
 import { formatIstWeekdayLong } from '@/lib/ist'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
+import { shortDisplayName } from '@/lib/employee-order'
+import HoursMinutesFields from '@/components/HoursMinutesFields'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -133,7 +135,7 @@ export default function MorningPlanClient({
                       : 'border-gray-100 hover:border-gray-300 cursor-pointer'
                   }`}
                 >
-                  <div className="text-sm font-medium text-gray-900">{m.name.split(' ')[0]}</div>
+                  <div className="text-sm font-medium text-gray-900">{shortDisplayName(m.name)}</div>
                   <div className="text-xs text-gray-400">{m.role}</div>
                   {done && <div className="text-xs text-green-600 mt-0.5">✓ Submitted</div>}
                 </button>
@@ -223,18 +225,13 @@ export default function MorningPlanClient({
                         </select>
                       </div>
                       <div>
-                        <label className="label">Est. hours</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          value={task.estimatedHours}
-                          onChange={e => updateTask(i, 'estimatedHours', e.target.value)}
+                        <HoursMinutesFields
+                          id={`est-hours-${i}`}
+                          label="Est. time"
                           required
-                          className="input"
-                          placeholder="0.25 or 15m"
+                          value={task.estimatedHours}
+                          onChange={next => updateTask(i, 'estimatedHours', next)}
                         />
-                        <p className="text-[11px] text-gray-400 mt-1">0.25 or 15m = 15 min</p>
                       </div>
                     </div>
                   </div>

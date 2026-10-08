@@ -159,49 +159,59 @@ export default function DailyLogCard({ log, isToday, currentUserId }: Props) {
               className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`}
             />
             <div className="flex-1 min-w-0">
-              <p
-                className={`text-sm whitespace-pre-wrap break-words ${
-                  task.status === 'done' || task.status === 'skipped'
-                    ? 'line-through text-gray-400'
-                    : 'text-gray-800 font-medium'
-                }`}
-              >
-                {task.title}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                <span
-                  className={`badge text-[11px] ${dailyTaskTypeColor(task.taskType)}`}
-                >
-                  {dailyTaskTypeLabel(task.taskType)}
-                </span>
-                {task.project && <span className="text-xs text-gray-400">{task.project.name}</span>}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    <span className={`badge text-[11px] ${dailyTaskTypeColor(task.taskType)}`}>
+                      {dailyTaskTypeLabel(task.taskType)}
+                    </span>
+                    {task.project && (
+                      <span className="text-xs text-gray-400 truncate">{task.project.name}</span>
+                    )}
+                  </div>
+                  <p
+                    className={`text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-h-56 overflow-y-auto ${
+                      task.status === 'done' || task.status === 'skipped'
+                        ? 'line-through text-gray-400'
+                        : 'text-gray-800 font-medium'
+                    }`}
+                  >
+                    {task.title}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                  {task.estimatedHours != null && task.estimatedHours > 0 && (
+                    <span className="text-xs text-gray-400 tabular-nums whitespace-nowrap">
+                      {task.actualHours != null ? (
+                        <span
+                          className={
+                            task.actualHours > task.estimatedHours * 1.3
+                              ? 'text-red-500'
+                              : 'text-gray-400'
+                          }
+                        >
+                          {task.actualHours}h / {task.estimatedHours}h
+                        </span>
+                      ) : (
+                        `${task.estimatedHours}h est.`
+                      )}
+                    </span>
+                  )}
+                  <span className={`badge text-[11px] ${STATUS_COLORS[task.status] ?? 'bg-gray-100'}`}>
+                    {task.status}
+                  </span>
+                </div>
               </div>
               {task.eodNotes && (
-                <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{task.eodNotes}</p>
+                <p className="text-xs text-gray-500 mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                  {task.eodNotes}
+                </p>
               )}
               {task.blockedReason && (
-                <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap">Blocked: {task.blockedReason}</p>
+                <p className="text-xs text-red-600 mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                  Blocked: {task.blockedReason}
+                </p>
               )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {task.estimatedHours != null && task.estimatedHours > 0 && (
-                <span className="text-xs text-gray-400 tabular-nums">
-                  {task.actualHours != null ? (
-                    <span
-                      className={
-                        task.actualHours > task.estimatedHours * 1.3 ? 'text-red-500' : 'text-gray-400'
-                      }
-                    >
-                      {task.actualHours}h / {task.estimatedHours}h
-                    </span>
-                  ) : (
-                    `${task.estimatedHours}h est.`
-                  )}
-                </span>
-              )}
-              <span className={`badge text-[11px] ${STATUS_COLORS[task.status] ?? 'bg-gray-100'}`}>
-                {task.status}
-              </span>
             </div>
           </div>
         ))}

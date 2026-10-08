@@ -11,6 +11,7 @@ import EODBdLinkedInActivity from './EODBdLinkedInActivity'
 import EODManualBdActivity from './EODManualBdActivity'
 import { parseManualBdActivityJson, type ManualBdActivityRow } from '@/lib/bd-activity-manual'
 import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
+import HoursMinutesFields from '@/components/HoursMinutesFields'
 
 type Task = {
   id: string
@@ -541,20 +542,13 @@ export default function EODClient({
                   </div>
 
                   {!isSkipped && (
-                    <div className="grid sm:grid-cols-[120px_1fr] gap-4">
-                      <div>
-                        <label className="label">Actual hours</label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          max="999"
-                          inputMode="decimal"
-                          value={update.actualHours}
-                          onChange={e => updateTask(task.id, 'actualHours', e.target.value)}
-                          className="input bg-gray-50/50 focus:bg-white tabular-nums"
-                        />
-                      </div>
+                    <div className="grid sm:grid-cols-[160px_1fr] gap-4">
+                      <HoursMinutesFields
+                        id={`actual-hours-${task.id}`}
+                        label="Actual time"
+                        value={update.actualHours}
+                        onChange={next => updateTask(task.id, 'actualHours', next)}
+                      />
                       <div>
                         {update.status === 'blocked' ? (
                           <>
@@ -675,19 +669,13 @@ export default function EODClient({
                 />
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Actual hours *</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    required={!!task.title.trim()}
-                    value={task.actualHours}
-                    onChange={e => updateNewTask(task.clientId, 'actualHours', e.target.value)}
-                    className="input bg-white tabular-nums"
-                    placeholder="1.5"
-                  />
-                </div>
+                <HoursMinutesFields
+                  id={`new-actual-${task.clientId}`}
+                  label="Actual time"
+                  required={!!task.title.trim()}
+                  value={task.actualHours}
+                  onChange={next => updateNewTask(task.clientId, 'actualHours', next)}
+                />
                 <div>
                   <label className="label">Project (optional)</label>
                   <select

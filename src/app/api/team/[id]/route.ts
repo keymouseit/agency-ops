@@ -43,6 +43,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (data.email !== undefined) updateData.email = data.email
   if (data.role !== undefined) updateData.role = data.role
   if (data.active !== undefined) updateData.active = data.active
+  if (data.birthday !== undefined) {
+    updateData.birthday = data.birthday ? new Date(data.birthday) : null
+  }
 
   // Update team member
   const updated = await prisma.teamMember.update({

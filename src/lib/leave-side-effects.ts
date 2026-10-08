@@ -9,6 +9,13 @@
  */
 export function shouldRunLeaveSideEffects(): boolean {
   if (process.env.NODE_ENV === 'development') return false
+
+  // Staging check: handles 'true', 'TRUE', '1' safely without breaking if someone sets 'false'
+  const isStaging =
+    process.env.IS_STAGING?.toLowerCase() === 'true' ||
+    process.env.IS_STAGING === '1'
+  if (isStaging) return false
+
   if (!process.env.VERCEL) return false
   return true
 }

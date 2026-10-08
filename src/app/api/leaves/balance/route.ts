@@ -6,6 +6,8 @@ import { syncShortLeaveBalance } from '@/lib/leave-balance'
 import { sortByEmployeeNo } from '@/lib/employee-order'
 import { istYearAndMonth } from '@/lib/ist'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const deny = await checkRole(['Founder', 'HR'])
   if (deny) return deny
@@ -24,31 +26,31 @@ export async function GET() {
     })
   )
 
-  const rows: {
-    memberId: string
-    name: string
-    email: string
-    role: string
-    year: number
-    accrued: number
-    used: number
-    available: number
-    balanceId: string
-  }[] = []
-  for (const m of members) {
-    const bal = await syncShortLeaveBalance(m.id, year)
-    rows.push({
-      memberId: m.id,
-      name: m.name,
-      email: m.email,
-      role: m.role,
-      year,
-      accrued: bal.accrued,
-      used: bal.used,
-      available: Math.max(0, Number((bal.accrued - bal.used).toFixed(2))),
-      balanceId: bal.id,
+  const memberIds = members.map(m => m.id)
+  const existingBalances = await prisma.leaveBalance.findMany({
+    where: { memberId: { in: memberIds }, year },
+  })
+  const balanceMap = new Map(existingBalances.map(b => [b.memberId, b]))
+
+  const rows = await Promise.all(
+    members.map(async (m) => {
+      let bal = balanceMap.get(m.id)
+      if (!bal) {
+        bal = await syncShortLeaveBalance(m.id, year)
+      }
+      return {
+        memberId: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        year,
+        accrued: bal.accrued,
+        used: bal.used,
+        available: Math.max(0, Number((bal.accrued - bal.used).toFixed(2))),
+        balanceId: bal.id,
+      }
     })
-  }
+  )
 
   return NextResponse.json({ year, rows })
 }

@@ -1,0 +1,813 @@
+'use client'
+
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { formatIst, formatIstDate, istDateInputValue } from '@/lib/ist'
+import toast, { Toaster } from 'react-hot-toast'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from 'recharts'
+import type { EmployeeReport } from '@/lib/employee-report'
+import ShowMoreRows from '@/components/ShowMoreRows'
+import LinkifiedText from '@/components/LinkifiedText'
+import WorkDrawer, { type WorkWeek, PROJECT_BAR_COLORS } from './WorkDrawer'
+import EmployeeReportCeoView from './EmployeeReportCeoView'
+import {
+  WEEK_MONTH_GROUP_THRESHOLD,
+  groupWeeksByMonth,
+  monthKeyFromWeekStart,
+} from './week-group-utils'
+
+type Employee = { id: string; name: string; email: string; role: string }
+type RangeMode = 'week' | 'month' | 'custom'
+
+function toInputDate(d: Date) {
+  return istDateInputValue(d)
+}
+
+function fmtDate(iso: string, pattern = 'MMM d') {
+  if (pattern === 'EEE d') return formatIst(iso, { weekday: 'short', day: 'numeric' }, 'en-US')
+  if (pattern === 'MMM d, yyyy') return formatIstDate(iso)
+  return formatIst(iso, { month: 'short', day: 'numeric' })
+}
+
+function hrs(n: number | null | undefined) {
+  if (n == null) return '—'
+  return `${Number(n.toFixed(1))}h`
+}
+
+function clamp(n: number, min = 0, max = 100) {
+  return Math.max(min, Math.min(max, n))
+}
+
+/** Simple SVG donut for score-out-of-100 style metrics */
+function ScoreRing({
+  value,
+  label,
+  color,
+  center,
+}: {
+  value: number | null
+  label: string
+  color: string
+  center?: string
+}) {
+  const v = value == null ? 0 : clamp(value)
+  const r = 34
+  const c = 2 * Math.PI * r
+  const offset = c - (v / 100) * c
+  return (
+    <div className="flex flex-col items-center gap-1.5 min-w-[88px]">
+      <div className="relative w-[80px] h-[80px]">
+        <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#f1f5f9" strokeWidth="8" />
+          <circle
+            cx="40"
+            cy="40"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={value == null ? c : offset}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-sm font-bold text-gray-900">
+            {value == null ? '—' : center ?? String(Math.round(v))}
+          </span>
+        </div>
+      </div>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 text-center leading-tight max-w-[96px]">
+        {label}
+      </span>
+    </div>
+  )
+}
+
+function ReportGeneratingLoader() {
+  const [pct, setPct] = useState(6)
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setPct(p => {
+        if (p >= 90) return 90
+        return Math.min(90, p + 4 + Math.random() * 8)
+      })
+    }, 180)
+    return () => window.clearInterval(id)
+  }, [])
+
+  return (
+    <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 px-6 py-16 flex flex-col items-center text-center">
+      <p className="text-sm font-semibold text-gray-900">Report generating…</p>
+      <p className="text-xs text-gray-500 mt-1">Pulling hours, plans, projects, and scores</p>
+      <div className="w-full max-w-md mt-5 h-2 rounded-full bg-gray-100 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-slate-900 transition-[width] duration-200 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs font-medium tabular-nums text-gray-400 mt-2">{Math.round(pct)}%</p>
+    </div>
+  )
+}
+
+function ProgressPill({
+  label,
+  current,
+  total,
+  color,
+}: {
+  label: string
+  current: number
+  total: number
+  color: string
+}) {
+  const pct = total > 0 ? clamp((current / total) * 100) : 0
+  return (
+    <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-3 text-center">
+      <p className="text-2xl font-bold tabular-nums" style={{ color }}>
+        {current}
+        <span className="text-gray-300 font-semibold">/{total || 0}</span>
+      </p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mt-1">{label}</p>
+      <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  )
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    done: 'bg-emerald-50 text-emerald-800',
+    partial: 'bg-amber-50 text-amber-800',
+    blocked: 'bg-red-50 text-red-800',
+    moved: 'bg-sky-50 text-sky-800',
+    skipped: 'bg-gray-100 text-gray-600',
+    planned: 'bg-blue-50 text-blue-800',
+    open: 'bg-red-50 text-red-800',
+    in_progress: 'bg-amber-50 text-amber-800',
+    active: 'bg-blue-50 text-blue-800',
+    on_hold: 'bg-amber-50 text-amber-800',
+    qa: 'bg-violet-50 text-violet-800',
+  }
+  return (
+    <span
+      className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold capitalize ${
+        map[status] || 'bg-gray-100 text-gray-700'
+      }`}
+    >
+      {status.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+function flagLabel(flag: string) {
+  switch (flag) {
+    case 'no_plan':
+      return 'No plan'
+    case 'under_planned':
+      return 'Short on plan'
+    case 'no_eod':
+      return 'No EOD'
+    case 'under_logged':
+      return 'Hours short'
+    case 'on_leave':
+      return 'Full day leave'
+    case 'holiday':
+      return 'Holiday'
+    case 'upcoming':
+      return 'Upcoming'
+    case 'today':
+      return 'Today'
+    case 'today_no_plan':
+      return 'Today · no plan'
+    default:
+      return flag
+  }
+}
+
+function fmtDayShort(iso: string) {
+  return formatIst(iso, { day: 'numeric', month: 'short' })
+}
+
+function milestoneChipCls(chip: string) {
+  switch (chip) {
+    case 'approved':
+      return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+    case 'needs_attention':
+      return 'bg-amber-50 text-amber-900 ring-amber-200'
+    case 'delayed':
+      return 'bg-red-50 text-red-800 ring-red-200'
+    default:
+      return 'bg-slate-50 text-slate-700 ring-slate-200'
+  }
+}
+
+function toneForPct(pct: number | null, good = 90, ok = 70) {
+  if (pct == null) return 'text-gray-400'
+  if (pct >= good) return 'text-emerald-700'
+  if (pct >= ok) return 'text-amber-700'
+  return 'text-red-700'
+}
+
+function bgForPct(pct: number | null, good = 90, ok = 70) {
+  if (pct == null) return ''
+  if (pct >= good) return 'bg-emerald-50/80'
+  if (pct >= ok) return 'bg-amber-50/70'
+  return 'bg-red-50/70'
+}
+
+function buildFindings(report: EmployeeReport): string[] {
+  const findings: string[] = []
+  const { hours, snapshot } = report
+
+  const noPlanDays = hours.byDay.filter(d => d.flags.includes('no_plan'))
+  const noPlanHours = Math.round(noPlanDays.reduce((s, d) => s + d.expected, 0) * 10) / 10
+  const underPlannedWithPlan = hours.byDay.filter(
+    d => d.hasPlan && d.plannedShort >= 1 && d.phase !== 'future' && d.expected > 0,
+  )
+  const underPlannedHours =
+    Math.round(underPlannedWithPlan.reduce((s, d) => s + d.plannedShort, 0) * 10) / 10
+  const underLoggedWithPlan = hours.byDay.filter(
+    d => d.hasPlan && d.loggedShort >= 1 && d.phase === 'past' && d.expected > 0,
+  )
+  const underLoggedHours =
+    Math.round(underLoggedWithPlan.reduce((s, d) => s + d.loggedShort, 0) * 10) / 10
+
+  // Hours gap — only the shortfall on days that DID have a plan (no-plan days covered below)
+  if (underLoggedHours >= 4) {
+    findings.push(
+      `Hours gap on planned days: ${hrs(underLoggedHours)} short of leave-adjusted target (${underLoggedWithPlan.length} day${underLoggedWithPlan.length === 1 ? '' : 's'}).`,
+    )
+  } else if (underLoggedHours >= 1) {
+    findings.push(`Slightly under hours on planned days — short ${hrs(underLoggedHours)}.`)
+  } else if (noPlanDays.length === 0 && hours.expectedElapsed > 0) {
+    findings.push(`Hours on track — ${hrs(hours.logged)} of ${hrs(hours.expectedElapsed)} expected so far.`)
+  } else if (noPlanDays.length > 0 && underLoggedHours < 1 && hours.loggedShort >= 1) {
+    // Entire hours gap explained by no-plan days — don't duplicate; covered by plan finding.
+  } else if (hours.loggedShort < 1 && hours.expectedElapsed > 0) {
+    findings.push(`Hours on track — ${hrs(hours.logged)} of ${hrs(hours.expectedElapsed)} expected so far.`)
+  }
+
+  // Merge no-plan + under-filled when under-fill is entirely from missing-plan days
+  if (noPlanDays.length > 0) {
+    const dates = noPlanDays.map(d => fmtDayShort(d.date)).join(', ')
+    findings.push(
+      `No morning plan on ${noPlanDays.length} day${noPlanDays.length === 1 ? '' : 's'} (${dates}) — ${hrs(noPlanHours)} unplanned.`,
+    )
+  }
+  if (underPlannedHours >= 1 && underPlannedWithPlan.length > 0) {
+    findings.push(
+      `Plans on ${underPlannedWithPlan.length} day${underPlannedWithPlan.length === 1 ? '' : 's'} were under ${hours.dayTarget}h — ${hrs(underPlannedHours)} short.`,
+    )
+  }
+
+  if (snapshot.eodMissed > 0) {
+    findings.push(`${snapshot.eodMissed} EOD${snapshot.eodMissed === 1 ? '' : 's'} missed after a plan was submitted.`)
+  }
+
+  if (snapshot.openBlockers > 0) {
+    findings.push(`${snapshot.openBlockers} open blocker${snapshot.openBlockers === 1 ? '' : 's'} need attention.`)
+  }
+
+  if ((snapshot.planRate ?? 100) < 70 && noPlanDays.length === 0) {
+    findings.push(
+      `Plan cadence weak — only ${snapshot.plannedDays} plan${snapshot.plannedDays === 1 ? '' : 's'} in so far.`,
+    )
+  }
+
+  if (snapshot.avgSelfScore != null && snapshot.avgSelfScore < 7) {
+    findings.push(`Self score average is ${snapshot.avgSelfScore}/10 — review weekly check-in.`)
+  } else if (snapshot.avgSelfScore != null && snapshot.avgSelfScore >= 8.5) {
+    findings.push(`Strong self scores this period (avg ${snapshot.avgSelfScore}/10).`)
+  }
+
+  if (findings.length === 0) {
+    findings.push('No major flags in this period. Keep the cadence.')
+  }
+
+  return findings.slice(0, 6)
+}
+
+function overallScore(report: EmployeeReport): number {
+  const hoursPct = report.hours.expectedElapsed > 0
+    ? clamp((report.hours.logged / report.hours.expectedElapsed) * 100)
+    : 70
+  const planPct = report.snapshot.planRate ?? 50
+  const eodPct = report.snapshot.eodRate ?? 50
+  const completion = report.snapshot.avgCompletionRate ?? 50
+  const self = report.snapshot.avgSelfScore != null ? report.snapshot.avgSelfScore * 10 : 70
+  return Math.round(
+    hoursPct * 0.3 + planPct * 0.2 + eodPct * 0.2 + completion * 0.15 + self * 0.15
+  )
+}
+
+
+/** One week accordion open at a time. */
+function toggleWeekOpen(_set: Set<string>, key: string) {
+  // Toggle: closing the open week, or opening only this one
+  if (_set.has(key)) return new Set<string>()
+  return new Set<string>([key])
+}
+
+function toggleMonthOpen(set: Set<string>, key: string) {
+  const next = new Set(set)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  return next
+}
+
+function isNoProjectRow(p: { projectId: string | null; projectName: string }) {
+  return !p.projectId || p.projectName === 'No project'
+}
+
+function sortWeekProjects<T extends { projectId: string | null; projectName: string; hoursLogged: number }>(
+  list: T[],
+) {
+  return [...list].sort((a, b) => {
+    const aNone = isNoProjectRow(a)
+    const bNone = isNoProjectRow(b)
+    if (aNone !== bNone) return aNone ? 1 : -1
+    return b.hoursLogged - a.hoursLogged
+  })
+}
+
+function toWorkWeek(r: {
+  startKey: string
+  endKey: string
+  label: string
+  hoursLogged: number
+  hoursExpected: number
+  planDays: number
+  workingDays: number
+  eodDays: number
+  eodEligible: number
+  tasksDone: number
+  tasksTotal: number
+  projects: WorkWeek['projects']
+  dayMeta?: WorkWeek['dayMeta']
+}): WorkWeek {
+  return {
+    startKey: r.startKey,
+    endKey: r.endKey,
+    label: r.label,
+    hoursLogged: r.hoursLogged,
+    hoursExpected: r.hoursExpected,
+    planDays: r.planDays,
+    workingDays: r.workingDays,
+    eodDays: r.eodDays,
+    eodEligible: r.eodEligible,
+    tasksDone: r.tasksDone,
+    tasksTotal: r.tasksTotal,
+    projects: r.projects,
+    dayMeta: r.dayMeta ?? [],
+  }
+}
+
+type ProjectIssueTag = {
+  key: string
+  label: string
+  count: number
+  cls: string
+  titles: string[]
+}
+
+/** Same issue set as WorkDrawer Needs attention, scoped to one project. */
+function projectIssueTags(p: WorkWeek['projects'][number]): ProjectIssueTag[] {
+  const tags: ProjectIssueTag[] = []
+  const needs = p.milestones.filter(m => m.chip === 'needs_attention')
+  if (needs.length > 0) {
+    tags.push({
+      key: 'needs',
+      label: 'Needs attention',
+      count: needs.length,
+      cls: 'bg-amber-50 text-amber-900 ring-1 ring-amber-200',
+      titles: needs.map(m => m.title),
+    })
+  }
+  const delayed = p.milestones.filter(m => m.chip === 'delayed')
+  if (delayed.length > 0) {
+    tags.push({
+      key: 'delayed',
+      label: 'Delayed',
+      count: delayed.length,
+      cls: 'bg-orange-50 text-orange-900 ring-1 ring-orange-200',
+      titles: delayed.map(m => m.title),
+    })
+  }
+  if (p.missedDeadline) {
+    tags.push({
+      key: 'deadline',
+      label: 'Deadline missed',
+      count: 1,
+      cls: 'bg-red-50 text-red-800 ring-1 ring-red-200',
+      titles: [p.missedDeadline.detail],
+    })
+  }
+  // Match drawer: blockers raised this week on the project
+  if (p.blockers.length > 0) {
+    tags.push({
+      key: 'blocked',
+      label: 'Blocked',
+      count: p.blockers.length,
+      cls: 'bg-rose-50 text-rose-800 ring-1 ring-rose-200',
+      titles: p.blockers.map(b => b.description),
+    })
+  }
+  return tags
+}
+
+function projectHasIssues(p: WorkWeek['projects'][number]) {
+  return projectIssueTags(p).length > 0
+}
+
+/**
+ * Summary line only for issues not tied to a real project (No project / null id).
+ * Per-project tags on the rows cover everything else.
+ */
+function orphanAttentionLine(projects: WorkWeek['projects']): string | null {
+  let delayed = 0
+  let needs = 0
+  let deadlines = 0
+  let blocked = 0
+  for (const p of projects) {
+    if (p.projectId && p.projectName !== 'No project') continue
+    if (p.missedDeadline) deadlines += 1
+    for (const m of p.milestones) {
+      if (m.chip === 'delayed') delayed += 1
+      else if (m.chip === 'needs_attention') needs += 1
+    }
+    blocked += p.blockers.length
+  }
+  const parts: string[] = []
+  if (delayed > 0) {
+    parts.push(`${delayed} milestone${delayed === 1 ? '' : 's'} delayed`)
+  }
+  if (needs > 0) {
+    parts.push(`${needs} need${needs === 1 ? 's' : ''} attention`)
+  }
+  if (deadlines > 0) {
+    parts.push(`${deadlines} deadline${deadlines === 1 ? '' : 's'} missed`)
+  }
+  if (blocked > 0) {
+    parts.push(`${blocked} blocker${blocked === 1 ? '' : 's'}`)
+  }
+  return parts.length ? parts.join(' · ') : null
+}
+
+export default function EmployeeReportClient({
+  employees,
+  embedded = false,
+  initialMemberId,
+  initialRange = 'week',
+  initialFrom,
+  initialTo,
+}: {
+  employees: Employee[]
+  /** Rendered inside Team → Individual: hide the standalone header and keep the URL in sync. */
+  embedded?: boolean
+  initialMemberId?: string
+  initialRange?: RangeMode
+  initialFrom?: string
+  initialTo?: string
+}) {
+  const [memberId, setMemberId] = useState(initialMemberId || employees[0]?.id || '')
+  const [rangeMode, setRangeMode] = useState<RangeMode>(initialRange)
+  const [from, setFrom] = useState(
+    initialFrom ?? toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  )
+  const [to, setTo] = useState(initialTo ?? toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 })))
+  const [loading, setLoading] = useState(true)
+  const [report, setReport] = useState<EmployeeReport | null>(null)
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    const week = new URLSearchParams(window.location.search).get('week')
+    return week ? new Set([week]) : new Set()
+  })
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
+  const monthsDefaultApplied = useRef<string | null>(null)
+  const [workWeek, setWorkWeek] = useState<WorkWeek | null>(null)
+  const [workProjectKey, setWorkProjectKey] = useState<string | null>(null)
+  const weekParamApplied = useRef(false)
+  const requestId = useRef(0)
+
+  const selected = useMemo(
+    () => employees.find(e => e.id === memberId) || null,
+    [employees, memberId]
+  )
+
+  const weekRows = useMemo(
+    () => (report?.weekByWeek?.rows ?? []).filter(r => r.hasWorkingDays),
+    [report],
+  )
+  const groupWeeksByMonthUi = weekRows.length > WEEK_MONTH_GROUP_THRESHOLD
+  const monthGroups = useMemo(
+    () => (groupWeeksByMonthUi ? groupWeeksByMonth(weekRows) : []),
+    [groupWeeksByMonthUi, weekRows],
+  )
+
+  // Long ranges: default-expand the most recent month (and its latest week if none open yet)
+  useEffect(() => {
+    if (!report?.weekByWeek) return
+    const rows = report.weekByWeek.rows.filter(r => r.hasWorkingDays)
+    const sig = `${rows[0]?.startKey ?? ''}:${rows[rows.length - 1]?.startKey ?? ''}:${rows.length}`
+    if (monthsDefaultApplied.current === sig) return
+    monthsDefaultApplied.current = sig
+
+    if (rows.length <= WEEK_MONTH_GROUP_THRESHOLD) {
+      setOpenMonths(new Set())
+      return
+    }
+    const groups = groupWeeksByMonth(rows)
+    const latest = groups[groups.length - 1]
+    if (!latest) return
+    setOpenMonths(new Set([latest.key]))
+    setOpenWeeks(prev => {
+      if (prev.size > 0) return prev
+      const lastWeek = latest.weeks[latest.weeks.length - 1]
+      return lastWeek ? new Set([lastWeek.startKey]) : prev
+    })
+  }, [report])
+
+  // Deep-link: ?week=YYYY-MM-DD expands that week accordion and opens the drawer
+  useEffect(() => {
+    if (!report?.weekByWeek || weekParamApplied.current) return
+    if (typeof window === 'undefined') return
+    const weekKey = new URLSearchParams(window.location.search).get('week')
+    if (!weekKey) {
+      weekParamApplied.current = true
+      return
+    }
+    const row = report.weekByWeek.rows.find(r => r.startKey === weekKey && r.hasWorkingDays)
+    if (row) {
+      setOpenWeeks(new Set([weekKey]))
+      setOpenMonths(s => {
+        const mk = monthKeyFromWeekStart(row.startKey)
+        if (s.has(mk)) return s
+        const next = new Set(s)
+        next.add(mk)
+        return next
+      })
+      setWorkProjectKey(null)
+      setWorkWeek(toWorkWeek(row))
+    }
+    weekParamApplied.current = true
+  }, [report])
+
+  /** Keep person + range in the URL (Team → Individual) so the view is linkable. */
+  function syncUrl(nextMemberId: string, nextRange: RangeMode, nextFrom: string, nextTo: string) {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('tab', 'individual')
+    params.set('memberId', nextMemberId)
+    params.set('range', nextRange)
+    if (nextRange === 'custom') {
+      params.set('from', nextFrom)
+      params.set('to', nextTo)
+    } else {
+      params.delete('from')
+      params.delete('to')
+    }
+    const next = `${window.location.pathname}?${params}`
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, '', next)
+    }
+  }
+
+  async function loadReport(
+    nextMemberId = memberId,
+    nextRange: RangeMode = rangeMode,
+    nextFrom = from,
+    nextTo = to
+  ) {
+    if (!nextMemberId) return
+    if (embedded) syncUrl(nextMemberId, nextRange, nextFrom, nextTo)
+    const id = ++requestId.current
+    setLoading(true)
+    setReport(null)
+    try {
+      const params = new URLSearchParams({ memberId: nextMemberId, range: nextRange })
+      if (nextRange === 'custom') {
+        params.set('from', nextFrom)
+        params.set('to', nextTo)
+      }
+      const res = await fetch(`/api/reports/employee?${params}`)
+      const json = await res.json()
+      if (id !== requestId.current) return
+      if (!res.ok) throw new Error(json.error || 'Failed to load report')
+      setReport(json)
+    } catch (e: unknown) {
+      if (id !== requestId.current) return
+      toast.error(e instanceof Error ? e.message : 'Failed to load report')
+      setReport(null)
+    } finally {
+      if (id === requestId.current) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!memberId) return
+    let nextFrom = from
+    let nextTo = to
+    if (rangeMode === 'week') {
+      nextFrom = toInputDate(startOfWeek(new Date(), { weekStartsOn: 1 }))
+      nextTo = toInputDate(endOfWeek(new Date(), { weekStartsOn: 1 }))
+      setFrom(nextFrom)
+      setTo(nextTo)
+    } else if (rangeMode === 'month') {
+      nextFrom = toInputDate(startOfMonth(new Date()))
+      nextTo = toInputDate(endOfMonth(new Date()))
+      setFrom(nextFrom)
+      setTo(nextTo)
+    }
+    void loadReport(memberId, rangeMode, nextFrom, nextTo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberId, rangeMode])
+
+  const hours = report?.hours
+  const snap = report?.snapshot
+  const score = report ? overallScore(report) : null
+  const findings = report ? buildFindings(report) : []
+  // Prefer founder rating over self when both exist for the same week
+  const weeklyScoreHistory = (() => {
+    if (!report) return [] as {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }[]
+    const byWeek = new Map<string, {
+      weekOf: string
+      delivery: number
+      process: number
+      communication: number
+      growth: number
+      culture: number
+      overall: number
+      repeatedMistake: boolean
+      source: 'founder' | 'self'
+    }>()
+    for (const s of report.scores.self) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'self' })
+    }
+    for (const s of report.scores.founder) {
+      const key = s.weekOf.slice(0, 10)
+      byWeek.set(key, { ...s, source: 'founder' })
+    }
+    return Array.from(byWeek.values()).sort((a, b) => b.weekOf.localeCompare(a.weekOf))
+  })()
+  const latestPreferred = weeklyScoreHistory[0]
+  const latestSelf = report?.scores.self.find(
+    s => latestPreferred && s.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
+  ) ?? report?.scores.self[0]
+  const latestFounder = report?.scores.founder.find(
+    f => latestPreferred && f.weekOf.slice(0, 10) === latestPreferred.weekOf.slice(0, 10)
+  )
+
+  const chartData =
+    hours?.byDay.map(d => {
+      const isHoliday = d.flags.includes('holiday') || Boolean(d.isHoliday)
+      const isFullLeave = d.flags.includes('on_leave') || Boolean(d.isFullDayLeave)
+      const remainingToday =
+        d.phase === 'today' && d.expected > 0
+          ? Math.max(0, Math.round((d.expected - d.logged) * 10) / 10)
+          : 0
+      // Full-day leave / holiday: show a distinct marker bar (no red missing).
+      // Partial leave (short/half): only blue+red against leave-adjusted target.
+      const dayTarget = hours?.dayTarget ?? 8
+      const leaveBar = isFullLeave && !isHoliday ? Math.max(d.logged, dayTarget * 0.35) : 0
+      const holidayBar = isHoliday ? Math.max(d.logged, dayTarget * 0.35) : 0
+      const missing =
+        isHoliday || isFullLeave
+          ? 0
+          : d.phase === 'past'
+            ? d.loggedShort
+            : 0
+      return {
+        label: fmtDate(d.date, 'EEE d'),
+        logged: isHoliday || isFullLeave ? (d.logged > 0 ? d.logged : 0) : d.logged,
+        missing,
+        remaining: isHoliday || isFullLeave ? 0 : remainingToday,
+        upcoming: !isHoliday && !isFullLeave && d.phase === 'future' ? d.expected : 0,
+        leave: d.logged > 0 ? 0 : leaveBar,
+        holiday: d.logged > 0 ? 0 : holidayBar,
+        expected: d.expected,
+        flag: d.flags[0] || '',
+        phase: d.phase,
+        leaveBadge: d.leaveBadge ?? null,
+        leaveHint: d.leaveHint ?? null,
+      }
+    }) ?? []
+
+  const projectsActive = report
+    ? [...report.projects.asDev, ...report.projects.asBd].filter(p =>
+        ['active', 'qa', 'on_hold'].includes(p.status)
+      ).length
+    : 0
+
+  const elapsedBizDays =
+    hours?.byDay.filter(d => d.phase !== 'future' && d.expected > 0).length ?? 0
+  const plannedElapsedDays =
+    hours?.byDay.filter(d => d.phase !== 'future' && d.expected > 0 && d.hasPlan).length ?? 0
+  const periodBizDays = hours?.byDay.filter(d => d.expected > 0).length ?? 0
+  const planPct = Math.min(100, snap?.planRate ?? 0)
+
+  function openWeekRow(row: (typeof weekRows)[number]) {
+    setWorkProjectKey(null)
+    setWorkWeek(toWorkWeek(row))
+  }
+
+  function openPeriodProject(projectId: string | null, projectName: string) {
+    const key = projectId ?? '__none__'
+    // Prefer the week where this project logged the most hours
+    let best: (typeof weekRows)[number] | null = null
+    let bestHours = -1
+    for (const row of weekRows) {
+      const p = row.projects.find(x => (x.projectId ?? '__none__') === key)
+      const h = p?.hoursLogged ?? 0
+      if (h > bestHours) {
+        bestHours = h
+        best = row
+      }
+    }
+    if (!best && weekRows.length) best = weekRows[weekRows.length - 1]
+    if (!best) return
+    setWorkProjectKey(key)
+    setWorkWeek(toWorkWeek(best))
+  }
+
+  return (
+    <div className={embedded ? '' : 'max-w-6xl mx-auto px-4 py-6'}>
+      <Toaster position="top-right" />
+
+      {!embedded && (
+        <div className="mb-4">
+          <Link href="/" className="text-xs text-gray-400 hover:text-gray-700">
+            ← Home
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-900 mt-1">Individual report</h1>
+        </div>
+      )}
+
+      {loading ? (
+        <ReportGeneratingLoader />
+      ) : report && hours && snap && selected && score != null ? (
+        <>
+          <EmployeeReportCeoView
+            employees={employees}
+            selected={selected}
+            memberId={memberId}
+            onMemberChange={setMemberId}
+            rangeMode={rangeMode}
+            onRangeModeChange={setRangeMode}
+            from={from}
+            to={to}
+            onFromChange={setFrom}
+            onToChange={setTo}
+            onApplyCustom={() => loadReport()}
+            loading={loading}
+            report={report}
+            score={score}
+            findings={findings}
+            onOpenWeek={openWeekRow}
+            onOpenProject={openPeriodProject}
+          />
+          <WorkDrawer
+            open={workWeek != null}
+            onClose={() => {
+              setWorkWeek(null)
+              setWorkProjectKey(null)
+            }}
+            memberId={memberId}
+            from={from}
+            to={to}
+            week={workWeek}
+            initialProjectKey={workProjectKey}
+          />
+        </>
+      ) : (
+        <div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-500">
+          Select an employee to view their report.
+        </div>
+      )}
+    </div>
+  )
+}

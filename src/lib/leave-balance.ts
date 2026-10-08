@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
-import { istYearAndMonth } from '@/lib/ist'
+import { istDateInputValue, istYearAndMonth, formatIstLeaveRange } from '@/lib/ist'
+
 import {
   BIRTHDAY_LEAVE_YEARLY_CAP,
   MAX_ANNUAL_LEAVE_DAYS,
@@ -162,7 +163,11 @@ export async function getAvailableLeaveDays(memberId: string, year = istYearAndM
 }
 
 /** Remaining Comp Off days (HR-granted favour — separate from regular leave). */
-export async function getAvailableCompOffDays(memberId: string, year = istYearAndMonth().year) {
+export async function getAvailableCompOffDays(
+  memberId: string,
+  year = istYearAndMonth().year,
+  opts?: { excludeLeaveId?: string }
+) {
   const balance = await syncShortLeaveBalance(memberId, year)
   const accrued = Number(balance.compOffAccrued ?? 0)
   const used = Number(balance.compOffUsed ?? 0)
@@ -175,6 +180,7 @@ export async function getAvailableCompOffDays(memberId: string, year = istYearAn
       leaveType: 'comp_off_leave',
       status: 'pending',
       startDate: { gte: yearStart, lte: yearEnd },
+      ...(opts?.excludeLeaveId ? { id: { not: opts.excludeLeaveId } } : {}),
     },
     select: { startDate: true, endDate: true, timeSlot: true },
   })
@@ -200,26 +206,79 @@ export async function assertNoOverlappingLeave(opts: {
   leaveType?: string
   excludeId?: string
 }) {
-  if (opts.leaveType === 'work_from_home') return
+  // Rules (merged from both branches):
+  // - WFH + Short Leave can coexist (either direction)
+  // - Short Leave cannot overlap other leave types
+  // - WFH cannot overlap other leave types (leave still blocked on WFH days)
+  // - Clearer overlap messages via formatIstLeaveRange
+  const reqStartKey = istDateInputValue(opts.startDate)
+  const reqEndKey = istDateInputValue(opts.endDate)
+  const requestType = opts.leaveType || ''
 
-  const overlap = await prisma.leaveRequest.findFirst({
+  // Expand query window by 2 days on each side to safely catch any UTC timezone shifts in stored DB timestamps
+  const searchStart = new Date(opts.startDate.getTime() - 2 * 24 * 60 * 60 * 1000)
+  const searchEnd = new Date(opts.endDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+
+  const candidates = await prisma.leaveRequest.findMany({
     where: {
       memberId: opts.memberId,
       status: { in: ['pending', 'approved'] },
-      leaveType: { not: 'work_from_home' },
       ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
-      startDate: { lte: opts.endDate },
-      endDate: { gte: opts.startDate },
+      startDate: { lte: searchEnd },
+      endDate: { gte: searchStart },
     },
-    select: { id: true, startDate: true, endDate: true, status: true, leaveType: true },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      leaveType: true,
+      timeSlot: true,
+    },
   })
-  if (overlap) {
-    throw Object.assign(
-      new Error(
-        `Overlaps an existing ${overlap.status} ${overlap.leaveType.replace(/_/g, ' ')} leave`
-      ),
-      { status: 400 }
-    )
+
+  for (const candidate of candidates) {
+    const candStartKey = istDateInputValue(candidate.startDate)
+    const candEndKey = istDateInputValue(candidate.endDate)
+
+    // Calendar date overlap: intervals [A, B] and [C, D] overlap iff candStartKey <= reqEndKey and candEndKey >= reqStartKey
+    if (candStartKey <= reqEndKey && candEndKey >= reqStartKey) {
+      const existingIsWfh = candidate.leaveType === 'work_from_home'
+      const existingIsShort = candidate.leaveType === 'short_leave'
+      const requestIsWfh = requestType === 'work_from_home'
+      const requestIsShort = requestType === 'short_leave'
+
+      // Allowed coexistence: Work From Home + Short Leave (either direction)
+      if ((existingIsWfh && requestIsShort) || (existingIsShort && requestIsWfh)) {
+        continue
+      }
+
+      const typeLabel =
+        candidate.leaveType === 'work_from_home'
+          ? 'Work From Home'
+          : candidate.leaveType.replace(/_/g, ' ')
+      const rangeLabel = formatIstLeaveRange(candidate.startDate, candidate.endDate)
+
+      if (requestIsShort) {
+        throw Object.assign(
+          new Error(
+            `Cannot apply short leave — you already have a ${candidate.status} ${typeLabel} request (${rangeLabel}).`
+          ),
+          { status: 400 }
+        )
+      }
+
+      const prefix = requestIsWfh
+        ? 'Cannot request Work From Home — overlaps'
+        : 'Overlaps'
+
+      throw Object.assign(
+        new Error(
+          `${prefix} an existing ${candidate.status} ${typeLabel} request (${rangeLabel}). Short leave is allowed with WFH.`
+        ),
+        { status: 400 }
+      )
+    }
   }
 }
 
@@ -254,12 +313,25 @@ export async function assertLeaveTypePolicy(opts: {
 
 
   if (opts.leaveType === 'comp_off_leave') {
-    // Same simple flow as birthday: employee applies, HR approves. No pre-assigned credit required.
     const cost = compOffRequestDayCost(opts.startDate, opts.endDate ?? opts.startDate, opts.timeSlot)
     if (cost <= 0) {
       throw Object.assign(new Error('Comp Off leave must cover at least one working day'), {
         status: 400,
       })
+    }
+    const year = istYearAndMonth(opts.startDate).year
+    const { available } = await getAvailableCompOffDays(opts.memberId, year, {
+      excludeLeaveId: opts.excludeId,
+    })
+    if (available < cost) {
+      throw Object.assign(
+        new Error(
+          available <= 0
+            ? 'No Comp Off credit available. Ask HR or Founder to assign Comp Off first.'
+            : `Not enough Comp Off credit (need ${cost}, have ${available}). Ask HR or Founder to assign more.`
+        ),
+        { status: 400 }
+      )
     }
   }
 

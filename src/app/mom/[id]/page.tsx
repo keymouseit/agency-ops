@@ -3,6 +3,8 @@ import { fmtDate, ROLE_COLORS, MOM_MEETING_TYPE_COLORS, MOM_FINAL_STATUS_COLORS 
 import { encodeMomClientKey, momClientKey } from '@/lib/mom'
 import { getMomFinalStatus } from '@/lib/mom-form'
 import MomFollowUpButton from '../MomFollowUpButton'
+import MomActionList from '../MomActionList'
+import { auth } from '@/lib/auth'
 import MomFinalStatusControl from '../MomFinalStatusControl'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -99,6 +101,44 @@ function NoteBlock({
   )
 }
 
+
+function truncateReason(reason: string | null | undefined, max = 120) {
+  const r = (reason ?? '').trim()
+  if (!r) return 'No reason given'
+  if (r.length <= max) return r
+  return `${r.slice(0, max - 1)}…`
+}
+
+function BlockedActionsBanner({
+  items,
+}: {
+  items: { id: string; title: string; ownerName: string; blockedReason: string | null }[]
+}) {
+  if (!items.length) return null
+  return (
+    <div className="mb-5 rounded-xl border border-red-300 bg-red-50 px-4 py-3.5 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+          !
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-red-900">
+            {items.length === 1 ? 'Action blocked' : `${items.length} blocked actions`}
+          </div>
+          <ul className="mt-1.5 space-y-1">
+            {items.map(item => (
+              <li key={item.id} className="text-sm text-red-800 leading-snug">
+                <span className="font-medium">{item.ownerName}</span>
+                {' '}blocked &ldquo;{item.title}&rdquo;: {truncateReason(item.blockedReason)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default async function MomDetailPage({
   params,
   searchParams,
@@ -106,9 +146,19 @@ export default async function MomDetailPage({
   params: { id: string }
   searchParams: { view?: string }
 }) {
+  const session = await auth()
+  const currentMemberId = session?.user?.id ?? null
+  const canManageAll = session?.user?.role === 'Founder' || session?.user?.role === 'Manager'
+
   const record = await prisma.meetingMinute.findUnique({
     where: { id: params.id },
-    include: { createdBy: { select: { name: true, email: true } } },
+    include: {
+      createdBy: { select: { name: true, email: true } },
+      actionItems: {
+        include: { owner: { select: { id: true, name: true, role: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
+      },
+    },
   })
 
   if (!record) notFound()
@@ -121,12 +171,24 @@ export default async function MomDetailPage({
 
   const followUps = await prisma.meetingMinute.findMany({
     where: { parentId: record.id },
-    include: { createdBy: { select: { name: true, email: true } } },
+    include: {
+      createdBy: { select: { name: true, email: true } },
+      actionItems: {
+        include: { owner: { select: { id: true, name: true, role: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
+      },
+    },
     orderBy: [{ meetingDate: 'asc' }, { createdAt: 'asc' }],
   })
 
+  // Default to latest follow-up when landing on the thread (no/invalid ?view=).
+  // Explicit ?view=<id> (root or child) keeps deep links and tab clicks working.
+  const viewId = searchParams.view
+  const latestInThread = followUps.length ? followUps[followUps.length - 1] : record
   const selected =
-    (searchParams.view ? followUps.find(m => m.id === searchParams.view) : null) ?? record
+    viewId === record.id
+      ? record
+      : (viewId ? followUps.find(m => m.id === viewId) : null) ?? latestInThread
 
   const relatedMeetings = (
     await prisma.meetingMinute.findMany({
@@ -154,11 +216,22 @@ export default async function MomDetailPage({
   const selectedIsFollowUp = selected.id !== record.id
   const followUpIndex = followUps.findIndex(m => m.id === selected.id)
 
+  const threadBlocked = [...record.actionItems, ...followUps.flatMap(m => m.actionItems)]
+    .filter(a => a.status === 'Blocked')
+    .map(a => ({
+      id: a.id,
+      title: a.title,
+      ownerName: a.owner.name,
+      blockedReason: a.blockedReason,
+    }))
+
   return (
     <div className="w-full">
       <div className="text-xs text-gray-400 mb-4">
         ← <Link href="/mom" className="hover:text-gray-700">Minutes of Meeting</Link>
       </div>
+
+      <BlockedActionsBanner items={threadBlocked} />
 
       {/* Hero */}
       <div className="card p-6 mb-5 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 border-gray-100">
@@ -199,7 +272,7 @@ export default async function MomDetailPage({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <MomFinalStatusControl id={record.id} status={finalStatus} />
+              <MomFinalStatusControl id={record.id} status={finalStatus} canEdit={canManageAll} />
               <Link
                 href={`/mom/new?from=${record.id}`}
                 className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
@@ -219,7 +292,7 @@ export default async function MomDetailPage({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
           <MetaPill label="Logged by" value={selected.createdBy.name} />
           <MetaPill
-            label="Follow-up"
+            label="Next call"
             value={
               followUps.length
                 ? `${followUps.length} logged`
@@ -276,25 +349,28 @@ export default async function MomDetailPage({
                 : 'bg-blue-50 text-blue-700 border border-blue-100'
           }`}>
             {followUpDays < 0
-              ? `Follow-up was ${Math.abs(followUpDays)} day${Math.abs(followUpDays) === 1 ? '' : 's'} ago`
+              ? `Next call was ${Math.abs(followUpDays)} day${Math.abs(followUpDays) === 1 ? '' : 's'} ago`
               : followUpDays === 0
-                ? 'Follow-up is today'
-                : `Follow-up in ${followUpDays} day${followUpDays === 1 ? '' : 's'}`}
+                ? 'Next call is today'
+                : `Next call in ${followUpDays} day${followUpDays === 1 ? '' : 's'}`}
           </div>
         )}
 
         {selected.followUpDate && (
-          <MomFollowUpButton
-            id={selected.id}
-            followUpDate={selected.followUpDate.toISOString()}
-            completedAt={selected.followUpCompletedAt?.toISOString() ?? null}
-          />
+          <div className="mt-4 pt-4 border-t border-gray-200/80">
+            <MomFollowUpButton
+              id={selected.id}
+              followUpDate={selected.followUpDate.toISOString()}
+              completedAt={selected.followUpCompletedAt?.toISOString() ?? null}
+              followUpOutcome={(selected as { followUpOutcome?: string | null }).followUpOutcome ?? null}
+            />
+          </div>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <Link
-          href={`/mom/${record.id}`}
+          href={`/mom/${record.id}?view=${record.id}`}
           className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
             !selectedIsFollowUp
               ? 'bg-slate-900 text-white shadow-sm'
@@ -392,8 +468,29 @@ export default async function MomDetailPage({
           <NoteBlock title="Client pain points" value={selected.clientPainPoints} accent="red" />
           <NoteBlock title="Our approach" value={selected.ourApproach} accent="blue" />
           <NoteBlock title="Requirement from client" value={selected.requirementsFromClient} accent="gray" />
-          <NoteBlock title="Next action item" value={selected.nextActionItem} accent="amber" />
+          {!(selected as typeof record).actionItems?.length ? (
+            <NoteBlock title="Next action item (legacy)" value={selected.nextActionItem} accent="amber" />
+          ) : (
+            <NoteBlock title="Next action item (summary)" value={selected.nextActionItem} accent="amber" />
+          )}
         </div>
+      </div>
+
+      <div className="card p-5 mb-4">
+        <MomActionList
+          key={selected.id}
+          momId={selected.id}
+          currentMemberId={currentMemberId}
+          canManageAll={canManageAll}
+          actions={((selected as typeof record).actionItems ?? []).map(a => ({
+            id: a.id,
+            title: a.title,
+            dueDate: a.dueDate.toISOString(),
+            status: a.status,
+            blockedReason: a.blockedReason,
+            owner: a.owner,
+          }))}
+        />
       </div>
 
       {/* Video */}

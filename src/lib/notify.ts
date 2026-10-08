@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from './logger'
+import { sendPushNotification } from './push-notifications'
 
 type NotificationType =
   | 'estimate_requested'
@@ -22,9 +23,21 @@ type NotificationType =
   | 'test_cycle_fix_ready'
   | 'eod_missing'
   | 'mom_attendee'
+  | 'mom_action_due'
+  | 'mom_action_overdue'
+  | 'mom_action_escalation'
+  | 'mom_action_blocked'
+  | 'mom_action_assigned'
+  | 'mom_action_done'
+  | 'mom_action_status'
+  | 'mom_action_status_alert'
+  | 'mom_followup_completed'
+  | 'mom_action_nudge'
+  | 'founder_digest'
   | 'leave_applied'
   | 'leave_approved'
   | 'leave_rejected'
+  | 'weekly_score_reminder'
 
 /**
  * Notify developer and/or BD when assigned to a project (skips the creator).
@@ -84,6 +97,17 @@ export async function notify(
       })),
     })
     logger.info('Notifications created successfully', { type, count: memberIds.length, memberIds })
+
+    // Never send push notifications for leave events from generic notify(),
+    // as all leave events are handled exclusively and cleanly via notifyFounderLeaveEvent
+    if (!type.startsWith('leave_')) {
+      sendPushNotification({
+        memberIds,
+        title: type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        body: message,
+        data: { type, linkTo: linkTo ?? '/leaves' },
+      }).catch(e => logger.error('Push notification background error', e))
+    }
   } catch (err) {
     // Log but never propagate — notifications are best-effort
     logger.error('Failed to create notifications', err as Error, { type, memberIds, message })

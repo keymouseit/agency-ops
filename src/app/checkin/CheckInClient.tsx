@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ROLE_COLORS, STATUS_COLORS } from '@/lib/utils'
 import { checkInProjectsForMember, type CheckInProject } from '@/lib/checkin'
+import { shortDisplayName } from '@/lib/employee-order'
 
 type Member = { id: string; name: string; role: string }
 
@@ -699,7 +700,7 @@ export default function CheckInClient({
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900">Project check-ins</h2>
                   <p className="text-xs text-gray-500">
-                    Hi {member.name.split(' ')[0]} — only this week&apos;s submissions
+                    Hi {shortDisplayName(member.name)} — only this week&apos;s submissions
                     {myProjects.length > 0
                       ? ` · ${weekCheckIns.length}/${myProjects.length} projects`
                       : ''}

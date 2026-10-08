@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LEAD_SOURCES, MOM_FINAL_STATUSES, MOM_MEETING_TYPES, ROLE_COLORS } from '@/lib/utils'
+import { LEAD_SOURCES, MOM_FINAL_STATUSES, MOM_MEETING_TYPES, ROLE_COLORS, momRequiresActionItems } from '@/lib/utils'
 import { momClientKey } from '@/lib/mom'
+import MomActionItemsEditor, { newActionRow, type ActionRowDraft } from './MomActionItemsEditor'
 
 type Member = { id: string; name: string; role: string }
 type CustomAttendee = { name: string; role: string }
@@ -58,6 +59,7 @@ type MomEditInitial = {
   meetingVideoUrl: string
   attendeeIds: string[]
   customAttendees: CustomAttendee[]
+  actionItems?: ActionRowDraft[]
 }
 
 type CampaignCallOption = {
@@ -262,14 +264,23 @@ export default function MomForm({
   prefill,
   campaignCalls = [],
   initialMom,
+  viewerRole,
 }: {
   members: Member[]
   existingClients?: ExistingClient[]
   prefill?: MomPrefill
   campaignCalls?: CampaignCallOption[]
   initialMom?: MomEditInitial
+  /** Session role — used to lock action plan on edit for non-Founder/Manager when actions already exist. */
+  viewerRole?: string
 }) {
   const isEdit = !!initialMom
+  const canEditActionPlan =
+    !isEdit || viewerRole === 'Founder' || viewerRole === 'Manager'
+  // Empty follow-ups (e.g. from Complete next call) must let BD/Both set the plan once.
+  // Once ≥1 action exists, non-Founder/Manager stay read-only on Edit.
+  const hasExistingActions = (initialMom?.actionItems?.length ?? 0) > 0
+  const actionsLocked = isEdit && !canEditActionPlan && hasExistingActions
   const isFollowUp = !isEdit && !!prefill?.parentId
   const initialCall = !isEdit && !isFollowUp && prefill?.campaignCallId
     ? campaignCalls.find(c => c.id === prefill.campaignCallId)
@@ -303,6 +314,16 @@ export default function MomForm({
   const [attendeeIds, setAttendeeIds] = useState<string[]>(initialMom?.attendeeIds ?? prefill?.attendeeIds ?? [])
   const [customAttendees, setCustomAttendees] = useState<CustomAttendee[]>(
     initialMom?.customAttendees ?? prefill?.customAttendees ?? []
+  )
+  const [actionRows, setActionRows] = useState<ActionRowDraft[]>(() => {
+    if (initialMom?.actionItems?.length) return initialMom.actionItems
+    if (initialMom?.nextActionItem?.trim()) {
+      return [newActionRow({ title: initialMom.nextActionItem.trim() })]
+    }
+    return [newActionRow()]
+  })
+  const [finalStatus, setFinalStatus] = useState(
+    initialMom?.finalStatus ?? prefill?.finalStatus ?? 'Active'
   )
   const [selectedCallId, setSelectedCallId] = useState(prefill?.campaignCallId ?? '')
   const [clientName, setClientName] = useState(initialFields.clientName)
@@ -344,10 +365,63 @@ export default function MomForm({
     setLoading(true)
     setError('')
 
+    const filledActions = actionRows.filter(r => r.title.trim() || r.ownerId || r.dueDate)
+    // When action plan is locked, keep existing rows as-is (no add/edit/status on Edit form).
+    if (!actionsLocked) {
+      if (momRequiresActionItems(finalStatus)) {
+        if (!filledActions.length) {
+          setError('Add at least one action item with what, owner, and due date.')
+          setLoading(false)
+          return
+        }
+        for (const [i, r] of filledActions.entries()) {
+          if (!r.title.trim() || !r.ownerId || !r.dueDate) {
+            setError(`Action ${i + 1}: what, owner, and due date are all required.`)
+            setLoading(false)
+            return
+          }
+          if (r.status === 'Blocked' && !r.blockedReason.trim()) {
+            setError(`Action ${i + 1}: blocked reason is required.`)
+            setLoading(false)
+            return
+          }
+          if (r.status === 'Skipped' && !r.blockedReason.trim()) {
+            setError(`Action ${i + 1}: skipped reason is required.`)
+            setLoading(false)
+            return
+          }
+        }
+      }
+    }
+    const followUpVal = (e.currentTarget.elements.namedItem('followUpDate') as HTMLInputElement | null)?.value
+    const openish = filledActions.filter(r => r.status === 'Open' || r.status === 'InProgress' || r.status === 'Blocked')
+    if (finalStatus === 'Active' && openish.length > 0 && !followUpVal) {
+      setError('Follow-up date is required when status is Active and open actions exist.')
+      setLoading(false)
+      return
+    }
+
     const fd = new FormData(e.currentTarget)
     attendeeIds.forEach(id => fd.append('attendeeIds', id))
     if (customAttendees.length) {
       fd.set('customAttendees', JSON.stringify(customAttendees))
+    }
+    fd.set('finalStatus', finalStatus)
+    // Omit actionItems when locked so PUT ignores plan changes (API also enforces).
+    if (!actionsLocked) {
+      fd.set(
+        'actionItems',
+        JSON.stringify(
+          filledActions.map(r => ({
+            id: r.id,
+            title: r.title,
+            ownerId: r.ownerId,
+            dueDate: r.dueDate,
+            status: r.status,
+            blockedReason: r.blockedReason || null,
+          }))
+        )
+      )
     }
     if (!isEdit && selectedCallId) {
       fd.set('campaignCallId', selectedCallId)
@@ -460,7 +534,8 @@ export default function MomForm({
               name="finalStatus"
               required
               className="input"
-              defaultValue={initialMom?.finalStatus ?? prefill?.finalStatus ?? 'Active'}
+              value={finalStatus}
+              onChange={e => setFinalStatus(e.target.value)}
             >
               {MOM_FINAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -626,16 +701,21 @@ export default function MomForm({
             defaultValue={initialMom?.requirementsFromClient ?? ''}
           />
         </div>
-        <div>
-          <label className="label">Next action item</label>
-          <textarea
-            name="nextActionItem"
-            rows={6}
-            className="input !min-h-[8rem]"
-            placeholder="Who does what, and by when?"
-            defaultValue={initialMom?.nextActionItem ?? ''}
-          />
-        </div>
+      </section>
+
+      <section className="card p-6 space-y-4">
+        <MomActionItemsEditor
+          members={members}
+          rows={actionRows}
+          onChange={setActionRows}
+          required={!actionsLocked && momRequiresActionItems(finalStatus)}
+          readOnly={actionsLocked}
+        />
+        {initialMom?.nextActionItem && !(initialMom.actionItems?.length) ? (
+          <p className="text-xs text-gray-400">
+            Legacy free-text next action was prefilled into the first row above.
+          </p>
+        ) : null}
       </section>
 
       <section className="card p-6 space-y-4">
@@ -652,13 +732,18 @@ export default function MomForm({
       <section className="card p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Follow-up & recording</h2>
         <div>
-          <label className="label">Follow-up date</label>
+          <label className="label">
+            Follow-up date{finalStatus === 'Active' ? ' *' : ''}
+          </label>
           <input
             name="followUpDate"
             type="date"
             className="input max-w-xs"
             defaultValue={initialMom?.followUpDate ?? ''}
           />
+          <p className="text-xs text-gray-400 mt-1">
+            Required when status is Active and any open action items exist.
+          </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           {/* <div>

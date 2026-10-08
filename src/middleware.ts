@@ -30,10 +30,11 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Public integration webhook + cron (auth handled inside the route)
+  // Public integration webhook + cron + mobile device registration (auth handled inside the route)
   if (
     pathname === '/api/integrations/salesrobot/webhook' ||
-    pathname.startsWith('/api/cron/')
+    pathname.startsWith('/api/cron/') ||
+    pathname === '/api/notifications/register-device'
   ) {
     return NextResponse.next()
   }
@@ -135,9 +136,9 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/daily')
     ) return true
   }
-  // HR: daily plans and EOD
+  // HR: daily plans, EOD, and team member list
   if (role === 'HR') {
-    if (path.startsWith('/api/daily')) return true
+    if (path.startsWith('/api/daily') || path.startsWith('/api/team')) return true
   }
   // Social Media: daily + weekly check-in scores
   if (role === 'SocialMedia') {

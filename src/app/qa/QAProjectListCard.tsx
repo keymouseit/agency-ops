@@ -67,8 +67,9 @@ export default function QAProjectListCard({
       ? `${milestoneProgress.approved}/${milestoneProgress.total} approved`
       : `${completedMilestones}/${totalMilestones}`
 
+  // When signed off, prefer shared QASignOffBadge only (avoid duplicate "Signed off" chip).
   const qaStatus = hasSignOff
-    ? { label: '✓ Signed off', cls: 'bg-green-100 text-green-800' }
+    ? null
     : !latestCycle
       ? { label: 'No test cycle yet', cls: 'bg-gray-100 text-gray-600' }
       : CYCLE_RESULT_CONFIG[latestCycle.result as keyof typeof CYCLE_RESULT_CONFIG] ??
@@ -102,7 +103,9 @@ export default function QAProjectListCard({
               <span className={`badge text-[11px] ${STATUS_COLORS[project.status] ?? 'bg-gray-100 text-gray-700'}`}>
                 {PROJECT_STATUS_LABELS[project.status] ?? project.status}
               </span>
-              <span className={`badge text-[11px] ${qaStatus.cls}`}>{qaStatus.label}</span>
+              {qaStatus && (
+                <span className={`badge text-[11px] ${qaStatus.cls}`}>{qaStatus.label}</span>
+              )}
               {hasSignOff && <QASignOffBadge signed />}
               {overdue && <span className="badge text-[11px] bg-red-100 text-red-800">Overdue</span>}
               {project.qaSuggestedTestType && (

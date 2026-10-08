@@ -1,10 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
+import { differenceInDays, formatDistanceToNow, startOfDay } from 'date-fns'
 import {
   fmtDate,
+  isMomActionClosed,
+  isMomActionOpenish,
   MOM_FINAL_STATUSES,
   MOM_FINAL_STATUS_COLORS,
   MOM_MEETING_TYPE_COLORS,
@@ -13,8 +16,18 @@ import {
 } from '@/lib/utils'
 import {
   filterMomsByQuery,
+  followUpStatusLabel,
+  isFollowUpPending,
   type MomSearchable,
 } from '@/lib/mom'
+
+type ActionSummary = {
+  id: string
+  title: string
+  dueDate: string | Date
+  status: string
+  ownerId: string
+}
 
 type MomRecord = MomSearchable & {
   meetingDate: string | Date
@@ -23,10 +36,13 @@ type MomRecord = MomSearchable & {
   followUpCount?: number
   finalStatus?: string | null
   meetingTime?: string | null
+  actionItems?: ActionSummary[]
+  threadActionItems?: ActionSummary[]
 }
 
 type NormalizedMom = ReturnType<typeof normalizeRecord>
 type StatusFilter = 'all' | MomFinalStatus
+type ExtraFilter = 'all' | 'my_actions' | 'overdue' | 'due_soon' | 'blocked'
 
 function toDate(value: string | Date | null | undefined) {
   if (!value) return null
@@ -34,19 +50,112 @@ function toDate(value: string | Date | null | undefined) {
 }
 
 function normalizeRecord(record: MomRecord) {
+  const actions = (record.threadActionItems ?? record.actionItems ?? []).map(a => ({
+    ...a,
+    dueDate: toDate(a.dueDate)!,
+  }))
   return {
     ...record,
     meetingDate: toDate(record.meetingDate)!,
     followUpDate: toDate(record.followUpDate),
     followUpCompletedAt: toDate(record.followUpCompletedAt),
     finalStatus: normalizeMomFinalStatus(record.finalStatus),
+    actions,
   }
 }
 
-function MomListRow({ record }: { record: NormalizedMom }) {
+function isActionOpen(status: string) {
+  return isMomActionOpenish(status)
+}
+
+function isActionOverdue(action: { dueDate: Date; status: string }, today: Date) {
+  if (isMomActionClosed(action.status)) return false
+  return differenceInDays(startOfDay(action.dueDate), today) < 0
+}
+
+/**
+ * Founder / Manager rows: at most one status pill (red = needs action,
+ * amber = due soon); everything else as plain grey text.
+ */
+function leadRowPill(opts: {
+  blocked: number
+  overdueActions: number
+  followUpOverdueDays: number | null
+  followUpDays: number | null
+}): { text: string; cls: string } | null {
+  const red = 'bg-red-50 text-red-700 border-red-200'
+  const amber = 'bg-amber-50 text-amber-800 border-amber-200'
+  if (opts.blocked > 0) return { text: `${opts.blocked} blocked`, cls: red }
+  if (opts.overdueActions > 0) {
+    return { text: `${opts.overdueActions} overdue action${opts.overdueActions === 1 ? '' : 's'}`, cls: red }
+  }
+  if (opts.followUpOverdueDays != null) return { text: `Next call ${opts.followUpOverdueDays}d overdue`, cls: red }
+  if (opts.followUpDays === 0) return { text: 'Next call today', cls: amber }
+  if (opts.followUpDays === 1) return { text: 'Next call tomorrow', cls: amber }
+  return null
+}
+
+function MomListRow({
+  record,
+  today,
+  simple = false,
+}: {
+  record: NormalizedMom
+  today: Date
+  simple?: boolean
+}) {
   const title = record.companyName
     ? `${record.clientName} · ${record.companyName}`
     : record.clientName
+
+  const overdueActions = record.actions.filter(a => isActionOverdue(a, today))
+  const blockedActions = record.actions.filter(a => a.status === 'Blocked')
+  const nextCallBadge = isFollowUpPending(record)
+    ? followUpStatusLabel(record, today)
+    : null
+  const followUpOverdue =
+    isFollowUpPending(record) &&
+    differenceInDays(startOfDay(record.followUpDate!), today) < 0
+  const needsAttention = overdueActions.length > 0 || followUpOverdue || blockedActions.length > 0
+  const showBadges = needsAttention || !!nextCallBadge
+
+  if (simple) {
+    const followUpDays = isFollowUpPending(record)
+      ? differenceInDays(startOfDay(record.followUpDate!), today)
+      : null
+    const pill = leadRowPill({
+      blocked: blockedActions.length,
+      overdueActions: overdueActions.length,
+      followUpOverdueDays: followUpDays != null && followUpDays < 0 ? Math.abs(followUpDays) : null,
+      followUpDays,
+    })
+    const nextCallNote =
+      !pill && followUpDays != null && followUpDays > 1 ? `Next call in ${followUpDays} days` : null
+    return (
+      <Link
+        href={`/mom/${record.id}`}
+        className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(180px,26%)] gap-2 sm:gap-6 px-6 py-4 hover:bg-[#f7f7f7] transition-colors items-center"
+      >
+        <div className="text-sm text-gray-500">
+          <div>{fmtDate(record.meetingDate)}</div>
+          <div className="mt-0.5 text-xs">{formatDistanceToNow(record.meetingDate, { addSuffix: true })}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[15px] text-gray-900 font-medium leading-snug truncate">{title}</div>
+          {pill ? (
+            <div className="mt-1">
+              <span className={`badge border ${pill.cls}`}>{pill.text}</span>
+            </div>
+          ) : nextCallNote ? (
+            <div className="mt-0.5 text-xs text-gray-500">{nextCallNote}</div>
+          ) : null}
+        </div>
+        <div className="text-xs text-gray-500 sm:text-right truncate">
+          {record.meetingType} · {record.createdBy.name}
+        </div>
+      </Link>
+    )
+  }
 
   return (
     <Link
@@ -63,6 +172,25 @@ function MomListRow({ record }: { record: NormalizedMom }) {
         <div className="text-[15px] text-[#1f57c3] underline leading-snug">
           {title}
         </div>
+        {showBadges && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {blockedActions.length > 0 && (
+              <span className="badge border bg-red-600 text-white border-red-700">
+                {blockedActions.length} blocked
+              </span>
+            )}
+            {overdueActions.length > 0 && (
+              <span className="badge border bg-red-50 text-red-700 border-red-200">
+                {overdueActions.length} overdue action{overdueActions.length === 1 ? '' : 's'}
+              </span>
+            )}
+            {nextCallBadge && (
+              <span className={`badge border ${nextCallBadge.cls}`}>
+                {nextCallBadge.text}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
         <span className={`badge ${MOM_MEETING_TYPE_COLORS[record.meetingType] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -85,9 +213,13 @@ function MomListRow({ record }: { record: NormalizedMom }) {
 function StatusCard({
   title,
   records,
+  today,
+  simple = false,
 }: {
   title: string
   records: NormalizedMom[]
+  today: Date
+  simple?: boolean
 }) {
   return (
     <section className="rounded-2xl border border-[#e0e0e0] bg-white overflow-hidden">
@@ -99,7 +231,7 @@ function StatusCard({
       {records.length > 0 ? (
         <div className="divide-y divide-[#e0e0e0] border-t border-[#e0e0e0]">
           {records.map(record => (
-            <MomListRow key={record.id} record={record} />
+            <MomListRow key={record.id} record={record} today={today} simple={simple} />
           ))}
         </div>
       ) : (
@@ -111,32 +243,117 @@ function StatusCard({
   )
 }
 
-export default function MomListPanel({ records }: { records: MomRecord[] }) {
+function parseExtraFilter(value?: string | null): ExtraFilter {
+  if (value === 'my_actions' || value === 'overdue' || value === 'due_soon' || value === 'blocked') return value
+  return 'all'
+}
+
+export default function MomListPanel({
+  records,
+  currentMemberId,
+  hideImmediateBanner = false,
+  simpleBadges = false,
+}: {
+  records: MomRecord[]
+  currentMemberId?: string | null
+  /** When Founder/Manager attention board already shows overdue/blocked, skip the redundant banner. */
+  hideImmediateBanner?: boolean
+  /** Founder/Manager: one pill per row, neutral filters, no duplicate status-chip row. */
+  simpleBadges?: boolean
+}) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  // URL is source of truth — Links (See all blocked) and chips share the same ?filter= param.
+  const extraFilter = parseExtraFilter(searchParams.get('filter'))
+  const setExtraFilter = (next: ExtraFilter) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'all') params.delete('filter')
+    else params.set('filter', next)
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+  const today = useMemo(() => startOfDay(new Date()), [])
 
   const normalized = useMemo(
     () => records.map(normalizeRecord),
     [records],
   )
 
+  const immediateCount = useMemo(() => {
+    let n = 0
+    for (const r of normalized) {
+      n += r.actions.filter(a => isActionOpen(a.status) && isActionOverdue(a, today)).length
+      // Blocked counts even when not overdue — founder must not miss them
+      n += r.actions.filter(a => a.status === 'Blocked' && !isActionOverdue(a, today)).length
+      if (
+        isFollowUpPending(r) &&
+        differenceInDays(startOfDay(r.followUpDate!), today) < 0
+      ) {
+        n += 1
+      }
+    }
+    return n
+  }, [normalized, today])
+
   const searched = useMemo(
     () => filterMomsByQuery(normalized, query),
     [normalized, query],
   )
 
+  const afterExtra = useMemo(() => {
+    if (extraFilter === 'all') return searched
+    if (extraFilter === 'my_actions') {
+      if (!currentMemberId) return []
+      return searched.filter(r =>
+        r.actions.some(a => a.ownerId === currentMemberId && isActionOpen(a.status))
+      )
+    }
+    if (extraFilter === 'due_soon') {
+      return searched.filter(r => {
+        const actionSoon = r.actions.some(a => {
+          if (!isActionOpen(a.status)) return false
+          const d = differenceInDays(startOfDay(a.dueDate), today)
+          return d >= 0 && d <= 7
+        })
+        const fuSoon =
+          isFollowUpPending(r) &&
+          (() => {
+            const d = differenceInDays(startOfDay(r.followUpDate!), today)
+            return d >= 0 && d <= 7
+          })()
+        return actionSoon || fuSoon
+      })
+    }
+    if (extraFilter === 'blocked') {
+      return searched.filter(r => r.actions.some(a => a.status === 'Blocked'))
+    }
+    if (extraFilter === 'overdue') {
+      return searched.filter(r => {
+        const actionOd = r.actions.some(a => isActionOverdue(a, today))
+        const fuOd =
+          isFollowUpPending(r) &&
+          differenceInDays(startOfDay(r.followUpDate!), today) < 0
+        return actionOd || fuOd
+      })
+    }
+    return searched
+  }, [searched, extraFilter, currentMemberId, today])
+
   const statusCounts = useMemo(() => {
     const counts = Object.fromEntries(MOM_FINAL_STATUSES.map(s => [s, 0])) as Record<MomFinalStatus, number>
-    for (const record of searched) {
+    for (const record of afterExtra) {
       counts[record.finalStatus] += 1
     }
     return counts
-  }, [searched])
+  }, [afterExtra])
 
   const filtered = useMemo(() => {
-    if (statusFilter === 'all') return searched
-    return searched.filter(r => r.finalStatus === statusFilter)
-  }, [searched, statusFilter])
+    if (statusFilter === 'all') return afterExtra
+    return afterExtra.filter(r => r.finalStatus === statusFilter)
+  }, [afterExtra, statusFilter])
 
   const grouped = useMemo(() => {
     const next = Object.fromEntries(MOM_FINAL_STATUSES.map(s => [s, [] as NormalizedMom[]])) as Record<
@@ -151,10 +368,65 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
 
   const visibleStatuses = statusFilter === 'all' ? [...MOM_FINAL_STATUSES] : [statusFilter]
   const trimmedQuery = query.trim()
+  const myActionsCount = currentMemberId
+    ? searched.filter(r =>
+        r.actions.some(a => a.ownerId === currentMemberId && isActionOpen(a.status))
+      ).length
+    : 0
+  const overdueCount = searched.filter(r => {
+    const actionOd = r.actions.some(a => isActionOverdue(a, today))
+    const fuOd =
+      isFollowUpPending(r) &&
+      differenceInDays(startOfDay(r.followUpDate!), today) < 0
+    return actionOd || fuOd
+  }).length
+  const dueSoonCount = searched.filter(r => {
+    const actionSoon = r.actions.some(a => {
+      if (!isActionOpen(a.status)) return false
+      const d = differenceInDays(startOfDay(a.dueDate), today)
+      return d >= 0 && d <= 7
+    })
+    const fuSoon =
+      isFollowUpPending(r) &&
+      (() => {
+        const d = differenceInDays(startOfDay(r.followUpDate!), today)
+        return d >= 0 && d <= 7
+      })()
+    return actionSoon || fuSoon
+  }).length
+  const blockedCount = searched.filter(r =>
+    r.actions.some(a => a.status === 'Blocked')
+  ).length
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+      {!hideImmediateBanner && immediateCount > 0 && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-red-800">
+            Immediate action needed ({immediateCount})
+          </span>
+          <div className="flex flex-wrap gap-3 shrink-0">
+            {blockedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setExtraFilter('blocked')}
+                className="text-xs font-medium text-red-800 underline"
+              >
+                Show blocked
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setExtraFilter('overdue')}
+              className="text-xs font-medium text-red-800 underline"
+            >
+              Show overdue
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div className="relative w-full sm:max-w-md">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400" aria-hidden>
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -193,7 +465,7 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
             className="input py-2 text-sm bg-white w-full sm:min-w-[16rem]"
             aria-label="Filter clients by status"
           >
-            <option value="all">All statuses ({searched.length})</option>
+            <option value="all">All statuses ({afterExtra.length})</option>
             {MOM_FINAL_STATUSES.map(status => (
               <option key={status} value={status}>
                 {status} ({statusCounts[status]})
@@ -203,7 +475,38 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-5">
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {([
+          ['all', `All (${searched.length})`],
+          ['my_actions', `My actions (${myActionsCount})`],
+          ['overdue', `Overdue (${overdueCount})`],
+          ['blocked', `Blocked (${blockedCount})`],
+          ['due_soon', `Due soon (${dueSoonCount})`],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setExtraFilter(key)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+              extraFilter === key
+                ? simpleBadges
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : key === 'overdue' || key === 'blocked'
+                  ? 'bg-red-600 text-white border-red-600'
+                  : key === 'due_soon'
+                    ? 'bg-amber-600 text-white border-amber-600'
+                    : 'bg-gray-900 text-white border-gray-900'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Status chips duplicate the Status select above — hidden for leads to cut clutter. */}
+      {!simpleBadges && (
+      <div className="flex flex-wrap gap-1.5 mb-3">
         <button
           type="button"
           onClick={() => setStatusFilter('all')}
@@ -213,7 +516,7 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
               : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
           }`}
         >
-          All ({searched.length})
+          All ({afterExtra.length})
         </button>
         {MOM_FINAL_STATUSES.map(status => {
           const active = statusFilter === status
@@ -232,6 +535,7 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
           )
         })}
       </div>
+      )}
 
       {records.length === 0 ? (
         <div className="rounded-2xl border border-[#e0e0e0] bg-white px-6 py-16 text-center">
@@ -250,6 +554,7 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
             type="button"
             onClick={() => {
               setStatusFilter('all')
+              setExtraFilter('all')
               setQuery('')
             }}
             className="mt-3 text-xs font-medium text-gray-600 hover:text-gray-900 underline"
@@ -260,7 +565,13 @@ export default function MomListPanel({ records }: { records: MomRecord[] }) {
       ) : (
         <div className="space-y-4">
           {visibleStatuses.map(status => (
-            <StatusCard key={status} title={status} records={grouped[status]} />
+            <StatusCard
+              key={status}
+              title={status}
+              records={grouped[status]}
+              today={today}
+              simple={simpleBadges}
+            />
           ))}
         </div>
       )}

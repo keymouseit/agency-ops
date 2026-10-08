@@ -1,12 +1,50 @@
 import Link from 'next/link'
 import type { OnLeaveTodayPerson } from '@/lib/leave-today'
 
-function typeBadgeClass(leaveType: string) {
-  if (leaveType === 'short_leave') return 'bg-sky-50 text-sky-700 border-sky-200'
-  if (leaveType === 'half_day') return 'bg-amber-50 text-amber-800 border-amber-200'
+export function leaveTypeBadgeClass(leaveType: string) {
+  if (leaveType === 'short_leave') return 'bg-sky-100 text-sky-900 border-sky-200'
+  if (leaveType === 'half_day') return 'bg-red-100 text-red-800 border-red-200'
   if (leaveType === 'birthday_leave') return 'bg-pink-50 text-pink-800 border-pink-200'
-  if (leaveType === 'work_from_home') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
-  return 'bg-violet-50 text-violet-800 border-violet-200'
+  if (leaveType === 'work_from_home') return 'bg-teal-100 text-teal-800 border-teal-200'
+  if (leaveType === 'comp_off_leave') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
+  // full_day
+  return 'bg-red-500 text-white border-red-600'
+}
+
+type OnLeaveTodayRow = Pick<OnLeaveTodayPerson, 'leaveId' | 'name' | 'role' | 'leaveType' | 'label'>
+
+/** Shared row list used by Dev "Today's Attendance" and Founder "Out today". */
+export function OnLeaveTodayPeopleList({
+  people,
+  emptyMessage = 'No one is on leave or working from home today.',
+}: {
+  people: OnLeaveTodayRow[]
+  emptyMessage?: string
+}) {
+  if (people.length === 0) {
+    return <p className="text-sm text-gray-500">{emptyMessage}</p>
+  }
+
+  return (
+    <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+      {people.map(p => (
+        <li
+          key={p.leaveId}
+          className="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5 hover:bg-gray-50/80 transition-colors"
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-900 truncate">{p.name}</div>
+            <div className="text-[11px] text-gray-500">{p.role}</div>
+          </div>
+          <span
+            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize border ${leaveTypeBadgeClass(p.leaveType)}`}
+          >
+            {p.label}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export default function OnLeaveTodayCard({
@@ -41,28 +79,7 @@ export default function OnLeaveTodayCard({
       </div>
 
       <div className="p-5">
-        {people.length === 0 ? (
-          <p className="text-sm text-gray-500">No one is on leave or working from home today.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
-            {people.map(p => (
-              <li
-                key={p.leaveId}
-                className="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5 hover:bg-gray-50/80 transition-colors"
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">{p.name}</div>
-                  <div className="text-[11px] text-gray-500">{p.role}</div>
-                </div>
-                <span
-                  className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize border ${typeBadgeClass(p.leaveType)}`}
-                >
-                  {p.label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <OnLeaveTodayPeopleList people={people} />
       </div>
     </div>
   )

@@ -14,6 +14,7 @@ import ScheduleCallModal from '../ScheduleCallModal'
 import CallActions from '../CallActions'
 import FollowUpQuickAction from '../FollowUpQuickAction'
 import CampaignStatusSelect from '../CampaignStatusSelect'
+import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -215,7 +216,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
                       </td>
                       <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
                         {callScheduleLabel(c.scheduledDate, c.scheduledTime)}
-                        <div className="text-gray-400">{c.createdBy.name.split(' ')[0]}</div>
+                        <div className="text-gray-400">{shortDisplayName(c.createdBy.name)}</div>
                       </td>
                       <td className="px-3 py-2.5 hidden md:table-cell">
                         <div className="flex flex-wrap gap-1 max-w-xs">

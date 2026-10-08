@@ -15,10 +15,12 @@ export async function GET() {
   const notifications = await prisma.notification.findMany({
     where: { memberId },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 40,
   })
 
-  const unread = notifications.filter(n => !n.read).length
+  const unread = await prisma.notification.count({
+    where: { memberId, read: false },
+  })
 
   logger.info('Fetched notifications', { memberId, count: notifications.length, unread })
   logger.logApiResponse('GET', '/api/notifications', 200, Date.now() - startTime)

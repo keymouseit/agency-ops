@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     title: string
     taskType: string
     priority: string
-    projectId: string | null
+    projectId: string
     estimatedHours: number
   }> = []
 
@@ -37,6 +37,13 @@ export async function POST(req: Request) {
     if (!title) {
       return NextResponse.json({ error: 'Every task needs a description.' }, { status: 400 })
     }
+    const projectId = typeof t.projectId === 'string' ? t.projectId.trim() : ''
+    if (!projectId) {
+      return NextResponse.json(
+        { error: 'Every task needs a project. Select a project before submitting.' },
+        { status: 400 },
+      )
+    }
     const hours = parseRequiredPositiveHours(t.estimatedHours, 'Estimated hours')
     if (!hours.ok) {
       return NextResponse.json({ error: hours.error }, { status: 400 })
@@ -45,7 +52,7 @@ export async function POST(req: Request) {
       title,
       taskType: t.taskType || 'feature',
       priority: t.priority || 'medium',
-      projectId: t.projectId || null,
+      projectId,
       estimatedHours: hours.value,
     })
   }
