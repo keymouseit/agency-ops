@@ -8,6 +8,7 @@ import DailyAlerts from './DailyAlerts'
 import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
+import { splitNoMorningPlan } from '@/lib/missing-plan-reminder'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,22 +62,22 @@ export default async function DailyPage({
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
   const canNewPlan = isToday && !!myLog?.eodSubmittedAt
 
-  const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const membersWithLog = new Set(logs.map(l => l.memberId))
   const expectedBatch = showTeamView
     ? await getExpectedHoursBatch(
-        cadenceMembers.map(m => m.id),
+        members.filter(m => requiresDailyCadence(m.role)).map(m => m.id),
         targetDate,
         targetDate,
       )
     : null
   const dateKey = businessDayKey(targetDate)
-  const onFullDayLeave = (memberId: string) => {
-    const day = expectedBatch?.get(memberId)?.get(dateKey)
-    return Boolean(day && day.expectedHours <= 0)
-  }
-  const noPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && !onFullDayLeave(m.id))
-  const onLeaveNoPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && onFullDayLeave(m.id))
+  // Shared with the 15:00 IST Slack reminder (/api/cron/missing-plan-reminder) so counts match.
+  const {
+    cadenceMembers,
+    noPlan,
+    onLeaveNoPlan,
+    isOnFullDayLeave: onFullDayLeave,
+  } = splitNoMorningPlan(members, membersWithLog, expectedBatch, dateKey)
   const noEOD = logs.filter(
     l =>
       requiresDailyCadence(l.member.role) &&
