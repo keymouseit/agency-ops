@@ -103,7 +103,7 @@ export function appBaseUrl(): string {
 }
 
 export function buildMissingPlanMessage(mentions: string[], link = `${appBaseUrl()}/daily`): string {
-  return `Hi ${mentions.join(' ')} — your today's tasks are missing. Kindly add your tasks on Agency Ops (AO's): <${link}|Agency Ops>`
+  return `Hi ${mentions.join(' ')} — your today's tasks are missing. Kindly add your tasks on <${link}|Agency Ops (AO's)>.`
 }
 
 export type MissingPlanReminderResult = {
