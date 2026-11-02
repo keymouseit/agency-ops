@@ -23,7 +23,10 @@ export async function POST(req: Request) {
   }
 
   const developerIds = uniqueMemberIds(data.developerIds ?? (data.developerId ? [data.developerId] : []))
-  if (!developerIds.length) {
+  // Assigned people is optional on create. Project.developerId is still a required
+  // column, so when nobody is picked the creator becomes the primary developerId
+  // (no ProjectAssignee rows are added) until someone is assigned later.
+  if (!developerIds.length && !creatorId) {
     return NextResponse.json({ error: 'Select at least one assigned person.' }, { status: 400 })
   }
 
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Select active team members only.' }, { status: 400 })
   }
 
-  const primaryId = developerIds[0]
+  const primaryId = developerIds[0] ?? creatorId!
 
   const project = await prisma.project.create({
     data: {

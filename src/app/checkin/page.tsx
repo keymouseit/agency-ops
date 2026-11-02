@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { getWeekStart } from '@/lib/utils'
-import { checkInProjectsForMember } from '@/lib/checkin'
+import { checkInProjectsForMember, isSelfAssessmentOnlyRole } from '@/lib/checkin'
 import CheckInClient from './CheckInClient'
 
 export const dynamic = 'force-dynamic'
@@ -98,7 +98,9 @@ export default async function CheckInPage() {
       }
     : null
 
-  const initialStep = remainingProjects.length === 0 && !selfScoreDone ? 'self' : 'project'
+  const selfOnly = isSelfAssessmentOnlyRole(member?.role)
+  const initialStep =
+    selfOnly || (remainingProjects.length === 0 && !selfScoreDone) ? 'self' : 'project'
 
   return (
     <CheckInClient

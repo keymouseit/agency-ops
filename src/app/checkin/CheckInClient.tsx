@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ROLE_COLORS, STATUS_COLORS } from '@/lib/utils'
-import { checkInProjectsForMember, type CheckInProject } from '@/lib/checkin'
+import { checkInProjectsForMember, isSelfAssessmentOnlyRole, type CheckInProject } from '@/lib/checkin'
 import { shortDisplayName } from '@/lib/employee-order'
 
 type Member = { id: string; name: string; role: string }
@@ -242,6 +242,7 @@ function CheckInHeader({
   selfDone = false,
   projectCheckInCount = 0,
   onSelectStep,
+  selfOnly = false,
 }: {
   memberName: string
   memberRole: string
@@ -249,11 +250,12 @@ function CheckInHeader({
   selfDone?: boolean
   projectCheckInCount?: number
   onSelectStep: (s: 'project' | 'self') => void
+  selfOnly?: boolean
 }) {
   const roleCls = ROLE_COLORS[memberRole] ?? 'bg-gray-100 text-gray-700'
   const activeStep: 'project' | 'self' = step === 'self' ? 'self' : 'project'
 
-  const tabs: { id: 'project' | 'self'; label: string; done: boolean; meta?: string }[] = [
+  const allTabs: { id: 'project' | 'self'; label: string; done: boolean; meta?: string }[] = [
     {
       id: 'project',
       label: 'Project check-in',
@@ -267,6 +269,8 @@ function CheckInHeader({
       meta: selfDone ? 'Submitted' : undefined,
     },
   ]
+  // HR / Social Media: weekly check-in is the self-assessment only.
+  const tabs = selfOnly ? allTabs.filter(t => t.id === 'self') : allTabs
 
   return (
     <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-blue-50/30 px-4 py-4 shadow-sm">
@@ -485,6 +489,10 @@ export default function CheckInClient({
   }, [session])
 
   const member = members.find(m => m.id === memberId)
+  const selfOnly = isSelfAssessmentOnlyRole(member?.role)
+  useEffect(() => {
+    if (selfOnly && step !== 'self') setStep('self')
+  }, [selfOnly, step])
   const myProjects = useMemo(
     () => (member ? checkInProjectsForMember(projects, memberId, member.role) : []),
     [member, projects, memberId],
@@ -670,6 +678,7 @@ export default function CheckInClient({
         selfDone={selfDone}
         projectCheckInCount={weekCheckIns.length}
         onSelectStep={selectStep}
+        selfOnly={selfOnly}
       />
 
       {error && (
@@ -689,7 +698,7 @@ export default function CheckInClient({
         </div>
       )}
 
-      {(step === 'project' || step === 'done') && (
+      {!selfOnly && (step === 'project' || step === 'done') && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
             <div className="flex items-center justify-between gap-3">
@@ -943,7 +952,7 @@ export default function CheckInClient({
                     Self-assessment already submitted for this week.
                   </div>
                 )}
-                {remainingProjects.length > 0 && (
+                {!selfOnly && remainingProjects.length > 0 && (
                   <button type="button" className="btn-secondary" onClick={() => selectStep('project')}>
                     ← Back to project check-ins
                   </button>

@@ -496,13 +496,13 @@ export default function EODClient({
                   isSkipped ? 'border-slate-200 opacity-90' : 'border-gray-200'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm shrink-0">
                       {i + 1}
                     </span>
-                    <div className="min-w-0">
-                      <div className={`text-sm font-semibold whitespace-pre-wrap break-words ${
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-semibold whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-h-48 overflow-y-auto ${
                         isSkipped ? 'text-gray-500 line-through' : 'text-gray-900'
                       }`}>
                         {task.title}
@@ -830,11 +830,11 @@ function ReadOnlySummary({
           return (
             <div key={task.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-start gap-2 min-w-0">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 shrink-0">
                     {i + 1}
                   </span>
-                  <div className={`text-sm font-medium whitespace-pre-line ${
+                  <div className={`text-sm font-medium whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0 max-h-48 overflow-y-auto ${
                     task.status === 'skipped' ? 'text-gray-400 line-through' : 'text-gray-800'
                   }`}>
                     {task.title}

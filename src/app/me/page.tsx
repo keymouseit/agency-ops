@@ -320,7 +320,7 @@ export default async function MePage({
                     >
                       <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2 ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} />
                       <div className="flex-1 min-w-0">
-                        <span className={`text-sm whitespace-pre-wrap break-words block ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
+                        <span className={`text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] block max-h-40 overflow-y-auto ${TASK_STATUS_CLS[task.status] ?? 'text-gray-800'}`}>
                           {task.title}
                         </span>
                         {task.project && (

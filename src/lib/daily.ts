@@ -55,6 +55,8 @@ const LEGACY_TASK_TYPE_LABELS: Record<string, string> = {
   qa: 'QA',
   hr: 'HR',
   social_media: 'Social media',
+  // Retired from the General group (replaced by Research); old tasks keep their label.
+  admin: 'Admin',
 }
 
 export const DAILY_TASK_TYPE_COLORS: Record<string, string> = {
@@ -65,6 +67,7 @@ export const DAILY_TASK_TYPE_COLORS: Record<string, string> = {
   research: 'bg-amber-100 text-amber-800',
   meeting: 'bg-gray-100 text-gray-700',
   admin: 'bg-gray-100 text-gray-500',
+  general_research: 'bg-amber-100 text-amber-800',
 }
 
 export function dailyTaskTypeLabel(value: string) {

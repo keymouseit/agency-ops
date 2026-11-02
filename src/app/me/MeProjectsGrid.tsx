@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { isSelfAssessmentOnlyRole } from '@/lib/checkin'
 import { differenceInDays } from 'date-fns'
 import { prisma } from '@/lib/prisma'
 import { isSameWeek } from '@/lib/utils'
@@ -72,6 +73,7 @@ export default async function MeProjectsGrid({ memberId, role }: Props) {
             ? differenceInDays(today, new Date(ci.weekOf)) > 7
             : true
           const needsCheckin =
+            !isSelfAssessmentOnlyRole(role) &&
             !projectCheckinThisWeek && (isMonday || projectCheckinOverdue)
           const inQA = p.status === 'qa'
           const signedOff = !!p.releaseSignOff

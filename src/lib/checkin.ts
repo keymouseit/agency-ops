@@ -17,6 +17,13 @@ export type CheckInProject = {
  *   that falsely inflated "assigned" lists and empty-state copy.
  * - BD: bdMemberId; Both: assigned or BD; Founder/Manager: all
  */
+/** Roles whose weekly check-in is the self-assessment only (no project check-ins). */
+export const SELF_ASSESSMENT_ONLY_ROLES = ['HR', 'SocialMedia'] as const
+
+export function isSelfAssessmentOnlyRole(role: string | null | undefined): boolean {
+  return !!role && (SELF_ASSESSMENT_ONLY_ROLES as readonly string[]).includes(role)
+}
+
 export function checkInProjectsForMember(
   projects: CheckInProject[],
   memberId: string,
@@ -24,6 +31,8 @@ export function checkInProjectsForMember(
 ): CheckInProject[] {
   const isAssigned = (p: CheckInProject) =>
     p.developerId === memberId || !!p.assigneeIds?.includes(memberId)
+
+  if (isSelfAssessmentOnlyRole(role)) return []
 
   switch (role) {
     case 'QA':

@@ -5,6 +5,7 @@ import { avg, isSameWeek } from '@/lib/utils'
 import { businessDayStart } from '@/lib/daily'
 import { assignedToMemberWhere } from '@/lib/project-assignees'
 import MeSection from './MeSection'
+import { isSelfAssessmentOnlyRole } from '@/lib/checkin'
 
 type Props = {
   memberId: string
@@ -17,6 +18,7 @@ export default async function MeWeekScorePanel({ memberId, role, hasCheckin }: P
   const today = businessDayStart()
   const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
   const isDev = role === 'Dev' || role === 'Both'
+  const selfOnly = isSelfAssessmentOnlyRole(role)
 
   const [thisWeekScore, recentScores, myProjects] = await Promise.all([
     prisma.weeklyScore.findFirst({
@@ -80,16 +82,20 @@ export default async function MeWeekScorePanel({ memberId, role, hasCheckin }: P
             href="/checkin"
             className="me-btn-premium me-btn-premium-dark text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 shrink-0 font-medium"
           >
-            {!checkinDone ? 'Submit check-in' : 'Check in projects'}
+            {!checkinDone ? (selfOnly ? 'Submit self-assessment' : 'Submit check-in') : 'Check in projects'}
           </Link>
         ) : undefined
       }
     >
       {!checkinDone ? (
         <div className="me-callout me-callout-warn">
-          <p className="text-sm text-amber-900 font-medium">Weekly check-in not submitted yet.</p>
+          <p className="text-sm text-amber-900 font-medium">
+            {selfOnly ? 'Weekly self-assessment not submitted yet.' : 'Weekly check-in not submitted yet.'}
+          </p>
           <p className="text-xs text-amber-700/80 mt-0.5 leading-relaxed">
-            Due every Monday. Covers your project status and your self-score for the week.
+            {selfOnly
+              ? 'Due every Monday. Rate yourself for the week.'
+              : 'Due every Monday. Covers your project status and your self-score for the week.'}
           </p>
         </div>
       ) : (
@@ -98,7 +104,7 @@ export default async function MeWeekScorePanel({ memberId, role, hasCheckin }: P
           <p className="text-xs text-emerald-700/80 mt-0.5 leading-relaxed">
             {projectsMissingCheckin > 0
               ? `${projectsMissingCheckin} project${projectsMissingCheckin === 1 ? '' : 's'} still need a check-in this week.`
-              : 'Next check-in due Monday morning.'}
+              : selfOnly ? 'Next self-assessment due Monday morning.' : 'Next check-in due Monday morning.'}
           </p>
           {projectsMissingCheckin > 0 && (
             <Link href="/checkin" className="inline-block mt-2 text-xs font-medium text-emerald-800 hover:underline">

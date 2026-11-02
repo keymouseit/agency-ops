@@ -38,13 +38,10 @@ export default function AddProjectForm({
     try {
       const fd = new FormData(e.currentTarget)
       const developerIds = fd.getAll('developerIds').filter((id): id is string => typeof id === 'string')
-      if (!developerIds.length) {
-        setError('Select at least one assigned person.')
-        setLoading(false)
-        return
-      }
+      // Assigned people is optional — the API falls back to the creator as the
+      // required primary developerId when nobody is picked.
       const data = Object.fromEntries(fd)
-      const payload = { ...data, developerIds, developerId: developerIds[0] }
+      const payload = { ...data, developerIds, developerId: developerIds[0] ?? '' }
 
       // Validate estimated hours only when provided
       const estimatedHoursRaw = (data.estimatedHours as string)?.trim()
@@ -120,7 +117,7 @@ export default function AddProjectForm({
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Assigned people *</label>
+                  <label className="label">Assigned people</label>
                   <AssigneeMultiSelect
                     members={members}
                     selectedIds={currentUserId ? [currentUserId] : []}

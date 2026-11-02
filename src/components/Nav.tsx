@@ -19,7 +19,7 @@ const PRIMARY_PREFETCH: Record<string, string[]> = {
   BD: ['/me', '/pipeline', '/projects', '/daily', '/leaves'],
   Both: ['/me', '/projects', '/pipeline', '/daily', '/leaves'],
   QA: ['/me', '/qa', '/daily', '/leaves', '/checkin'],
-  HR: ['/me', '/team', '/daily', '/leaves'],
+  HR: ['/me', '/team', '/daily', '/leaves', '/checkin'],
   SocialMedia: ['/me', '/daily', '/leaves', '/checkin'],
 }
 
@@ -98,6 +98,7 @@ const NAV_STRUCTURE = {
   HR: [
     { href: '/me', label: 'My Day' },
     { href: '/team', label: 'Team' },
+    { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
   ],

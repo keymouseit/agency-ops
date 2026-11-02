@@ -48,7 +48,7 @@ export async function runFounderDigest(now = new Date()) {
   }).format(now)
   if (istWeekday === 'Mon') {
     const lastWeek = subWeeks(getWeekStart(now), 1)
-    const selfScoreRoles = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia']
+    const selfScoreRoles = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia', 'HR']
     const expected = await prisma.teamMember.count({
       where: { active: true, role: { in: selfScoreRoles } },
     })

@@ -1,4 +1,5 @@
 import { ROLE_COLORS } from '@/lib/utils'
+import { isSelfAssessmentOnlyRole } from '@/lib/checkin'
 
 type Props = {
   greeting: string
@@ -82,7 +83,11 @@ export default function MeDayHeader({
           <div className="flex flex-wrap items-center gap-1.5 shrink-0 pt-0.5 border-t border-gray-100 sm:border-0 sm:pt-0">
             <StatusPill label="Morning plan" done={hasPlan} pendingLabel="Plan pending" />
             <StatusPill label="EOD report" done={hasEOD} pendingLabel="EOD pending" />
-            <StatusPill label="Weekly check-in" done={hasCheckin} pendingLabel="Check-in due" />
+            <StatusPill
+              label={isSelfAssessmentOnlyRole(role) ? 'Self-assessment' : 'Weekly check-in'}
+              done={hasCheckin}
+              pendingLabel={isSelfAssessmentOnlyRole(role) ? 'Self-assessment due' : 'Check-in due'}
+            />
           </div>
         )}
       </div>

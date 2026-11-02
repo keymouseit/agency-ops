@@ -68,7 +68,7 @@ export const DAILY_TASK_TYPE_GROUPS: TaskTypeGroup[] = [
     label: 'General',
     types: [
       { value: 'meeting', label: 'Meeting' },
-      { value: 'admin', label: 'Admin' },
+      { value: 'general_research', label: 'Research' },
       { value: 'rnd', label: 'Research and development' },
       { value: 'discussion', label: 'Discussion' },
     ],

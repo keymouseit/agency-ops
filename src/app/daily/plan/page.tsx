@@ -61,7 +61,7 @@ export default async function MorningPlanPage() {
     member?.role ?? session.user.role,
   )
 
-  const milestones = projects.length
+  const allMilestones = projects.length
     ? await prisma.milestone.findMany({
         where: {
           projectId: { in: projects.map(p => p.id) },
@@ -70,6 +70,19 @@ export default async function MorningPlanPage() {
         orderBy: [{ dueDate: 'asc' }, { title: 'asc' }],
       })
     : []
+
+  // Dropdown offers only open milestones (Not started / In progress) for new picks,
+  // but keeps any milestone already used by today's tasks (matched by project + title)
+  // even if it moved to QA / testing / done during the day — so edits don't lose it.
+  const OPEN_MILESTONE_STATUSES = new Set(['pending', 'in_progress'])
+  const usedMilestoneKeys = new Set(
+    (todayLog?.tasks ?? [])
+      .filter(t => t.projectId)
+      .map(t => `${t.projectId}::${t.title}`),
+  )
+  const milestones = allMilestones.filter(
+    m => OPEN_MILESTONE_STATUSES.has(m.status) || usedMilestoneKeys.has(`${m.projectId}::${m.title}`),
+  )
 
   if (!member) redirect('/login')
 
