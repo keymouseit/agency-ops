@@ -8,6 +8,7 @@ test.describe('Authentication', () => {
     await expect(page).toHaveURL(/\/(me)?/)
     await expect(page.locator('nav')).toBeVisible() // Navigation visible when logged in
   })
+  
 
   test('should fail login with invalid credentials', async ({ page }) => {
     await page.goto('/login')
