@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server'
-import { checkRole } from '@/lib/auth'
+import { authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { logger } from '@/lib/logger'
 import { logTeamMemberChange, captureChanges, getClientIP } from '@/lib/audit'
+import {
+  TEAM_EDITOR_ROLES,
+  canAssignRole,
+  canEditMember,
+  parseOptionalDate,
+  parseOptionalDesignation,
+} from '@/lib/team-permissions'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const deny = await checkRole(['Founder', 'Manager'])
-  if (deny) return deny
+  const authResult = await authorizeRole(TEAM_EDITOR_ROLES)
+  if (authResult instanceof NextResponse) return authResult
+  const actorRole = authResult.role
 
   const data = await req.json()
 
@@ -21,6 +29,34 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       { error: 'Team member not found' },
       { status: 404 }
     )
+  }
+
+  // HR cannot edit Founder/Manager members at all (profile, role, or password)
+  if (!canEditMember(actorRole, member.role)) {
+    return NextResponse.json(
+      { error: 'You do not have permission to edit this member.' },
+      { status: 403 }
+    )
+  }
+  // ...and cannot promote anyone to Founder/Manager
+  if (data.role !== undefined && data.role !== member.role && !canAssignRole(actorRole, data.role)) {
+    return NextResponse.json(
+      { error: 'You do not have permission to assign this role.' },
+      { status: 403 }
+    )
+  }
+
+  const birthdayParsed = parseOptionalDate(data.birthday)
+  if ('error' in birthdayParsed) {
+    return NextResponse.json({ error: `Birthday: ${birthdayParsed.error}` }, { status: 400 })
+  }
+  const joiningParsed = parseOptionalDate(data.joiningDate)
+  if ('error' in joiningParsed) {
+    return NextResponse.json({ error: `Joining date: ${joiningParsed.error}` }, { status: 400 })
+  }
+  const designationParsed = parseOptionalDesignation(data.designation)
+  if ('error' in designationParsed) {
+    return NextResponse.json({ error: designationParsed.error }, { status: 400 })
   }
 
   // If email is being changed, check for duplicates
@@ -43,9 +79,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (data.email !== undefined) updateData.email = data.email
   if (data.role !== undefined) updateData.role = data.role
   if (data.active !== undefined) updateData.active = data.active
-  if (data.birthday !== undefined) {
-    updateData.birthday = data.birthday ? new Date(data.birthday) : null
-  }
+  if (birthdayParsed.value !== undefined) updateData.birthday = birthdayParsed.value
+  if (joiningParsed.value !== undefined) updateData.joiningDate = joiningParsed.value
+  if (designationParsed.value !== undefined) updateData.designation = designationParsed.value
+  if (typeof data.attendanceExcluded === 'boolean') updateData.attendanceExcluded = data.attendanceExcluded
 
   // Update team member
   const updated = await prisma.teamMember.update({

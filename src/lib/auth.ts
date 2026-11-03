@@ -14,7 +14,10 @@ export const ROLE_ACCESS: Record<string, string[]> = {
   BD:      ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
-  HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
+  // HR: '/settings' prefix covers Settings → Team members and /settings/team/[id]. The
+  // settings page renders only the Team members tab for HR; audit log and the other
+  // settings tabs/APIs stay Founder/Manager-gated server-side.
+  HR:           ['/me', '/account', '/team', '/daily', '/leaves', '/settings'],
   SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
   Both:         ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
 }

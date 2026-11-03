@@ -13,6 +13,13 @@ import {
   ROLE_COLORS,
 } from '@/lib/utils'
 import EmployeeProjectsTabs from './EmployeeProjectsTabs'
+import {
+  describeDaysUntil,
+  nextOccurrence,
+  nextWorkAnniversary,
+  yearsCompleted,
+} from '@/lib/employee-dates'
+import { canEditMember, isPrivilegedRole } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -159,7 +166,10 @@ export default async function EmployeeDetailPage({
     estimatedEnd: p.estimatedEnd ? p.estimatedEnd.toISOString() : null,
     roles: rolesByProject.get(p.id) ?? ['Assignee'],
   }))
-  const canManage = ['Founder', 'Manager'].includes(userRole)
+  // HR may edit profiles of non-Founder/Manager members (API enforces the same rule)
+  const canManage = canEditMember(userRole, member.role)
+  // Individual reports (/reports/*) are Founder/Manager-only
+  const canViewReports = isPrivilegedRole(userRole)
 
   const statusCounts = projects.reduce<Record<string, number>>((acc, p) => {
     acc[p.status] = (acc[p.status] ?? 0) + 1
@@ -171,6 +181,13 @@ export default async function EmployeeDetailPage({
     .join(' · ')
 
   const birthday = member.birthday
+  const designation = member.designation
+  const joiningDate = member.joiningDate
+  const todayIst = new Date()
+  const nextBirthday = birthday ? nextOccurrence(birthday, todayIst) : null
+  const nextAnniversary = joiningDate ? nextWorkAnniversary(joiningDate, todayIst) : null
+  const tenureYears = joiningDate ? yearsCompleted(joiningDate, todayIst) : null
+  const joinedInFuture = !!nextAnniversary && !!joiningDate && joiningDate.getTime() > todayIst.getTime()
   const hasLogin = !!member.userAccount
   const lastLoginAt = member.userAccount?.lastLoginAt ?? null
   const balance = member.leaveBalances[0] ?? null
@@ -191,7 +208,7 @@ export default async function EmployeeDetailPage({
   return (
     <div className="w-full space-y-4">
       <div>
-        <Link href="/settings" className="text-xs text-gray-400 hover:text-gray-700">
+        <Link href="/settings" prefetch={false} className="text-xs text-gray-400 hover:text-gray-700">
           ← Team Members
         </Link>
       </div>
@@ -235,6 +252,9 @@ export default async function EmployeeDetailPage({
                   </span>
                 )}
               </div>
+              {designation && (
+                <p className="text-sm font-medium text-gray-700 truncate">{designation}</p>
+              )}
               <p className="text-sm text-gray-500 truncate">{member.email}</p>
               {hasLogin && lastLoginAt && (
                 <p className="text-xs text-gray-400 mt-1">
@@ -248,19 +268,22 @@ export default async function EmployeeDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0 self-start">
-            <Link
-              href={individualReportHref}
-              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
-            >
-              Individual report
-              <span aria-hidden>→</span>
-            </Link>
+            {canViewReports && (
+              <Link
+                href={individualReportHref}
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+              >
+                Individual report
+                <span aria-hidden>→</span>
+              </Link>
+            )}
             {canManage && (
               <Link
-                href="/settings"
+                href={`/settings/team/${member.id}/edit`}
+                prefetch={false}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-600 shadow-sm hover:bg-slate-50 hover:border-gray-300"
               >
-                Edit in Settings
+                Edit profile
                 <span aria-hidden>→</span>
               </Link>
             )}
@@ -274,27 +297,58 @@ export default async function EmployeeDetailPage({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Joining date
           </p>
-          <p className="mt-2 text-xl font-bold text-gray-900 tabular-nums tracking-tight">
-            {fmtDate(member.createdAt)}
-          </p>
-          <p className="mt-1 text-xs text-gray-400">Account created</p>
+          {joiningDate ? (
+            <>
+              <p className="mt-2 text-xl font-bold text-gray-900 tabular-nums tracking-tight">
+                {fmtDate(joiningDate)}
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {joinedInFuture
+                  ? 'Starts soon'
+                  : tenureYears === 0
+                    ? 'Less than a year'
+                    : `${tenureYears} year${tenureYears === 1 ? '' : 's'} completed`}
+              </p>
+              {nextAnniversary && (
+                <p className="mt-1 text-xs font-medium text-gray-600">
+                  Next work anniversary: {fmtDate(nextAnniversary.date)} ({nextAnniversary.years}{' '}
+                  year{nextAnniversary.years === 1 ? '' : 's'}) · {describeDaysUntil(nextAnniversary.daysUntil)}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-xl font-bold text-gray-900 tabular-nums tracking-tight">
+                {fmtDate(member.createdAt)}
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                Account created · joining date not set
+              </p>
+            </>
+          )}
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Birthday
+            Date of birth
           </p>
           {birthday ? (
             <>
               <p className="mt-2 text-xl font-bold text-gray-900 tabular-nums tracking-tight">
                 {fmtDate(birthday)}
               </p>
-              <p className="mt-1 text-xs text-gray-400">On file</p>
+              {nextBirthday ? (
+                <p className="mt-1 text-xs font-medium text-gray-600">
+                  Next birthday: {fmtDate(nextBirthday.date)} · {describeDaysUntil(nextBirthday.daysUntil)}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-400">On file</p>
+              )}
             </>
           ) : (
             <>
               <p className="mt-2 text-xl font-semibold text-gray-300 tracking-tight">Not set</p>
-              <p className="mt-1 text-xs text-gray-400">Add via Edit in Settings</p>
+              <p className="mt-1 text-xs text-gray-400">{canManage ? 'Add via Edit profile' : 'Not on file'}</p>
             </>
           )}
         </div>

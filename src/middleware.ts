@@ -136,7 +136,9 @@ function checkApiAccess(path: string, role: string): boolean {
       path.startsWith('/api/daily')
     ) return true
   }
-  // HR: daily plans, EOD, and team member list
+  // Team member management (list/create/edit) — role checks live in the route handlers
+  if (role === 'Manager' && path.startsWith('/api/team')) return true
+  // HR: daily plans, EOD, and team member list / profile management
   if (role === 'HR') {
     if (path.startsWith('/api/daily') || path.startsWith('/api/team')) return true
   }

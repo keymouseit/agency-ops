@@ -112,9 +112,9 @@ export async function syncShortLeaveBalance(memberId: string, year = istYearAndM
 
   const member = await prisma.teamMember.findUnique({
     where: { id: memberId },
-    select: { createdAt: true },
+    select: { createdAt: true, joiningDate: true },
   })
-  const joinedAt = member?.createdAt ?? new Date()
+  const joinedAt = member?.joiningDate ?? member?.createdAt ?? new Date()
   const monthTarget = accrualMonthsForYear(joinedAt, year)
 
   const existing = await prisma.leaveBalance.findUnique({
