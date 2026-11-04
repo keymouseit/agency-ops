@@ -7,10 +7,11 @@ import { logAudit, getClientIP } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { canEditMember, TEAM_EDITOR_ROLES } from '@/lib/team-permissions'
 import {
-  ALLOWED_DOCUMENT_EXTENSIONS,
+  detectDocumentMime,
   documentTypeLabel,
-  fileExtension,
+  EXTENSION_FOR_MIME,
   getDocumentType,
+  invalidDocumentContentMessage,
   MAX_DOCUMENT_LABEL_LENGTH,
   validateDocumentFile,
   type EmployeeDocumentDTO,
@@ -114,20 +115,6 @@ export function canAccessMemberDocuments(
   return TEAM_EDITOR_ROLES.includes(actor.role) && canEditMember(actor.role, target.role)
 }
 
-function hasValidSignature(bytes: Uint8Array, mime: string): boolean {
-  if (mime === 'application/pdf') {
-    // "%PDF"
-    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
-  }
-  if (mime === 'image/png') {
-    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-  }
-  if (mime === 'image/jpeg') {
-    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-  }
-  return false
-}
-
 function auditInfo(req: Request) {
   return {
     ipAddress: getClientIP(req),
@@ -166,15 +153,15 @@ export async function handleDocumentUpload(
   const fileError = validateDocumentFile(file)
   if (fileError) return NextResponse.json({ error: fileError }, { status: 400 })
 
-  const ext = fileExtension(file.name)
-  const mimeType = ALLOWED_DOCUMENT_EXTENSIONS[ext]
+  // The real type comes from the file bytes, not the browser MIME/extension: browsers send
+  // '', image/x-png etc., and files are often renamed (e.g. a JPEG saved as .png). Any
+  // genuine PDF/JPEG/PNG is accepted and stored with its detected type.
   const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!hasValidSignature(bytes, mimeType)) {
-    return NextResponse.json(
-      { error: 'The file content is not a valid PDF, JPG or PNG.' },
-      { status: 400 },
-    )
+  const mimeType = detectDocumentMime(bytes)
+  if (!mimeType) {
+    return NextResponse.json({ error: invalidDocumentContentMessage(bytes) }, { status: 400 })
   }
+  const ext = EXTENSION_FOR_MIME[mimeType]
 
   const rawLabel = typeDef.multiple ? String(form.get('label') ?? '').trim() : ''
   const label = rawLabel ? rawLabel.slice(0, MAX_DOCUMENT_LABEL_LENGTH) : null

@@ -2,8 +2,13 @@
 
 import { useCallback, useRef, useState } from 'react'
 import {
+  detectDocumentMime,
   DOCUMENT_ACCEPT,
+  DOCUMENT_SNIFF_BYTES,
+  documentTypeLabel,
   EMPLOYEE_DOCUMENT_TYPES,
+  getDocumentType,
+  invalidDocumentContentMessage,
   formatFileSize,
   validateDocumentFile,
   type EmployeeDocumentDTO,
@@ -89,6 +94,17 @@ export default function EmployeeDocumentsCard({
       return
     }
 
+    // Same content check as the server, so the user gets instant feedback.
+    try {
+      const head = new Uint8Array(await file.slice(0, DOCUMENT_SNIFF_BYTES).arrayBuffer())
+      if (!detectDocumentMime(head)) {
+        setError({ typeId: typeDef.id, message: invalidDocumentContentMessage(head) })
+        return
+      }
+    } catch {
+      /* couldn't read locally — let the server decide */
+    }
+
     const form = new FormData()
     form.append('type', typeDef.id)
     form.append('file', file)
@@ -117,7 +133,7 @@ export default function EmployeeDocumentsCard({
     }
   }
 
-  async function handleDelete(typeDef: EmployeeDocumentTypeDef, doc: EmployeeDocumentDTO) {
+  async function handleDelete(typeDef: { id: string; label: string }, doc: EmployeeDocumentDTO) {
     const name = doc.label ? `${typeDef.label} (${doc.label})` : typeDef.label
     if (!window.confirm(`Delete ${name} — "${doc.fileName}"? This cannot be undone.`)) return
     setError(null)
@@ -139,7 +155,44 @@ export default function EmployeeDocumentsCard({
     }
   }
 
-  const uploadedCount = new Set(documents.map(d => d.type)).size
+  const uploadedCount = new Set(documents.filter(d => getDocumentType(d.type)).map(d => d.type)).size
+  // Documents whose type is no longer offered (e.g. removed Resume / Other ID proof):
+  // still shown so they can be viewed or deleted, but nothing new can be uploaded there.
+  const otherDocs = documents.filter(d => !getDocumentType(d.type))
+
+  const renderDocRow = (doc: EmployeeDocumentDTO, typeDef: { id: string; label: string }, showType = false) => (
+    <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-gray-800" title={doc.fileName}>
+          {showType && <span className="text-gray-500">{typeDef.label} · </span>}
+          {doc.label && <span className="text-gray-500">{doc.label} · </span>}
+          {doc.fileName}
+        </p>
+        <p className="text-[11px] text-gray-400">
+          {formatFileSize(doc.size)} · {fmtDate(doc.createdAt)}
+          {doc.uploadedBy ? ` · by ${doc.uploadedBy.name}` : ''}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <a
+          href={`/api/documents/${doc.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-semibold text-blue-600 hover:underline"
+        >
+          View
+        </a>
+        <button
+          type="button"
+          onClick={() => handleDelete(typeDef, doc)}
+          disabled={busy || !storageConfigured}
+          className="text-xs font-semibold text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {deletingId === doc.id ? 'Deleting…' : 'Delete'}
+        </button>
+      </div>
+    </li>
+  )
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -238,38 +291,7 @@ export default function EmployeeDocumentsCard({
 
                 {docs.length > 0 && (
                   <ul className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-100 bg-white">
-                    {docs.map(doc => (
-                      <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-gray-800" title={doc.fileName}>
-                            {doc.label && <span className="text-gray-500">{doc.label} · </span>}
-                            {doc.fileName}
-                          </p>
-                          <p className="text-[11px] text-gray-400">
-                            {formatFileSize(doc.size)} · {fmtDate(doc.createdAt)}
-                            {doc.uploadedBy ? ` · by ${doc.uploadedBy.name}` : ''}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <a
-                            href={`/api/documents/${doc.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-semibold text-blue-600 hover:underline"
-                          >
-                            View
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(typeDef, doc)}
-                            disabled={busy || !storageConfigured}
-                            className="text-xs font-semibold text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {deletingId === doc.id ? 'Deleting…' : 'Delete'}
-                          </button>
-                        </div>
-                      </li>
-                    ))}
+                    {docs.map(doc => renderDocRow(doc, typeDef))}
                   </ul>
                 )}
 
@@ -277,6 +299,23 @@ export default function EmployeeDocumentsCard({
               </li>
             )
           })}
+
+          {otherDocs.length > 0 && (
+            <li className="rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3">
+              <p className="text-sm font-medium text-gray-900">Other documents</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Uploaded under a document type that is no longer used. You can view or delete them.
+              </p>
+              <ul className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-100 bg-white">
+                {otherDocs.map(doc =>
+                  renderDocRow(doc, { id: doc.type, label: documentTypeLabel(doc.type) }, true),
+                )}
+              </ul>
+              {error && otherDocs.some(d => d.type === error.typeId) && (
+                <p className="mt-2 text-xs text-red-600">{error.message}</p>
+              )}
+            </li>
+          )}
         </ul>
       </div>
     </section>
