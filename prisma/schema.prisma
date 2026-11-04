@@ -63,6 +63,8 @@ model TeamMember {
   compOffGrantsGiven     CompOffGrant[]      @relation("GrantedCompOffBy")
   deviceTokens           DeviceToken[]
   celebrationEmailLogs   CelebrationEmailLog[]
+  documents              EmployeeDocument[]  @relation("MemberDocuments")
+  documentsUploaded      EmployeeDocument[]  @relation("DocumentsUploaded")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -1229,4 +1231,25 @@ model CelebrationEmailLog {
 
   @@unique([kind, memberId, dateKey])
   @@index([memberId])
+}
+
+/// Employee documents (ID proofs, resume, letters, certificates, salary slips).
+/// Files live in a private Vercel Blob store; only metadata is stored here.
+model EmployeeDocument {
+  id           String     @id @default(cuid())
+  memberId     String
+  member       TeamMember @relation("MemberDocuments", fields: [memberId], references: [id], onDelete: Cascade)
+  type         String     // see EMPLOYEE_DOCUMENT_TYPES in src/lib/employee-documents.ts
+  label        String?
+  fileName     String
+  blobPathname String
+  blobUrl      String
+  mimeType     String
+  size         Int
+  uploadedById String
+  uploadedBy   TeamMember @relation("DocumentsUploaded", fields: [uploadedById], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([memberId, type])
 }

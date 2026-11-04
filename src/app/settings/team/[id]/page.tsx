@@ -20,6 +20,8 @@ import {
   yearsCompleted,
 } from '@/lib/employee-dates'
 import { canEditMember, isPrivilegedRole } from '@/lib/team-permissions'
+import EmployeeDocumentsCard from '@/components/EmployeeDocumentsCard'
+import { isDocumentStorageConfigured, listMemberDocumentsSafe } from '@/lib/employee-documents-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -170,6 +172,8 @@ export default async function EmployeeDetailPage({
   const canManage = canEditMember(userRole, member.role)
   // Individual reports (/reports/*) are Founder/Manager-only
   const canViewReports = isPrivilegedRole(userRole)
+  // HR cannot see Founder/Manager documents (same rule as profile editing).
+  const documents = canManage ? await listMemberDocumentsSafe(member.id) : []
 
   const statusCounts = projects.reduce<Record<string, number>>((acc, p) => {
     acc[p.status] = (acc[p.status] ?? 0) + 1
@@ -637,6 +641,17 @@ export default async function EmployeeDetailPage({
 
         <EmployeeProjectsTabs projects={projectRows} />
       </section>
+
+      {/* Employee documents — HR/Admin can view, upload, replace and delete */}
+      {canManage && (
+        <EmployeeDocumentsCard
+          apiBase={`/api/team/${member.id}/documents`}
+          initialDocuments={documents}
+          storageConfigured={isDocumentStorageConfigured()}
+          title="Documents"
+          description={`${member.name}'s ID proofs, resume, letters, certificates and salary slips. PDF, JPG or PNG, up to 4 MB each.`}
+        />
+      )}
     </div>
   )
 }

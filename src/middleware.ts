@@ -97,6 +97,9 @@ function checkApiAccess(path: string, role: string): boolean {
   // All authenticated users can manage their own account.
   if (path.startsWith('/api/account')) return true
 
+  // Employee document downloads — owner / HR / Admin access is enforced in the route handler.
+  if (path.startsWith('/api/documents/')) return true
+
   // Entity audit trails are visible to authenticated users who can access the
   // underlying page. The system-wide audit route still enforces Founder-only
   // access in its route handler.

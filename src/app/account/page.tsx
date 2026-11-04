@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import AccountClient from './AccountClient'
 import ProfileDetailsCard from './ProfileDetailsCard'
 import { prisma } from '@/lib/prisma'
+import EmployeeDocumentsCard from '@/components/EmployeeDocumentsCard'
+import { isDocumentStorageConfigured, listMemberDocumentsSafe } from '@/lib/employee-documents-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,10 +37,21 @@ export default async function AccountPage() {
     redirect('/login')
   }
 
+  const documents = await listMemberDocumentsSafe(member.id)
+
   return (
     <AccountClient
       member={member}
-      profileDetails={<ProfileDetailsCard member={member} />}
+      profileDetails={
+        <div className="space-y-6">
+          <ProfileDetailsCard member={member} />
+          <EmployeeDocumentsCard
+            apiBase="/api/account/documents"
+            initialDocuments={documents}
+            storageConfigured={isDocumentStorageConfigured()}
+          />
+        </div>
+      }
     />
   )
 }

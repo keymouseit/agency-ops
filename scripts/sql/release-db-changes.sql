@@ -60,6 +60,48 @@ BEGIN
     END IF;
 END $$;
 
+-- ─── 4. Employee documents (2026-11-04) ──────────────────────────────────────
+-- Metadata for employee-uploaded documents (files live in a private Vercel
+-- Blob store). Matches prisma model EmployeeDocument.
+CREATE TABLE IF NOT EXISTS "EmployeeDocument" (
+    "id"           TEXT         NOT NULL,
+    "memberId"     TEXT         NOT NULL,
+    "type"         TEXT         NOT NULL,
+    "label"        TEXT,
+    "fileName"     TEXT         NOT NULL,
+    "blobPathname" TEXT         NOT NULL,
+    "blobUrl"      TEXT         NOT NULL,
+    "mimeType"     TEXT         NOT NULL,
+    "size"         INTEGER      NOT NULL,
+    "uploadedById" TEXT         NOT NULL,
+    "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"    TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "EmployeeDocument_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "EmployeeDocument_memberId_type_idx"
+    ON "EmployeeDocument"("memberId", "type");
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'EmployeeDocument_memberId_fkey'
+    ) THEN
+        ALTER TABLE "EmployeeDocument"
+            ADD CONSTRAINT "EmployeeDocument_memberId_fkey"
+            FOREIGN KEY ("memberId") REFERENCES "TeamMember"("id")
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'EmployeeDocument_uploadedById_fkey'
+    ) THEN
+        ALTER TABLE "EmployeeDocument"
+            ADD CONSTRAINT "EmployeeDocument_uploadedById_fkey"
+            FOREIGN KEY ("uploadedById") REFERENCES "TeamMember"("id")
+            ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
 COMMIT;
 
 -- ─── OPTIONAL (run separately, only if you want it) ─────────────────────────
