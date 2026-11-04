@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
 import Link from 'next/link'
+import MemberNameLink from '@/components/MemberNameLink'
 import { useRouter } from 'next/navigation'
 import { 
   format, 
@@ -1547,7 +1548,10 @@ export default function LeaveDashboardClient({
                         </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-bold text-gray-900">{l.member.name}</h3>
+                            <h3 className="text-base font-bold text-gray-900">
+                              {/* isAdmin = Founder/Manager/HR — the roles that can open the detail page */}
+                              <MemberNameLink memberId={l.member?.id ?? l.memberId} name={l.member.name} canLink={isAdmin} />
+                            </h3>
                             <span className="text-[11px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 ring-1 ring-amber-600/15 px-2 py-0.5 rounded-full">
                               Pending
                             </span>
@@ -1647,7 +1651,9 @@ export default function LeaveDashboardClient({
                       ) : (
                         filteredLeavesForReports.map(l => (
                           <tr key={l.id} className="hover:bg-gray-50/60 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-gray-900">{l.member.name}</td>
+                            <td className="px-6 py-4 font-semibold text-gray-900">
+                              <MemberNameLink memberId={l.member?.id ?? l.memberId} name={l.member.name} canLink={isAdmin} />
+                            </td>
                             <td className="px-6 py-4 capitalize text-gray-600">
                               {formatLeaveType(l.leaveType, l.timeSlot)}
                             </td>

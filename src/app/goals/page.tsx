@@ -1,8 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import GoalsClient from './GoalsClient'
+import { auth } from '@/lib/auth'
+import { canViewMemberDetail } from '@/lib/team-permissions'
 export const dynamic = 'force-dynamic'
 
 export default async function GoalsPage() {
+  const session = await auth()
   const [members, goals] = await Promise.all([
     prisma.teamMember.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.goal.findMany({
@@ -28,5 +31,11 @@ export default async function GoalsPage() {
     },
   }))
 
-  return <GoalsClient members={serializedMembers} goals={serializedGoals} />
+  return (
+    <GoalsClient
+      members={serializedMembers}
+      goals={serializedGoals}
+      canLinkMembers={canViewMemberDetail(session?.user?.role)}
+    />
+  )
 }

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import MemberNameLink from '@/components/MemberNameLink'
 
 type Member = { id: string; name: string; role: string }
 type Goal = {
@@ -18,7 +19,16 @@ const CAT_COLORS: Record<string,string> = {
   culture:'bg-green-100 text-green-800', business:'bg-red-100 text-red-800',
 }
 
-export default function GoalsClient({ members, goals }: { members: Member[]; goals: Goal[] }) {
+export default function GoalsClient({
+  members,
+  goals,
+  canLinkMembers = false,
+}: {
+  members: Member[]
+  goals: Goal[]
+  /** Viewer can open /settings/team/[id] — member names link there. */
+  canLinkMembers?: boolean
+}) {
   const [showNew, setShowNew] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -179,7 +189,7 @@ export default function GoalsClient({ members, goals }: { members: Member[]; goa
       {byMember.map(({ member: m, goals: mg }) => (
         <div key={m.id} className="mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-semibold text-gray-800">{m.name}</span>
+            <MemberNameLink memberId={m.id} name={m.name} canLink={canLinkMembers} className="text-sm font-semibold text-gray-800" />
             <span className="text-xs text-gray-400">{m.role}</span>
             <span className="text-xs text-gray-400">· {mg.length} goal{mg.length !== 1 ? 's' : ''}</span>
           </div>

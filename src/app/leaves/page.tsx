@@ -51,7 +51,7 @@ export default async function LeavesPage() {
       })
     )
     allLeaves = await prisma.leaveRequest.findMany({
-      include: { member: { select: { name: true } } },
+      include: { member: { select: { name: true, id: true } } },
       orderBy: { startDate: 'desc' },
     })
   }

@@ -616,8 +616,11 @@ export default function EmployeeReportClient({
   initialRange = 'month',
   initialFrom,
   initialTo,
+  canLinkMember = false,
 }: {
   employees: Employee[]
+  /** Viewer can open /settings/team/[id] — the selected employee's name links there. */
+  canLinkMember?: boolean
   /** Rendered inside Team → Individual: hide the standalone header and keep the URL in sync. */
   embedded?: boolean
   initialMemberId?: string
@@ -925,6 +928,7 @@ export default function EmployeeReportClient({
       ) : report && hours && snap && selected && score != null ? (
         <>
           <EmployeeReportCeoView
+            canLinkMember={canLinkMember}
             employees={employees}
             selected={selected}
             memberId={memberId}

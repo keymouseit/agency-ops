@@ -8,6 +8,7 @@ import DailyAlerts from './DailyAlerts'
 import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
+import { canViewMemberDetail } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,8 @@ export default async function DailyPage({
   const isFounder = session.user.role === 'Founder'
   const viewMode = searchParams.view || 'team'
   const showTeamView = isFounder && viewMode === 'team'
+  // Member names link to /settings/team/[id] only in the Team view.
+  const linkMemberNames = showTeamView && canViewMemberDetail(session.user.role)
 
   const [members, logs, pendingPastEodLog] = await Promise.all([
     showTeamView
@@ -172,6 +175,7 @@ export default async function DailyPage({
               log={log}
               isToday={isToday}
               currentUserId={session.user.id}
+              linkMemberName={linkMemberNames}
             />
           ))}
         </div>

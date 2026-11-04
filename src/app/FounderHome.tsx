@@ -231,7 +231,7 @@ function GroupList({ group }: { group: AttentionGroup }) {
   )
 }
 
-function OutTodayCard({ people }: { people: OnLeaveTodayPerson[] }) {
+function OutTodayCard({ people, linkNames }: { people: OnLeaveTodayPerson[]; linkNames: boolean }) {
   return (
     <section className="card overflow-hidden">
       <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
@@ -254,6 +254,7 @@ function OutTodayCard({ people }: { people: OnLeaveTodayPerson[] }) {
         <OnLeaveTodayPeopleList
           people={people}
           emptyMessage="Everyone's in today"
+          linkNames={linkNames}
         />
       </div>
     </section>
@@ -264,9 +265,12 @@ export default function FounderHome({
   groups,
   outToday,
   initialOpen = null,
+  canLinkMembers = false,
 }: {
   groups: AttentionGroup[]
   outToday: OnLeaveTodayPerson[]
+  /** Viewer can open /settings/team/[id] — names in "Out today" link there. */
+  canLinkMembers?: boolean
   /** From `/?open=<group>` (e.g. blocker notifications open "Waiting on you"). */
   initialOpen?: AttentionGroupKey | null
 }) {
@@ -321,7 +325,7 @@ export default function FounderHome({
 
       {openGroup ? <GroupList group={openGroup} /> : null}
 
-      <OutTodayCard people={outToday} />
+      <OutTodayCard people={outToday} linkNames={canLinkMembers} />
     </div>
   )
 }

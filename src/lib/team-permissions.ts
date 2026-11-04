@@ -17,6 +17,14 @@ export function canEditTeam(actorRole: string | null | undefined): boolean {
   return !!actorRole && TEAM_EDITOR_ROLES.includes(actorRole)
 }
 
+/**
+ * Whether `viewerRole` can open the employee detail page /settings/team/[id]
+ * (the page itself redirects everyone else). Used to decide if names link there.
+ */
+export function canViewMemberDetail(viewerRole: string | null | undefined): boolean {
+  return !!viewerRole && TEAM_EDITOR_ROLES.includes(viewerRole)
+}
+
 /** Whether `actorRole` may assign `targetRole` to a member. */
 export function canAssignRole(actorRole: string | null | undefined, targetRole: string): boolean {
   if (!canEditTeam(actorRole)) return false

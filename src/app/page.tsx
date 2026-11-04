@@ -7,6 +7,7 @@ import { getApprovedOnLeaveToday } from '@/lib/leave-today'
 import { getFounderAttention } from '@/lib/founder-attention'
 import { shortDisplayName } from '@/lib/employee-order'
 import FounderHome from './FounderHome'
+import { canViewMemberDetail } from '@/lib/team-permissions'
 import WeeklyScoreBanner from '@/components/WeeklyScoreBanner'
 import { getWeeklyScoreHomePrompt } from '@/lib/weekly-score-reminder'
 import type { AttentionGroupKey } from '@/lib/founder-attention'
@@ -63,7 +64,12 @@ async function NeedsYouBody({
     )
   }
   return (
-    <FounderHome groups={attention.groups} outToday={mapOutToday(onLeave)} initialOpen={initialOpen} />
+    <FounderHome
+      groups={attention.groups}
+      outToday={mapOutToday(onLeave)}
+      initialOpen={initialOpen}
+      canLinkMembers={canViewMemberDetail(viewerRole)}
+    />
   )
 }
 
