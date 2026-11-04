@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import AccountClient from './AccountClient'
+import ProfileDetailsCard from './ProfileDetailsCard'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -13,14 +14,31 @@ export default async function AccountPage() {
     redirect('/login')
   }
 
-  // Fetch user's current data
+  // Always read the member fresh from the DB (not the session/JWT) so changes
+  // made by Admin/HR (designation, birthday, joining date) show up immediately.
   const member = await prisma.teamMember.findUnique({
-    where: { id: session.user.id }
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      active: true,
+      createdAt: true,
+      designation: true,
+      birthday: true,
+      joiningDate: true,
+    },
   })
 
   if (!member) {
     redirect('/login')
   }
 
-  return <AccountClient member={member} />
+  return (
+    <AccountClient
+      member={member}
+      profileDetails={<ProfileDetailsCard member={member} />}
+    />
+  )
 }

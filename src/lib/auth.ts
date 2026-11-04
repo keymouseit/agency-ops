@@ -76,18 +76,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id   = user.id ?? ''
         token.role = (user as { role: string }).role
         token.name = user.name ?? ''
         token.email = user.email ?? ''
       }
-      // Handle session updates (e.g., when profile is updated)
-      if (trigger === 'update' && session) {
-        token.name = session.name as string
-        token.email = session.email as string
-      }
+      // Name/email are only editable by HR/Admin, so never accept them from a
+      // client-side session update (useSession().update) — that would let a user
+      // spoof the email used for lookups/authorization. They refresh on next sign-in.
       return token
     },
     async session({ session, token }) {
