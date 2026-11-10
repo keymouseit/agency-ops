@@ -3,7 +3,13 @@ import { sendLeaveApprovalEmail, sendLeaveRejectedEmail } from '@/lib/notificati
 import { addEventToGoogleCalendar } from '@/lib/gcal'
 import { notify } from '@/lib/notify'
 import { runInBackground } from '@/lib/background'
-import { compOffRequestDayCost, leavePaidDeduction } from '@/lib/leave-balance'
+import {
+  compOffRequestDayCost,
+  leavePaidDeduction,
+  leaveRequestDayCost,
+  syncShortLeaveBalance,
+} from '@/lib/leave-balance'
+import { istYearAndMonth } from '@/lib/ist'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { revalidateLeavePages } from '@/lib/cache-tags'
@@ -53,15 +59,50 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const notes = approvalNotes.trim()
     const isShortLeave = leave.leaveType === 'short_leave'
     const isCompOff = leave.leaveType === 'comp_off_leave'
-    const deduction =
+    const storedDeduction =
       status === 'approved' && !isShortLeave && !isCompOff ? leavePaidDeduction(leave) : 0
     const compOffCost =
       status === 'approved' && isCompOff
         ? compOffRequestDayCost(new Date(leave.startDate), new Date(leave.endDate), leave.timeSlot)
         : 0
     const year = new Date(leave.startDate).getFullYear()
+    const capToBalance = storedDeduction > 0 && year === istYearAndMonth().year
+    if (capToBalance) {
+      // Make sure the balance row exists / is accrual-synced before we read it in the tx.
+      await syncShortLeaveBalance(leave.memberId, year)
+    }
+
+    let deduction = storedDeduction
+    let downgraded: { paidDays: number; unpaidDays: number } | null = null
 
     const updatedLeave = await prisma.$transaction(async tx => {
+      // The paid/unpaid split was fixed when the employee applied. Approval never
+      // adds paid days (so next month's accrual can't convert LWP into paid). It can
+      // only reduce them if the balance no longer covers the stored paid days
+      // (e.g. HR edited the balance or another leave was approved first).
+      if (capToBalance) {
+        const bal = await tx.leaveBalance.findUnique({
+          where: { memberId_year: { memberId: leave.memberId, year } },
+          select: { accrued: true, used: true },
+        })
+        const available = Math.max(
+          0,
+          Number(((bal?.accrued ?? 0) - (bal?.used ?? 0)).toFixed(2))
+        )
+        if (available < storedDeduction) {
+          deduction = available
+          const cost = leaveRequestDayCost(
+            leave.leaveType,
+            new Date(leave.startDate),
+            new Date(leave.endDate)
+          )
+          downgraded = {
+            paidDays: Number(available.toFixed(2)),
+            unpaidDays: Number(Math.max(0, cost - available).toFixed(2)),
+          }
+        }
+      }
+
       const updated = await tx.leaveRequest.update({
         where: { id },
         data: {
@@ -69,6 +110,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
           approvedById,
           approvalNotes: notes,
           approvedAt: new Date(),
+          ...(downgraded
+            ? {
+                paidDays: downgraded.paidDays,
+                unpaidDays: downgraded.unpaidDays,
+                unpaid: downgraded.unpaidDays > 0,
+              }
+            : {}),
         },
         include: { member: true },
       })
@@ -90,6 +138,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
             unpaidDays: leave.unpaidDays,
             deduction,
             compOffCost,
+            ...(downgraded
+              ? {
+                  paidDowngradedOnApproval: {
+                    from: { paidDays: leave.paidDays, unpaidDays: leave.unpaidDays },
+                    to: downgraded,
+                  },
+                }
+              : {}),
           }),
         },
       })
@@ -169,9 +225,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
       })(),
       'revalidate-leave-pages'
     )
-    return NextResponse.json(updatedLeave, {
-      headers: { 'Cache-Control': 'no-store' },
-    })
+    const finalSplit = downgraded as { paidDays: number; unpaidDays: number } | null
+    return NextResponse.json(
+      {
+        ...updatedLeave,
+        ...(finalSplit
+          ? {
+              balanceNotice: `Balance only covered ${finalSplit.paidDays} paid day(s), so this leave was approved as ${finalSplit.paidDays} paid + ${finalSplit.unpaidDays} unpaid (LWP).`,
+            }
+          : {}),
+      },
+      {
+        headers: { 'Cache-Control': 'no-store' },
+      }
+    )
   } catch (error: unknown) {
     console.error('Error updating leave status:', error)
     const msg = error instanceof Error ? error.message : 'Unknown error'

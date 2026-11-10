@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { compOffRequestDayCost, leavePaidDeduction } from '@/lib/leave-balance'
@@ -130,12 +131,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       'leave-revoke-side-effects'
     )
 
-    runInBackground(
-      (async () => {
-        revalidateLeavePages()
-      })(),
-      'revalidate-leave-pages'
-    )
+    // Bust "Out today" / leave caches before responding so every dashboard and
+    // the Daily Plan leave lock reflect the cancellation immediately.
+    revalidateLeavePages()
+    revalidatePath('/daily')
+    revalidatePath('/daily/plan')
     return NextResponse.json(updated, {
       headers: { 'Cache-Control': 'no-store' },
     })

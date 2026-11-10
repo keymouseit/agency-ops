@@ -15,6 +15,7 @@ import {
 } from '@/lib/salesrobot'
 import { redirect, notFound } from 'next/navigation'
 import EODClient from './EODClient'
+import { getPlanLeaveBlock } from '@/lib/leave-plan-block'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -61,6 +62,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
       session.user.role
     )
     const linkedInBdActivity = await loadLinkedInBdActivity(log)
+    const leaveBlock = readOnly ? null : await getPlanLeaveBlock(log.memberId, log.date)
 
     return (
       <EODClient
@@ -68,6 +70,7 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
         projects={projects}
         readOnly={readOnly}
         linkedInBdActivity={linkedInBdActivity}
+        leaveBlockMessage={leaveBlock?.message ?? null}
       />
     )
   }
@@ -80,8 +83,14 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
       session.user.role
     )
     const linkedInBdActivity = await loadLinkedInBdActivity(openLog)
+    const leaveBlock = await getPlanLeaveBlock(memberId, openLog.date)
     return (
-      <EODClient log={openLog} projects={projects} linkedInBdActivity={linkedInBdActivity} />
+      <EODClient
+        log={openLog}
+        projects={projects}
+        linkedInBdActivity={linkedInBdActivity}
+        leaveBlockMessage={leaveBlock?.message ?? null}
+      />
     )
   }
 
@@ -93,11 +102,13 @@ export default async function EODPage({ searchParams }: { searchParams: { logId?
       session.user.role
     )
     const linkedInBdActivity = await loadLinkedInBdActivity(editableLog)
+    const leaveBlock = await getPlanLeaveBlock(memberId, editableLog.date)
     return (
       <EODClient
         log={editableLog}
         projects={projects}
         linkedInBdActivity={linkedInBdActivity}
+        leaveBlockMessage={leaveBlock?.message ?? null}
       />
     )
   }

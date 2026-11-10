@@ -34,6 +34,7 @@ const LEAD_NAV = [
     label: 'People',
     items: [
       { href: '/leaves', label: 'Leaves & WFH' },
+      { href: '/leaves/holidays', label: 'Holidays' },
       { href: '/daily', label: 'Daily updates' },
       { href: '/goals', label: 'Goals' },
     ],
@@ -78,6 +79,7 @@ const NAV_STRUCTURE = {
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
   Dev: [
     { href: '/me', label: 'My Day' },
@@ -86,6 +88,7 @@ const NAV_STRUCTURE = {
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
   QA: [
     { href: '/me', label: 'My Day' },
@@ -94,6 +97,7 @@ const NAV_STRUCTURE = {
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
   HR: [
     { href: '/me', label: 'My Day' },
@@ -101,12 +105,14 @@ const NAV_STRUCTURE = {
     { href: '/settings', label: 'Employees' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
   SocialMedia: [
     { href: '/me', label: 'My Day' },
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
   Both: [
     { href: '/me', label: 'My Day' },
@@ -126,6 +132,7 @@ const NAV_STRUCTURE = {
     { href: '/checkin', label: 'Check-In' },
     { href: '/daily', label: 'Daily' },
     { href: '/leaves', label: 'Leaves' },
+    { href: '/leaves/holidays', label: 'Holidays' },
   ],
 }
 
@@ -144,6 +151,7 @@ function isLinkActive(path: string, href: string) {
   if (path === href) return true
   if (href === '/') return false
   if (href === '/qa' && path.startsWith('/qa/activity')) return false
+  if (href === '/leaves' && path.startsWith('/leaves/holidays')) return false
   return path.startsWith(href + '/')
 }
 

@@ -9,6 +9,7 @@ import { shortDisplayName } from '@/lib/employee-order'
 import FounderHome from './FounderHome'
 import { canViewMemberDetail } from '@/lib/team-permissions'
 import WeeklyScoreBanner from '@/components/WeeklyScoreBanner'
+import UpcomingHolidayHint from '@/components/UpcomingHolidayHint'
 import { getWeeklyScoreHomePrompt } from '@/lib/weekly-score-reminder'
 import type { AttentionGroupKey } from '@/lib/founder-attention'
 
@@ -127,6 +128,10 @@ export default async function NeedsYouPage({
           isFriday={scorePrompt.isFriday}
         />
       )}
+
+      <Suspense fallback={null}>
+        <UpcomingHolidayHint />
+      </Suspense>
 
       <Suspense fallback={<NeedsYouFallback />}>
         <NeedsYouBody

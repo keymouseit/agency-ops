@@ -102,6 +102,35 @@ BEGIN
     END IF;
 END $$;
 
+-- ─── 5. Holiday calendar (2026-11-10) ───────────────────────────────────────
+-- Company holidays (IST dates). Matches prisma model Holiday.
+-- type: national | public | floating | sunday. national/public/sunday = day off
+-- (no reminders); floating = optional (reminders still run).
+CREATE TABLE IF NOT EXISTS "Holiday" (
+    "id"        TEXT         NOT NULL,
+    "date"      DATE         NOT NULL,
+    "name"      TEXT         NOT NULL,
+    "type"      TEXT         NOT NULL DEFAULT 'public',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Holiday_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Holiday_date_key" ON "Holiday"("date");
+
+-- KeyMouse IT Holiday Calendar 2026. Re-running never overwrites HR's edits.
+INSERT INTO "Holiday" ("id", "date", "name", "type", "createdAt", "updatedAt") VALUES
+    ('hol_2026_01_26', DATE '2026-01-26', 'Republic Day',           'national', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_03_04', DATE '2026-03-04', 'Holi',                   'public',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_08_28', DATE '2026-08-28', 'Raksha Bandhan',         'floating', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_10_02', DATE '2026-10-02', 'Mahatma Gandhi Jayanti', 'national', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_10_20', DATE '2026-10-20', 'Dussehra',               'public',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_11_08', DATE '2026-11-08', 'Diwali (Lakshmi Pooja)', 'sunday',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_11_09', DATE '2026-11-09', 'Diwali (Vishwakarma)',   'public',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_11_24', DATE '2026-11-24', 'Guru Nanak Jayanti',     'floating', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('hol_2026_12_25', DATE '2026-12-25', 'Christmas Day',          'public',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
 COMMIT;
 
 -- ─── OPTIONAL (run separately, only if you want it) ─────────────────────────

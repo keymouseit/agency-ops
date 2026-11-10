@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MorningPlanForm from './MorningPlanForm'
 import { getExpectedHours } from '@/lib/expected-hours'
+import { getPlanLeaveBlock } from '@/lib/leave-plan-block'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function MorningPlanPage() {
   const memberId = session.user.id
   const today = businessDayStart()
 
-  const [member, todayLog, pendingPastEodLog, carryOverMoved, expectedToday] = await Promise.all([
+  const [member, todayLog, pendingPastEodLog, carryOverMoved, expectedToday, leaveBlock] = await Promise.all([
     prisma.teamMember.findUnique({ where: { id: memberId } }),
 
     prisma.dailyLog.findUnique({
@@ -50,6 +51,8 @@ export default async function MorningPlanPage() {
     findCarryOverMovedTasks(memberId),
 
     getExpectedHours(memberId, today),
+
+    getPlanLeaveBlock(memberId, today),
   ])
 
   const projects = await listDailyProjectsForMember(
@@ -100,6 +103,42 @@ export default async function MorningPlanPage() {
     carryOverMoved.tasks.length > 0
       ? carryOverTasksToPlanRows(carryOverMoved.tasks)
       : undefined
+
+  if (leaveBlock) {
+    const existingCount = todayLog?.tasks.length ?? 0
+    return (
+      <div className="py-8">
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/60 p-10 sm:p-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl shadow-sm">
+            🌴
+          </div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">You&apos;re on approved leave today</h1>
+          <p className="text-sm text-gray-600 max-w-md mx-auto">
+            {leaveBlock.label} on {leaveBlock.dateLabel}. Daily Plan tasks can&apos;t be added on an approved leave day.
+          </p>
+          <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
+            If you need to work today, ask management to cancel your leave first. Once it&apos;s cancelled you can
+            plan as usual.
+          </p>
+          {existingCount > 0 && (
+            <p className="text-xs text-gray-400 max-w-md mx-auto mt-4">
+              The {existingCount} task{existingCount === 1 ? '' : 's'} you planned before the leave was approved
+              {existingCount === 1 ? ' is' : ' are'} kept. You can still close {existingCount === 1 ? 'it' : 'them'} out in
+              your EOD, but you can&apos;t add or re-plan tasks while the leave stands.
+            </p>
+          )}
+          <div className="flex gap-3 justify-center flex-wrap mt-6">
+            <Link href="/leaves" className="btn-secondary text-sm">
+              View my leave
+            </Link>
+            <Link href="/daily" className="btn-secondary text-sm">
+              ← Back to daily log
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (alreadyPlannedToday && !isEditMode) {
     return (

@@ -1253,3 +1253,15 @@ model EmployeeDocument {
 
   @@index([memberId, type])
 }
+
+/// Company holiday calendar (IST dates). Managed on /leaves/holidays by HR / Founder / Manager.
+/// type: national | public | floating | sunday — national/public (and sunday) are company-wide
+/// days off (no reminders, expected hours 0); floating is optional (reminders still run).
+model Holiday {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  name      String
+  type      String   @default("public")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

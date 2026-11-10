@@ -403,7 +403,16 @@ export default function LeaveDashboardClient({
         }
       }
 
-      toast.success(editingLeaveId ? 'Leave updated successfully!' : 'Leave requested successfully!')
+      const savedUnpaid = Number(data.unpaidDays || 0)
+      const savedPaid = Number(data.paidDays || 0)
+      const splitNote =
+        savedUnpaid > 0
+          ? ` ${savedPaid} paid + ${savedUnpaid} unpaid (LWP).`
+          : ''
+      toast.success(
+        (editingLeaveId ? 'Leave updated successfully!' : 'Leave requested successfully!') + splitNote,
+        splitNote ? { duration: 6000 } : undefined
+      )
       setIsManualLogModalOpen(false)
       resetForm()
       if (!editingLeaveId && targetMemberId === memberId) {
@@ -447,7 +456,11 @@ export default function LeaveDashboardClient({
       setLeaves(prev =>
         prev.map(l => (l.id === leaveId ? { ...l, ...data, status, approvalNotes: decisionNotes.trim() } : l))
       )
-      toast.success(status === 'approved' ? 'Leave approved' : 'Leave rejected')
+      if (status === 'approved' && typeof data.balanceNotice === 'string') {
+        toast(data.balanceNotice, { icon: '⚠️', duration: 8000 })
+      } else {
+        toast.success(status === 'approved' ? 'Leave approved' : 'Leave rejected')
+      }
       setConfirmModal(null)
       setDecisionNotes('')
       void refetchLeaveLists()
@@ -565,6 +578,43 @@ export default function LeaveDashboardClient({
         leaveRequestDayCost(l.leaveType, new Date(l.startDate), new Date(l.endDate))
       )
     }, 0)
+
+  // Live preview of how the request being filled in will split into paid / unpaid.
+  // Mirrors the server: today's balance minus paid days held by other pending requests.
+  const NO_BALANCE_TYPES = ['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave']
+  const editingLeave = editingLeaveId ? leaves.find(l => l.id === editingLeaveId) : null
+  const reservedByOtherPending = editingLeave
+    ? Math.max(
+        0,
+        pendingDays -
+          (editingLeave.status === 'pending' && !NO_BALANCE_TYPES.includes(editingLeave.leaveType)
+            ? Number(editingLeave.paidDays || 0)
+            : 0)
+      )
+    : pendingDays
+  const freePaidDays = Math.max(0, Number((accrued - used - reservedByOtherPending).toFixed(2)))
+  const splitPreview = (() => {
+    if (!startDate || NO_BALANCE_TYPES.includes(leaveType)) return null
+    const effectiveEnd = isSameDayLeave ? startDate : endDate
+    if (!effectiveEnd || effectiveEnd < startDate) return null
+    const cost = leaveRequestDayCost(leaveType, parseISO(startDate), parseISO(effectiveEnd))
+    if (cost <= 0) return null
+    // Editing without changing type/dates keeps the split stored at apply time.
+    if (
+      editingLeave &&
+      editingLeave.leaveType === leaveType &&
+      istDateInputValue(new Date(editingLeave.startDate)) === startDate &&
+      istDateInputValue(new Date(editingLeave.endDate)) === effectiveEnd
+    ) {
+      return {
+        cost,
+        paid: Number(editingLeave.paidDays || 0),
+        unpaid: Number(editingLeave.unpaidDays || 0),
+      }
+    }
+    const paid = Math.min(cost, freePaidDays)
+    return { cost, paid: Number(paid.toFixed(2)), unpaid: Number((cost - paid).toFixed(2)) }
+  })()
 
   const pendingShortLeaves = leaves.filter(
     l => l.status === 'pending' && l.leaveType === 'short_leave'
@@ -1075,6 +1125,12 @@ export default function LeaveDashboardClient({
               ? 'Review requests, update balances, and see who is out.'
               : 'Check your balance, request time off, and track status.'}
           </p>
+          <Link
+            href="/leaves/holidays"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-700 hover:text-indigo-900"
+          >
+            🎉 Holiday calendar →
+          </Link>
         </div>
         
         {isAdmin && (
@@ -1103,7 +1159,11 @@ export default function LeaveDashboardClient({
             <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm col-span-2 lg:col-span-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Available</p>
               <p className="text-4xl font-bold mt-1 tracking-tight">{Math.max(0, accrued - used)}</p>
-              <p className="text-xs text-slate-400 mt-1">days you can still take</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {pendingDays > 0
+                  ? `${freePaidDays} free · ${pendingDays} held by pending`
+                  : 'days you can still take'}
+              </p>
             </div>
             <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total</p>
@@ -1268,6 +1328,30 @@ export default function LeaveDashboardClient({
                       placeholder="e.g., Medical appointment"
                     />
                   </div>
+
+                  {splitPreview && (
+                    <div
+                      className={`text-xs rounded-xl px-3 py-2.5 ring-1 ${
+                        splitPreview.unpaid > 0
+                          ? 'bg-amber-50 text-amber-800 ring-amber-600/20'
+                          : 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {splitPreview.cost} day{splitPreview.cost === 1 ? '' : 's'}:{' '}
+                        {splitPreview.unpaid <= 0
+                          ? 'all paid'
+                          : splitPreview.paid > 0
+                            ? `${splitPreview.paid} paid, ${splitPreview.unpaid} unpaid (LWP)`
+                            : `${splitPreview.unpaid} unpaid (LWP)`}
+                      </p>
+                      <p className="mt-0.5 opacity-80">
+                        Decided now from your current balance ({freePaidDays} free
+                        {reservedByOtherPending > 0 ? ` after ${reservedByOtherPending} held by pending requests` : ''}).
+                        Leave credited in later months won&apos;t change it.
+                      </p>
+                    </div>
+                  )}
 
                   <button
                     type="submit"

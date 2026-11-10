@@ -6,6 +6,7 @@ import { canEditEod } from '@/lib/daily'
 import { syncProjectLoggedHours } from '@/lib/project-hours'
 import { invalidateProjectsListCache } from '@/lib/cache-tags'
 import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
+import { getPlanLeaveBlock } from '@/lib/leave-plan-block'
 
 const ALLOWED_TASK_STATUSES = new Set(['done', 'partial', 'blocked', 'moved', 'skipped'])
 
@@ -76,7 +77,7 @@ export async function POST(
 
   const existingLog = await prisma.dailyLog.findUnique({
     where: { id: params.logId },
-    select: { memberId: true, eodSubmittedAt: true },
+    select: { memberId: true, eodSubmittedAt: true, date: true },
   })
 
   if (!existingLog) {
@@ -120,6 +121,18 @@ export async function POST(
       eodNotes: typeof t.eodNotes === 'string' ? t.eodNotes.trim() || null : null,
       status: ALLOWED_TASK_STATUSES.has(t.status ?? '') ? (t.status as string) : 'done',
     })
+  }
+
+  // Approved full-day leave: existing tasks can still be closed out, but no new
+  // tasks may be added for that day until management cancels the leave.
+  if (newTasks.length > 0) {
+    const leaveBlock = await getPlanLeaveBlock(memberId, existingLog.date)
+    if (leaveBlock) {
+      return NextResponse.json(
+        { error: leaveBlock.message, code: 'ON_APPROVED_LEAVE', leaveId: leaveBlock.leaveId },
+        { status: 403 },
+      )
+    }
   }
 
   const parsedActualHours = new Map<string, number | null>()

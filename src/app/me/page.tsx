@@ -15,9 +15,11 @@ import MeProjectsGrid from './MeProjectsGrid'
 import MeWeekScorePanel, { MeWeekScorePanelFallback } from './MeWeekScorePanel'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
 import WeeklyScoreBanner from '@/components/WeeklyScoreBanner'
+import UpcomingHolidayHint from '@/components/UpcomingHolidayHint'
 import { getWeeklyScoreHomePrompt } from '@/lib/weekly-score-reminder'
 import { canEditEod, businessDayStart, findPendingPastEodLogSummary, formatDailyLogDate, findCarryOverMovedTasks } from '@/lib/daily'
 import MovedTasksCard from './MovedTasksCard'
+import { getPlanLeaveBlock } from '@/lib/leave-plan-block'
 import { shortDisplayName } from '@/lib/employee-order'
 
 export const dynamic = 'force-dynamic'
@@ -67,6 +69,7 @@ export default async function MePage({
     thisWeekScore,
     carryOverMoved,
     scorePrompt,
+    planLeaveBlock,
   ] = await Promise.all([
     prisma.teamMember.findUnique({
       where: { id: memberId },
@@ -128,6 +131,7 @@ export default async function MePage({
     }),
     findCarryOverMovedTasks(memberId),
     getWeeklyScoreHomePrompt(memberId, role, new Date(), { forcePreview }),
+    getPlanLeaveBlock(memberId, today),
   ])
 
   if (!member) redirect('/api/auth/signout?callbackUrl=/login')
@@ -181,6 +185,11 @@ export default async function MePage({
           isFriday={scorePrompt.isFriday}
         />
       )}
+
+      {/* Holiday today / within the next 7 days */}
+      <Suspense fallback={null}>
+        <UpcomingHolidayHint />
+      </Suspense>
 
       {/* Urgent: missing past EOD */}
       {missingPastEOD && pendingPastEodLog && (
@@ -253,7 +262,10 @@ export default async function MePage({
                   </div>
                 </div>
               ) : (
-                <MePlanWidget movedCount={carryOverMoved && !carryOverMoved.sameDay ? carryOverMoved.tasks.length : 0} />
+                <MePlanWidget
+                  movedCount={carryOverMoved && !carryOverMoved.sameDay ? carryOverMoved.tasks.length : 0}
+                  leaveBlockMessage={planLeaveBlock?.message ?? null}
+                />
               )
             ) : hasEOD ? (
               <div className="me-callout me-callout-success">

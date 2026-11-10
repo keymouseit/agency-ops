@@ -17,6 +17,10 @@
       "schedule": "30 11 * * 5"
     },
     {
+      "path": "/api/cron/missing-plan-reminder",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
       "path": "/api/cron/celebration-emails",
       "schedule": "0 4 * * *"
     }

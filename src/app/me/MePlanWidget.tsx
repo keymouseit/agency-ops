@@ -2,7 +2,23 @@
 
 import Link from 'next/link'
 
-export default function MePlanWidget({ movedCount = 0 }: { movedCount?: number }) {
+export default function MePlanWidget({
+  movedCount = 0,
+  leaveBlockMessage = null,
+}: {
+  movedCount?: number
+  /** Approved full-day leave today — planning is locked until management cancels it. */
+  leaveBlockMessage?: string | null
+}) {
+  if (leaveBlockMessage) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+        <p className="text-sm font-semibold text-amber-900">You&apos;re on approved leave today</p>
+        <p className="text-sm text-amber-800 mt-1 max-w-md leading-relaxed">{leaveBlockMessage}</p>
+      </div>
+    )
+  }
+
   if (movedCount > 0) {
     return (
       <div className="me-callout me-callout-warn">

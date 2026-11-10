@@ -8,6 +8,7 @@ import DailyAlerts from './DailyAlerts'
 import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
+import { getNonWorkingHoliday } from '@/lib/holidays'
 import { canViewMemberDetail } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
@@ -78,8 +79,14 @@ export default async function DailyPage({
     const day = expectedBatch?.get(memberId)?.get(dateKey)
     return Boolean(day && day.expectedHours <= 0)
   }
-  const noPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && !onFullDayLeave(m.id))
-  const onLeaveNoPlan = cadenceMembers.filter(m => !membersWithLog.has(m.id) && onFullDayLeave(m.id))
+  // National / public holiday: nobody is expected to plan, so no "No morning plan" / "On leave" lists.
+  const dayHoliday = await getNonWorkingHoliday(dateKey)
+  const noPlan = dayHoliday
+    ? []
+    : cadenceMembers.filter(m => !membersWithLog.has(m.id) && !onFullDayLeave(m.id))
+  const onLeaveNoPlan = dayHoliday
+    ? []
+    : cadenceMembers.filter(m => !membersWithLog.has(m.id) && onFullDayLeave(m.id))
   const noEOD = logs.filter(
     l =>
       requiresDailyCadence(l.member.role) &&
@@ -158,6 +165,16 @@ export default async function DailyPage({
         canNewPlan={canNewPlan}
         pendingEodLogId={pendingPastEodLog?.id}
       />
+
+      {dayHoliday && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          <span aria-hidden>🎉</span>
+          <span>
+            <span className="font-semibold">Holiday · {dayHoliday.name}</span> — no plan or EOD is expected
+            {isToday ? ' today' : ' on this day'}. Anyone working can still add a plan.
+          </span>
+        </div>
+      )}
 
       {showTeamView && isToday && (
         <DailyAlerts noPlan={noPlan} noEOD={noEOD} onLeave={onLeaveNoPlan} blockers={hasBlockers} />
