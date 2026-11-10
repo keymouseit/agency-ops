@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
-import { auth, checkRole } from '@/lib/auth'
+import { auth, authorizeRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { logger } from '@/lib/logger'
 import { logTeamMemberChange, getClientIP } from '@/lib/audit'
 
 import { sortByEmployeeNo } from '@/lib/employee-order'
+import {
+  TEAM_EDITOR_ROLES,
+  canAssignRole,
+  parseOptionalDate,
+  parseOptionalDesignation,
+} from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,11 +40,12 @@ export async function POST(req: Request) {
   const startTime = Date.now()
   logger.logApiRequest('POST', '/api/team', undefined)
 
-  const deny = await checkRole(['Founder', 'Manager'])
-  if (deny) {
-    logger.logApiResponse('POST', '/api/team', deny.status, Date.now() - startTime)
-    return deny
+  const authResult = await authorizeRole(TEAM_EDITOR_ROLES)
+  if (authResult instanceof NextResponse) {
+    logger.logApiResponse('POST', '/api/team', authResult.status, Date.now() - startTime)
+    return authResult
   }
+  const actorRole = authResult.role
 
   const data = await req.json()
   logger.info('Creating team member', { name: data.name, email: data.email, role: data.role })
@@ -49,6 +56,27 @@ export async function POST(req: Request) {
       { error: 'Name, email, and role are required' },
       { status: 400 }
     )
+  }
+
+  // HR may create members, but never with the Founder/Manager role
+  if (!canAssignRole(actorRole, data.role)) {
+    return NextResponse.json(
+      { error: 'You do not have permission to create a member with this role.' },
+      { status: 403 }
+    )
+  }
+
+  const birthdayParsed = parseOptionalDate(data.birthday)
+  if ('error' in birthdayParsed) {
+    return NextResponse.json({ error: `Birthday: ${birthdayParsed.error}` }, { status: 400 })
+  }
+  const joiningParsed = parseOptionalDate(data.joiningDate)
+  if ('error' in joiningParsed) {
+    return NextResponse.json({ error: `Joining date: ${joiningParsed.error}` }, { status: 400 })
+  }
+  const designationParsed = parseOptionalDesignation(data.designation)
+  if ('error' in designationParsed) {
+    return NextResponse.json({ error: designationParsed.error }, { status: 400 })
   }
 
   // Check if email already exists
@@ -78,7 +106,10 @@ export async function POST(req: Request) {
       email: data.email,
       role: data.role,
       active: data.active !== false, // Default to true
-      birthday: data.birthday ? new Date(data.birthday) : null,
+      birthday: birthdayParsed.value ?? null,
+      joiningDate: joiningParsed.value ?? null,
+      designation: designationParsed.value ?? null,
+      attendanceExcluded: data.attendanceExcluded === true,
     },
   })
 

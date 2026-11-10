@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { logTeamMemberChange, captureChanges } from '@/lib/audit'
 
+/**
+ * Self-service profile edits are disabled: an employee's name and email (and
+ * designation, birthday, joining date) can only be changed by HR/Admin via
+ * PATCH /api/team/[id]. This endpoint stays only to return a clear error to
+ * any old client that still calls it.
+ */
 export async function PATCH(req: Request) {
   const session = await auth()
 
@@ -10,85 +14,23 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const data = await req.json()
-  const { name, email } = data
-
-  // Validate
-  if (!name || name.trim().length === 0) {
-    return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-  }
-
-  if (!email || !email.includes('@')) {
-    return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
-  }
-
-  // Check if email is already used by another member
-  if (email !== session.user.email) {
-    const existing = await prisma.teamMember.findFirst({
-      where: {
-        email,
-        id: { not: session.user.id }
-      }
-    })
-
-    if (existing) {
-      return NextResponse.json(
-        { error: 'This email is already in use' },
-        { status: 400 }
-      )
-    }
-  }
-
-  // Update member
+  let data: Record<string, unknown> = {}
   try {
-    // Get current member data for audit logging
-    const currentMember = await prisma.teamMember.findUnique({
-      where: { id: session.user.id }
-    })
+    const body = await req.json()
+    if (body && typeof body === 'object') data = body as Record<string, unknown>
+  } catch {
+    // empty or invalid body — fall through
+  }
 
-    if (!currentMember) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
-    }
-
-    const updated = await prisma.teamMember.update({
-      where: { id: session.user.id },
-      data: {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-      }
-    })
-
-    // Capture changes for audit log
-    const changes = captureChanges(currentMember, {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-    })
-
-    // Log the change if there are any
-    if (Object.keys(changes).length > 0) {
-      await logTeamMemberChange(
-        'updated',
-        session.user.id,
-        updated.name,
-        changes,
-        req
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      member: {
-        id: updated.id,
-        name: updated.name,
-        email: updated.email,
-        role: updated.role,
-      }
-    })
-  } catch (error) {
-    console.error('Profile update error:', error)
+  if ('name' in data || 'email' in data) {
     return NextResponse.json(
-      { error: 'Failed to update profile' },
-      { status: 500 }
+      { error: 'You cannot change your own name or email. Please contact HR or Admin.' },
+      { status: 403 },
     )
   }
+
+  return NextResponse.json(
+    { error: 'No self-editable profile fields. Please contact HR or Admin to update your profile.' },
+    { status: 400 },
+  )
 }

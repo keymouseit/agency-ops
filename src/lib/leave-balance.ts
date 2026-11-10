@@ -8,6 +8,7 @@ import {
   SHORT_LEAVE_MONTHLY_CAP,
   accrualMonthsForYear,
   compOffRequestDayCost,
+  leavePaidDeduction,
   leaveRequestDayCost,
   monthlyAccrualStep,
   splitPaidUnpaid,
@@ -112,9 +113,9 @@ export async function syncShortLeaveBalance(memberId: string, year = istYearAndM
 
   const member = await prisma.teamMember.findUnique({
     where: { id: memberId },
-    select: { createdAt: true },
+    select: { createdAt: true, joiningDate: true },
   })
-  const joinedAt = member?.createdAt ?? new Date()
+  const joinedAt = member?.joiningDate ?? member?.createdAt ?? new Date()
   const monthTarget = accrualMonthsForYear(joinedAt, year)
 
   const existing = await prisma.leaveBalance.findUnique({
@@ -356,17 +357,59 @@ export async function assertLeaveTypePolicy(opts: {
   }
 }
 
+/**
+ * Paid days already reserved by this member's other PENDING requests.
+ * Each pending request stored its paid/unpaid split when it was applied, so
+ * those paid days are spoken for even though `used` only moves on approval.
+ */
+export async function getPendingPaidReservation(
+  memberId: string,
+  year = istYearAndMonth().year,
+  opts?: { excludeLeaveId?: string }
+) {
+  const yearStart = startOfYear(new Date(year, 0, 1))
+  const yearEnd = endOfYear(new Date(year, 0, 1))
+  const pending = await prisma.leaveRequest.findMany({
+    where: {
+      memberId,
+      status: 'pending',
+      leaveType: { notIn: ['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave'] },
+      startDate: { gte: yearStart, lte: yearEnd },
+      ...(opts?.excludeLeaveId ? { id: { not: opts.excludeLeaveId } } : {}),
+    },
+    select: {
+      leaveType: true,
+      startDate: true,
+      endDate: true,
+      unpaid: true,
+      paidDays: true,
+      unpaidDays: true,
+    },
+  })
+  const reserved = pending.reduce((sum, l) => sum + leavePaidDeduction(l), 0)
+  return Number(reserved.toFixed(2))
+}
+
+/**
+ * Decide the paid / unpaid (LWP) split at APPLY time and store it on the request.
+ * Uses the balance available right now minus paid days already reserved by other
+ * pending requests, so two advance bookings can't both claim the same paid day and
+ * next month's accrual can never turn an unpaid day into a paid one.
+ */
 export async function computeLeaveBalanceSplit(
   memberId: string,
   leaveType: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  opts?: { excludeLeaveId?: string }
 ) {
   const dayCost = leaveRequestDayCost(leaveType, startDate, endDate)
   if (dayCost <= 0) {
-    return { dayCost: 0, paidDays: 0, unpaidDays: 0, unpaid: false }
+    return { dayCost: 0, paidDays: 0, unpaidDays: 0, unpaid: false, available: 0, reserved: 0 }
   }
   const { available } = await getAvailableLeaveDays(memberId)
-  const split = splitPaidUnpaid(dayCost, available)
-  return { dayCost, ...split }
+  const reserved = await getPendingPaidReservation(memberId, istYearAndMonth().year, opts)
+  const free = Math.max(0, Number((available - reserved).toFixed(2)))
+  const split = splitPaidUnpaid(dayCost, free)
+  return { dayCost, ...split, available: free, reserved }
 }

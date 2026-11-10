@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import MemberNameLink from '@/components/MemberNameLink'
 import {
   ResponsiveContainer,
   BarChart,
@@ -319,7 +320,10 @@ export default function EmployeeReportCeoView({
   findings,
   onOpenWeek,
   onOpenProject,
+  canLinkMember = false,
 }: {
+  /** Viewer can open /settings/team/[id] — the hero name links there. */
+  canLinkMember?: boolean
   employees: Employee[]
   selected: Employee
   memberId: string
@@ -637,7 +641,9 @@ export default function EmployeeReportCeoView({
                   {trend.label}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selected.name}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+                <MemberNameLink memberId={selected.id} name={selected.name} canLink={canLinkMember} />
+              </h2>
               <p className="text-sm text-gray-500 mt-0.5">
                 {selected.role} · {fmtDate(report.range.from)} – {fmtDate(report.range.to, true)}
               </p>

@@ -14,7 +14,10 @@ export const ROLE_ACCESS: Record<string, string[]> = {
   BD:      ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
   Dev:     ['/me', '/account', '/projects', '/checkin', '/daily', '/estimate', '/leaves'],
   QA:      ['/me', '/account', '/qa', '/checkin', '/daily', '/leaves'],
-  HR:           ['/me', '/account', '/team', '/daily', '/leaves'],
+  // HR: '/settings' prefix covers Settings → Team members and /settings/team/[id]. The
+  // settings page renders only the Team members tab for HR; audit log and the other
+  // settings tabs/APIs stay Founder/Manager-gated server-side.
+  HR:           ['/me', '/account', '/team', '/daily', '/leaves', '/settings'],
   SocialMedia:  ['/me', '/account', '/checkin', '/daily', '/leaves'],
   Both:         ['/me', '/account', '/pipeline', '/projects', '/qa', '/checkin', '/daily', '/estimate', '/mom', '/campaigns', '/salesrobot', '/leaves'],
 }
@@ -73,18 +76,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id   = user.id ?? ''
         token.role = (user as { role: string }).role
         token.name = user.name ?? ''
         token.email = user.email ?? ''
       }
-      // Handle session updates (e.g., when profile is updated)
-      if (trigger === 'update' && session) {
-        token.name = session.name as string
-        token.email = session.email as string
-      }
+      // Name/email are only editable by HR/Admin, so never accept them from a
+      // client-side session update (useSession().update) — that would let a user
+      // spoof the email used for lookups/authorization. They refresh on next sign-in.
       return token
     },
     async session({ session, token }) {

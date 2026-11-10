@@ -9,6 +9,8 @@ import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
 import { splitNoMorningPlan } from '@/lib/missing-plan-reminder'
+import { getNonWorkingHoliday } from '@/lib/holidays'
+import { canViewMemberDetail } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +31,8 @@ export default async function DailyPage({
   const isFounder = session.user.role === 'Founder'
   const viewMode = searchParams.view || 'team'
   const showTeamView = isFounder && viewMode === 'team'
+  // Member names link to /settings/team/[id] only in the Team view.
+  const linkMemberNames = showTeamView && canViewMemberDetail(session.user.role)
 
   const [members, logs, pendingPastEodLog] = await Promise.all([
     showTeamView
@@ -61,7 +65,7 @@ export default async function DailyPage({
   const myLog = logs.find(l => l.memberId === session.user.id)
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
   const canNewPlan = isToday && !!myLog?.eodSubmittedAt
-
+  const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const membersWithLog = new Set(logs.map(l => l.memberId))
   const expectedBatch = showTeamView
     ? await getExpectedHoursBatch(
@@ -71,13 +75,18 @@ export default async function DailyPage({
       )
     : null
   const dateKey = businessDayKey(targetDate)
-  // Shared with the 15:00 IST Slack reminder (/api/cron/missing-plan-reminder) so counts match.
-  const {
-    cadenceMembers,
-    noPlan,
-    onLeaveNoPlan,
-    isOnFullDayLeave: onFullDayLeave,
-  } = splitNoMorningPlan(members, membersWithLog, expectedBatch, dateKey)
+  const onFullDayLeave = (memberId: string) => {
+    const day = expectedBatch?.get(memberId)?.get(dateKey)
+    return Boolean(day && day.expectedHours <= 0)
+  }
+  // National / public holiday: nobody is expected to plan, so no "No morning plan" / "On leave" lists.
+  const dayHoliday = await getNonWorkingHoliday(dateKey)
+  const noPlan = dayHoliday
+    ? []
+    : cadenceMembers.filter(m => !membersWithLog.has(m.id) && !onFullDayLeave(m.id))
+  const onLeaveNoPlan = dayHoliday
+    ? []
+    : cadenceMembers.filter(m => !membersWithLog.has(m.id) && onFullDayLeave(m.id))
   const noEOD = logs.filter(
     l =>
       requiresDailyCadence(l.member.role) &&
@@ -157,6 +166,16 @@ export default async function DailyPage({
         pendingEodLogId={pendingPastEodLog?.id}
       />
 
+      {dayHoliday && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          <span aria-hidden>🎉</span>
+          <span>
+            <span className="font-semibold">Holiday · {dayHoliday.name}</span> — no plan or EOD is expected
+            {isToday ? ' today' : ' on this day'}. Anyone working can still add a plan.
+          </span>
+        </div>
+      )}
+
       {showTeamView && isToday && (
         <DailyAlerts noPlan={noPlan} noEOD={noEOD} onLeave={onLeaveNoPlan} blockers={hasBlockers} />
       )}
@@ -173,6 +192,7 @@ export default async function DailyPage({
               log={log}
               isToday={isToday}
               currentUserId={session.user.id}
+              linkMemberName={linkMemberNames}
             />
           ))}
         </div>

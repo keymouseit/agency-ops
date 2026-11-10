@@ -5,6 +5,7 @@ import { listNotificationEmailGroups } from '@/lib/notification-emails'
 import { listDailyTaskTypes } from '@/lib/daily-task-types'
 import { redirect } from 'next/navigation'
 import SettingsClient from './SettingsClient'
+import { canEditTeam } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,8 @@ export default async function SettingsPage({
   if (!userRole || !['Founder', 'Manager', 'HR'].includes(userRole)) {
     redirect('/')
   }
+  // HR only gets the Team members tab — other tabs' data is never loaded or sent.
+  const teamOnly = userRole === 'HR'
 
   // Fetch team members
   const members = await prisma.teamMember.findMany({
@@ -28,6 +31,19 @@ export default async function SettingsPage({
       { name: 'asc' },
     ],
   })
+
+  if (teamOnly) {
+    return (
+      <SettingsClient
+        members={members}
+        teamOnly
+        viewerRole={userRole}
+        canEditBranding={false}
+        canManageTeam={canEditTeam(userRole)}
+        initialTab="team"
+      />
+    )
+  }
 
   const branding = await getBranding()
   const [notificationGroups, dailyTaskTypes] = await Promise.all([
@@ -38,9 +54,10 @@ export default async function SettingsPage({
   return (
     <SettingsClient
       members={members}
+      viewerRole={userRole}
       branding={branding}
       canEditBranding={userRole === 'Founder'}
-      canManageTeam={userRole === 'Founder' || userRole === 'Manager'}
+      canManageTeam={canEditTeam(userRole)}
       notificationGroups={notificationGroups}
       dailyTaskTypes={dailyTaskTypes}
       initialTab={searchParams?.tab}

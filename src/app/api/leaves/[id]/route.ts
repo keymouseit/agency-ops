@@ -8,7 +8,7 @@ import {
 } from '@/lib/leave-balance'
 import { revalidateLeavePages } from '@/lib/cache-tags'
 import { runInBackground } from '@/lib/background'
-import { formatIstDate } from '@/lib/ist'
+import { formatIstDate, istDateInputValue } from '@/lib/ist'
 import { notifyFounderLeaveEvent } from '@/lib/push-notifications'
 
 const ADMIN_ROLES = ['Founder', 'HR', 'Manager']
@@ -71,12 +71,23 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       excludeId: id,
     })
 
-    const split = await computeLeaveBalanceSplit(
-      existingLeave.memberId,
-      nextType,
-      nextStart,
-      nextEnd
-    )
+    // Paid/unpaid is decided when the leave is applied. If only the reason (or
+    // slot) changes, keep the stored split so a later month's accrual can't turn
+    // unpaid days into paid ones. Changing type or dates is a re-application:
+    // re-split against today's balance minus the member's other pending requests.
+    const sameShape =
+      nextType === existingLeave.leaveType &&
+      istDateInputValue(nextStart) === istDateInputValue(existingLeave.startDate) &&
+      istDateInputValue(nextEnd) === istDateInputValue(existingLeave.endDate)
+    const split = sameShape
+      ? {
+          unpaid: existingLeave.unpaid,
+          paidDays: existingLeave.paidDays,
+          unpaidDays: existingLeave.unpaidDays,
+        }
+      : await computeLeaveBalanceSplit(existingLeave.memberId, nextType, nextStart, nextEnd, {
+          excludeLeaveId: id,
+        })
 
     const updatedLeave = await prisma.leaveRequest.update({
       where: { id },

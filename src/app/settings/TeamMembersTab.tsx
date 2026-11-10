@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { canEditMember } from '@/lib/team-permissions'
 
 type Member = {
   id: string
@@ -11,127 +12,38 @@ type Member = {
   active: boolean
   createdAt: Date
   birthday?: Date | string | null
-}
-
-function toDateInput(v: Date | string | null | undefined): string {
-  if (!v) return ''
-  const d = typeof v === 'string' ? new Date(v) : v
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toISOString().slice(0, 10)
+  designation?: string | null
+  joiningDate?: Date | string | null
 }
 
 export default function TeamMembersTab({
   members: initialMembers,
   canManage = true,
+  viewerRole,
 }: {
   members: Member[]
   canManage?: boolean
+  /** Logged-in user's role — HR cannot assign Founder/Manager or edit those members. */
+  viewerRole?: string
 }) {
+  // When viewerRole is unknown, keep legacy behaviour (API still enforces).
+  const canEditRow = (m: Member) => canManage && (!viewerRole || canEditMember(viewerRole, m.role))
+  const canViewAuditLog = !viewerRole || viewerRole === 'Founder'
   const router = useRouter()
-  const [members, setMembers] = useState(initialMembers)
+  // Read members straight from props so router.refresh() shows fresh data
+  const members = initialMembers
   const [searchQuery, setSearchQuery] = useState('')
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: 'Dev',
-    password: '',
-    active: true,
-    birthday: '',
-  })
 
   const filteredMembers = members.filter(m =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.role.toLowerCase().includes(searchQuery.toLowerCase())
+    m.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (m.designation ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const activeCount = members.filter(m => m.active).length
   const inactiveCount = members.filter(m => !m.active).length
-
-  function openAddForm() {
-    setFormData({ name: '', email: '', role: 'Dev', password: '', active: true, birthday: '' })
-    setEditingMember(null)
-    setShowAddForm(true)
-    setError('')
-  }
-
-  function openEditForm(member: Member) {
-    setFormData({
-      name: member.name,
-      email: member.email,
-      role: member.role,
-      password: '', // Don't show password
-      active: member.active,
-      birthday: toDateInput(member.birthday),
-    })
-    setEditingMember(member)
-    setShowAddForm(true)
-    setError('')
-  }
-
-  function closeForm() {
-    setShowAddForm(false)
-    setEditingMember(null)
-    setFormData({
-      name: '',
-      email: '',
-      role: 'Dev',
-      password: '',
-      active: true,
-      birthday: '',
-    })
-    setError('')
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      const url = editingMember ? `/api/team/${editingMember.id}` : '/api/team'
-      const method = editingMember ? 'PATCH' : 'POST'
-
-      const body: any = {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        active: formData.active,
-        birthday: formData.birthday || null,
-      }
-
-      // Only include password for new members or if changed
-      if (!editingMember && formData.password) {
-        body.password = formData.password
-      } else if (editingMember && formData.password) {
-        body.password = formData.password
-      }
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Failed to save member')
-      }
-
-      closeForm()
-      router.refresh()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function toggleActive(member: Member) {
     if (!confirm(`Are you sure you want to ${member.active ? 'deactivate' : 'activate'} ${member.name}?`)) {
@@ -170,9 +82,9 @@ export default function TeamMembersTab({
           </p>
         </div>
         {canManage && (
-          <button onClick={openAddForm} className="btn-primary text-sm">
+          <Link href="/settings/team/new" prefetch={false} className="btn-primary text-sm">
             + Add Member
-          </button>
+          </Link>
         )}
       </div>
 
@@ -196,7 +108,7 @@ export default function TeamMembersTab({
       <div className="mb-4">
         <input
           type="text"
-          placeholder="Search by name, email, or role..."
+                      placeholder="Search by name, email, role, or designation..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="input w-full max-w-md"
@@ -225,6 +137,9 @@ export default function TeamMembersTab({
                   >
                     {member.name}
                   </Link>
+                  {member.designation && (
+                    <div className="text-xs text-gray-500 mt-0.5">{member.designation}</div>
+                  )}
                 </td>
                 <td className="px-3 py-3 text-gray-600">{member.email}</td>
                 <td className="px-3 py-3">
@@ -256,15 +171,15 @@ export default function TeamMembersTab({
                     >
                       View
                     </Link>
-                    {canManage && (
+                    {canEditRow(member) && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => openEditForm(member)}
+                        <Link
+                          href={`/settings/team/${member.id}/edit`}
+                          prefetch={false}
                           className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                         >
                           Edit
-                        </button>
+                        </Link>
                         <button
                           type="button"
                           onClick={() => toggleActive(member)}
@@ -294,123 +209,8 @@ export default function TeamMembersTab({
         </table>
       </div>
 
-      {/* Add/Edit Form Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
-              {editingMember ? 'Edit Team Member' : 'Add Team Member'}
-            </h3>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="label">Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="input w-full"
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div>
-                <label className="label">Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  className="input w-full"
-                  placeholder="john@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="label">Role *</label>
-                <select
-                  value={formData.role}
-                  onChange={e => setFormData({ ...formData, role: e.target.value })}
-                  className="input w-full"
-                >
-                  <option value="BD">BD</option>
-                  <option value="Dev">Dev</option>
-                  <option value="QA">QA</option>
-                  <option value="Both">Both</option>
-                  <option value="HR">HR</option>
-                  <option value="SocialMedia">Social Media</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Founder">Founder</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="label">Birthday</label>
-                <input
-                  type="date"
-                  value={formData.birthday}
-                  onChange={e => setFormData({ ...formData, birthday: e.target.value })}
-                  className="input w-full"
-                />
-              </div>
-
-              <div>
-                <label className="label">
-                  Password {!editingMember && '*'}
-                  {editingMember && <span className="text-xs text-gray-500 font-normal ml-1">(leave blank to keep unchanged)</span>}
-                </label>
-                <input
-                  type="password"
-                  required={!editingMember}
-                  value={formData.password}
-                  onChange={e => setFormData({ ...formData, password: e.target.value })}
-                  className="input w-full"
-                  placeholder={editingMember ? 'Enter new password...' : 'Enter password...'}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="active"
-                  checked={formData.active}
-                  onChange={e => setFormData({ ...formData, active: e.target.checked })}
-                />
-                <label htmlFor="active" className="text-sm text-gray-700 cursor-pointer">
-                  Active (member can log in)
-                </label>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-primary flex-1"
-                >
-                  {loading ? 'Saving...' : editingMember ? 'Update Member' : 'Add Member'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="btn-secondary flex-1"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Team Activity Log */}
+      {/* Team Activity Log (audit log is Founder-only) */}
+      {canViewAuditLog && (
       <div className="mt-8">
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
@@ -433,6 +233,7 @@ export default function TeamMembersTab({
           </p>
         </div>
       </div>
+      )}
     </div>
   )
 }

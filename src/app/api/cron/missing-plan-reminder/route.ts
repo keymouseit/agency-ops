@@ -16,7 +16,9 @@ function isAuthorized(request: Request) {
 /**
  * Mon–Fri 15:00 IST (09:30 UTC) — post ONE Slack message in #general mentioning
  * active members with no morning plan today (same list as Daily ops "NO MORNING PLAN",
- * minus attendanceExcluded). Skips weekends, confirmed holidays, and empty lists.
+ * minus attendanceExcluded). Skips weekends, national/public holidays from the Holiday
+ * table (returns { skipped: 'holiday', holidayName }), and empty lists. If the Holiday table
+ * can't be read it posts nothing (skipped: 'holiday_check_failed'). Floating holidays don't skip.
  *
  * `?dryRun=1` returns the computed list + message text without posting.
  * `?dryRun=1&date=YYYY-MM-DD` previews another IST day (dry-run only).

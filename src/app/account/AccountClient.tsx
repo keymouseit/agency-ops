@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import ProfileTab from './ProfileTab'
+import { useState, type ReactNode } from 'react'
 import SecurityTab from './SecurityTab'
 import NotificationsTab from './NotificationsTab'
 import EntityAuditTrail from '@/components/EntityAuditTrail'
@@ -14,6 +13,7 @@ type Member = {
   role: string
   active: boolean
   createdAt: Date
+  designation?: string | null
 }
 
 const TABS = [
@@ -21,9 +21,15 @@ const TABS = [
   { id: 'notifications' as const, label: 'Notifications', icon: '🔔' },
 ]
 
-export default function AccountClient({ member }: { member: Member }) {
+export default function AccountClient({
+  member,
+  profileDetails,
+}: {
+  member: Member
+  /** Server-rendered read-only profile details card (designation, DOB, joining date…). */
+  profileDetails?: ReactNode
+}) {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications'>('profile')
-  const [auditRefreshKey, setAuditRefreshKey] = useState(0)
   const roleCls = ROLE_COLORS[member.role] ?? 'bg-gray-100 text-gray-700'
   const initials = member.name
     .split(' ')
@@ -42,6 +48,9 @@ export default function AccountClient({ member }: { member: Member }) {
             </span>
             <div className="min-w-0">
               <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Account settings</h1>
+              {member.designation && (
+                <p className="text-sm font-medium text-gray-700 truncate">{member.designation}</p>
+              )}
               <p className="text-sm text-gray-500 truncate">{member.email}</p>
               <span className={`inline-flex mt-1.5 text-[11px] px-2 py-0.5 rounded-full font-medium ${roleCls}`}>
                 {member.role === 'SocialMedia' ? 'Social Media' : member.role}
@@ -72,9 +81,7 @@ export default function AccountClient({ member }: { member: Member }) {
       </div>
 
       <div>
-        {activeTab === 'profile' && (
-          <ProfileTab member={member} onSave={() => setAuditRefreshKey(prev => prev + 1)} />
-        )}
+        {activeTab === 'profile' && profileDetails}
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'notifications' && <NotificationsTab memberId={member.id} />}
       </div>
@@ -83,7 +90,6 @@ export default function AccountClient({ member }: { member: Member }) {
         entityType="TeamMember"
         entityId={member.id}
         title="Account activity"
-        refreshKey={auditRefreshKey}
       />
     </div>
   )

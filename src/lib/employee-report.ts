@@ -3,7 +3,7 @@ import { assignedToMemberWhere } from '@/lib/project-assignees'
 import { businessDayKey, businessDayStart } from '@/lib/daily'
 import { getEmployeeLeaveUsage } from '@/lib/leave-usage'
 import { computeExpectedHoursForDay, STANDARD_DAY_HOURS } from '@/lib/expected-hours'
-import { getHolidayName, isHoliday } from '@/lib/holidays'
+import { getNonWorkingHolidayMap } from '@/lib/holidays'
 import { milestoneListOrderBy } from '@/lib/project-queries'
 import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import { differenceInCalendarDays } from 'date-fns'
@@ -387,14 +387,16 @@ export async function getEmployeeReport(memberId: string, range: EmployeeReportR
   )
 
   const weekdayKeys = eachWeekdayKeys(from, toEnd)
+  // Company days off (national / public) from the Holiday table — one query per report.
+  const holidayMap = await getNonWorkingHolidayMap(businessDayKey(from), businessDayKey(toEnd))
 
   const hoursByDay = weekdayKeys.map(dateKey => {
     const log = logsByDate.get(dateKey)
     const dayDate = businessDayStart(dateKey)
     const isPast = dayDate < today
     const isToday = dayDate.getTime() === today.getTime()
-    const holidayName = getHolidayName(dateKey)
-    const dayIsHoliday = isHoliday(dateKey)
+    const holidayName = holidayMap.get(dateKey) ?? null
+    const dayIsHoliday = holidayMap.has(dateKey)
 
     // Leave-adjusted target (approved leave only; leaveUsage is already filtered).
     // Holidays: expected 0 — excluded like weekends from missing/plan denominators.

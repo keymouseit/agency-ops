@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { OnLeaveTodayPerson } from '@/lib/leave-today'
+import MemberNameLink from '@/components/MemberNameLink'
 
 export function leaveTypeBadgeClass(leaveType: string) {
   if (leaveType === 'short_leave') return 'bg-sky-100 text-sky-900 border-sky-200'
@@ -11,15 +12,19 @@ export function leaveTypeBadgeClass(leaveType: string) {
   return 'bg-red-500 text-white border-red-600'
 }
 
-type OnLeaveTodayRow = Pick<OnLeaveTodayPerson, 'leaveId' | 'name' | 'role' | 'leaveType' | 'label'>
+type OnLeaveTodayRow = Pick<OnLeaveTodayPerson, 'leaveId' | 'name' | 'role' | 'leaveType' | 'label'> &
+  Partial<Pick<OnLeaveTodayPerson, 'memberId'>>
 
 /** Shared row list used by Dev "Today's Attendance" and Founder "Out today". */
 export function OnLeaveTodayPeopleList({
   people,
   emptyMessage = 'No one is on leave or working from home today.',
+  linkNames = false,
 }: {
   people: OnLeaveTodayRow[]
   emptyMessage?: string
+  /** Link each name to /settings/team/[memberId] (only when the viewer can open it). */
+  linkNames?: boolean
 }) {
   if (people.length === 0) {
     return <p className="text-sm text-gray-500">{emptyMessage}</p>
@@ -33,7 +38,9 @@ export function OnLeaveTodayPeopleList({
           className="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5 hover:bg-gray-50/80 transition-colors"
         >
           <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">{p.name}</div>
+            <div className="text-sm font-medium text-gray-900 truncate">
+              <MemberNameLink memberId={p.memberId} name={p.name} canLink={linkNames} />
+            </div>
             <div className="text-[11px] text-gray-500">{p.role}</div>
           </div>
           <span

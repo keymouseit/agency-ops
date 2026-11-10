@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { businessDayKey, businessDayStart, requiresDailyCadence } from '@/lib/daily'
 import { getExpectedHoursBatch, type ExpectedHoursBatch } from '@/lib/expected-hours'
-import { getHolidayName } from '@/lib/holidays'
+import { checkReminderHoliday } from '@/lib/holidays'
 import { isIstWeekend } from '@/lib/ist'
 import { logger } from '@/lib/logger'
 import {
@@ -110,8 +110,12 @@ export type MissingPlanReminderResult = {
   ok: boolean
   dateKey: string
   dryRun: boolean
-  skipped?: 'weekend' | 'holiday' | 'nobody_missing' | 'no_slack_config'
+  skipped?: 'weekend' | 'holiday' | 'holiday_check_failed' | 'nobody_missing' | 'no_slack_config'
+  /** Name of the national/public holiday that caused the skip (also set for a floating holiday, which does NOT skip). */
   holidayName?: string | null
+  holidayType?: string | null
+  /** Present when skipped === 'holiday_check_failed' (Holiday table unreadable → fail-safe, nothing posted). */
+  holidayError?: string
   missing: Array<{ name: string; email: string; mention: string; slackUserId: string | null; lookupError?: string; leaveHint: string | null }>
   dailyOpsNoPlan: string[]
   excludedAttendance: string[]
@@ -130,8 +134,32 @@ export async function runMissingPlanReminder(opts: { dryRun?: boolean; now?: Dat
   const now = opts.now ?? new Date()
   const dryRun = Boolean(opts.dryRun)
   const dateKey = businessDayKey(now)
-  const holidayName = getHolidayName(dateKey)
   const weekend = isIstWeekend(now)
+
+  const emptyResult = (extra: Partial<MissingPlanReminderResult>): MissingPlanReminderResult => ({
+    ok: true,
+    dateKey,
+    dryRun,
+    missing: [],
+    dailyOpsNoPlan: [],
+    excludedAttendance: [],
+    onFullDayLeave: [],
+    message: null,
+    posted: false,
+    ...extra,
+  })
+
+  // Weekends / company holidays: exit before any DB list or Slack lookup.
+  if (weekend) return emptyResult({ skipped: 'weekend' })
+  const holidayCheck = await checkReminderHoliday(dateKey, 'missing-plan-reminder')
+  if (holidayCheck.skip) {
+    return holidayCheck.reason === 'holiday'
+      ? emptyResult({ skipped: 'holiday', holidayName: holidayCheck.holiday.name, holidayType: holidayCheck.holiday.type })
+      : emptyResult({ skipped: 'holiday_check_failed', holidayError: holidayCheck.error })
+  }
+  // Floating holiday (optional): reminder still runs; people on approved leave are excluded below.
+  const holidayName = holidayCheck.holiday?.name ?? null
+  const holidayType = holidayCheck.holiday?.type ?? null
 
   const data = await getMissingMorningPlanMembers(now)
   const names = (list: MissingPlanMember[]) => list.map(m => m.name)
@@ -140,6 +168,7 @@ export async function runMissingPlanReminder(opts: { dryRun?: boolean; now?: Dat
     dateKey,
     dryRun,
     holidayName,
+    holidayType,
     dailyOpsNoPlan: names(data.dailyOpsNoPlan),
     excludedAttendance: names(data.excludedAttendance),
     onFullDayLeave: names(data.onFullDayLeave),
@@ -169,8 +198,6 @@ export async function runMissingPlanReminder(opts: { dryRun?: boolean; now?: Dat
   const message = missing.length ? buildMissingPlanMessage(missing.map(m => m.mention)) : null
   const result: MissingPlanReminderResult = { ok: true, ...base, missing, message, posted: false }
 
-  if (weekend) return { ...result, skipped: 'weekend' }
-  if (holidayName) return { ...result, skipped: 'holiday' }
   if (!message) return { ...result, skipped: 'nobody_missing' }
   if (dryRun) return result
 

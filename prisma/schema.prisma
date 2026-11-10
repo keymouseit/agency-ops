@@ -15,6 +15,10 @@ model TeamMember {
   active    Boolean  @default(true)
   /// Birthday (date portion used; year may be placeholder)
   birthday  DateTime?
+  /// Job title shown on the profile (separate from the system access `role`)
+  designation String?
+  /// Official joining date / work anniversary (date portion used; falls back to createdAt when null)
+  joiningDate DateTime?
   /// When true, member is omitted from HR attendance tracking
   attendanceExcluded Boolean @default(false)
   createdAt DateTime @default(now())
@@ -58,6 +62,9 @@ model TeamMember {
   compOffGrants          CompOffGrant[]      @relation("EmployeeCompOffGrants")
   compOffGrantsGiven     CompOffGrant[]      @relation("GrantedCompOffBy")
   deviceTokens           DeviceToken[]
+  celebrationEmailLogs   CelebrationEmailLog[]
+  documents              EmployeeDocument[]  @relation("MemberDocuments")
+  documentsUploaded      EmployeeDocument[]  @relation("DocumentsUploaded")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -1210,4 +1217,51 @@ model DeviceToken {
   updatedAt DateTime   @updatedAt
 
   @@index([memberId])
+}
+
+/// One row per celebration email actually sent (idempotency guard for the daily cron).
+model CelebrationEmailLog {
+  id             String     @id @default(cuid())
+  kind           String     // "birthday" | "work_anniversary"
+  memberId       String
+  member         TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  dateKey        String     // YYYY-MM-DD (IST calendar day the email was for)
+  recipientCount Int
+  sentAt         DateTime   @default(now())
+
+  @@unique([kind, memberId, dateKey])
+  @@index([memberId])
+}
+
+/// Employee documents (ID proofs, resume, letters, certificates, salary slips).
+/// Files live in a private Vercel Blob store; only metadata is stored here.
+model EmployeeDocument {
+  id           String     @id @default(cuid())
+  memberId     String
+  member       TeamMember @relation("MemberDocuments", fields: [memberId], references: [id], onDelete: Cascade)
+  type         String     // see EMPLOYEE_DOCUMENT_TYPES in src/lib/employee-documents.ts
+  label        String?
+  fileName     String
+  blobPathname String
+  blobUrl      String
+  mimeType     String
+  size         Int
+  uploadedById String
+  uploadedBy   TeamMember @relation("DocumentsUploaded", fields: [uploadedById], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([memberId, type])
+}
+
+/// Company holiday calendar (IST dates). Managed on /leaves/holidays by HR / Founder / Manager.
+/// type: national | public | floating | sunday — national/public (and sunday) are company-wide
+/// days off (no reminders, expected hours 0); floating is optional (reminders still run).
+model Holiday {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  name      String
+  type      String   @default("public")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

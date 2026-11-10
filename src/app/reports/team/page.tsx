@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { CardSectionFallback } from '@/components/SectionFallbacks'
 import EmployeeReportClient from '../employee/EmployeeReportClient'
 import TeamTab from './TeamTab'
+import { canViewMemberDetail } from '@/lib/team-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,13 @@ function one(v: string | string[] | undefined) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-async function IndividualSection({ searchParams }: { searchParams: SearchParams }) {
+async function IndividualSection({
+  searchParams,
+  viewerRole,
+}: {
+  searchParams: SearchParams
+  viewerRole: string
+}) {
   const employees = await prisma.teamMember.findMany({
     where: { active: true },
     select: { id: true, name: true, email: true, role: true },
@@ -37,6 +44,7 @@ async function IndividualSection({ searchParams }: { searchParams: SearchParams 
       key={memberId ?? 'default'}
       employees={employees}
       embedded
+      canLinkMember={canViewMemberDetail(viewerRole)}
       initialMemberId={memberId && employees.some(e => e.id === memberId) ? memberId : undefined}
       initialRange={initialRange === 'custom' && !validCustom ? 'month' : initialRange}
       initialFrom={validCustom ? from : undefined}
@@ -82,7 +90,7 @@ export default async function TeamReportPage({ searchParams }: { searchParams: S
         key={`individual:${one(searchParams.memberId) ?? ''}:${one(searchParams.range) ?? ''}`}
         fallback={<SectionFallback />}
       >
-        <IndividualSection searchParams={searchParams} />
+        <IndividualSection searchParams={searchParams} viewerRole={member.role} />
       </Suspense>
 
       <div className="mt-10 pt-8 border-t border-gray-200">

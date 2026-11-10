@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { businessDayKey, businessDayStart, MAX_DAILY_PLAN_HOURS } from '@/lib/daily'
+import { getNonWorkingHolidayMap } from '@/lib/holidays'
 /** Standard working day used for utilisation / missing-hours targets. */
 export const STANDARD_DAY_HOURS = MAX_DAILY_PLAN_HOURS // 8
 
@@ -35,6 +36,11 @@ export type ExpectedHoursDay = {
   /** Neutral UI hint, e.g. "Short leave · expected 6h" or "On leave". Null when no reducing leave. */
   leaveHint: string | null
   isFullDayLeave: boolean
+  /**
+   * Set (batch only) when the day is a company national/public holiday from the
+   * Holiday table — expectedHours is then 0 and leaveHint is "Holiday · <name>".
+   */
+  holidayName?: string | null
 }
 
 /**
@@ -198,16 +204,24 @@ export type ExpectedHoursBatch = Map<string, Map<string, ExpectedHoursDay>>
  * Batch expected hours for many members over an inclusive date range.
  * One leave query — avoids N+1. Weekends still return 8 (or leave-adjusted);
  * callers that skip weekends should filter date keys themselves.
+ * National / public holidays (Holiday table) return expectedHours 0 with
+ * `holidayName` set, unless opts.includeHolidays === false.
  */
 export async function getExpectedHoursBatch(
   memberIds: string[],
   from: Date | string,
   to: Date | string,
+  opts: { includeHolidays?: boolean } = {},
 ): Promise<ExpectedHoursBatch> {
   const uniqueIds = [...new Set(memberIds)]
   const fromStart = businessDayStart(from)
   const toStart = businessDayStart(to)
-  const leaves = await fetchApprovedLeavesOverlapping(uniqueIds, fromStart, toStart)
+  const [leaves, holidayMap] = await Promise.all([
+    fetchApprovedLeavesOverlapping(uniqueIds, fromStart, toStart),
+    opts.includeHolidays === false
+      ? Promise.resolve(new Map<string, string>())
+      : getNonWorkingHolidayMap(businessDayKey(fromStart), businessDayKey(toStart)),
+  ])
 
   const leavesByMember = new Map<string, typeof leaves>()
   for (const leave of leaves) {
@@ -222,7 +236,21 @@ export async function getExpectedHoursBatch(
     const byDay = new Map<string, ExpectedHoursDay>()
     let cursor = fromStart
     while (businessDayKey(cursor) <= businessDayKey(toStart)) {
-      const day = computeExpectedHoursForDay(cursor, memberLeaves)
+      const computed = computeExpectedHoursForDay(cursor, memberLeaves)
+      const holidayName = holidayMap.get(computed.dateKey)
+      // National / public holiday: nobody is expected to work (not counted as leave).
+      const day: ExpectedHoursDay = holidayName
+        ? {
+            dateKey: computed.dateKey,
+            expectedHours: 0,
+            leaveHoursDeducted: 0,
+            leaveType: null,
+            timeSlot: null,
+            leaveHint: `Holiday · ${holidayName}`,
+            isFullDayLeave: false,
+            holidayName,
+          }
+        : computed
       byDay.set(day.dateKey, day)
       cursor = nextBusinessDayStart(cursor)
     }

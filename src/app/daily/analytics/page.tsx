@@ -8,6 +8,10 @@ import DatePicker from './DatePicker'
 import DailyTrendCharts from './DailyTrendCharts'
 import { shortDisplayName } from '@/lib/employee-order'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
+import MemberNameLink from '@/components/MemberNameLink'
+import { canViewMemberDetail } from '@/lib/team-permissions'
+import { getNonWorkingHoliday, getNonWorkingHolidayMap } from '@/lib/holidays'
+import { isIstWeekend } from '@/lib/ist'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +35,7 @@ export default async function DailyAnalyticsPage({
   if (!session?.user?.id) redirect('/login')
   if (session.user.role !== 'Founder') redirect('/daily')
 
+  const canLinkMembers = canViewMemberDetail(session.user.role)
   const selectedDate = parseSelectedDate(searchParams.date)
   const dateValue = dayKey(selectedDate)
   const isToday = dayKey(selectedDate) === dayKey(new Date())
@@ -61,13 +66,22 @@ export default async function DailyAnalyticsPage({
     selectedDate,
   )
   const selectedKey = dayKey(selectedDate)
+  const [selectedHoliday, trendHolidays] = await Promise.all([
+    getNonWorkingHoliday(selectedKey),
+    getNonWorkingHolidayMap(dayKey(thirtyDaysAgo), dayKey(today)),
+  ])
   const onFullDayLeave = (memberId: string) => {
     const day = expectedBatch.get(memberId)?.get(selectedKey)
     return Boolean(day && day.expectedHours <= 0)
   }
   const submitted = cadenceMembers.filter(m => submittedIds.has(m.id))
-  const missing = cadenceMembers.filter(m => !submittedIds.has(m.id) && !onFullDayLeave(m.id))
-  const onLeave = cadenceMembers.filter(m => !submittedIds.has(m.id) && onFullDayLeave(m.id))
+  // National / public holiday: nobody is "missing" a plan and nobody is "on leave".
+  const missing = selectedHoliday
+    ? []
+    : cadenceMembers.filter(m => !submittedIds.has(m.id) && !onFullDayLeave(m.id))
+  const onLeave = selectedHoliday
+    ? []
+    : cadenceMembers.filter(m => !submittedIds.has(m.id) && onFullDayLeave(m.id))
   const eodPending = dayLogs.filter(
     l =>
       requiresDailyCadence(l.member.role) &&
@@ -114,7 +128,8 @@ export default async function DailyAnalyticsPage({
     }
   })
 
-  const workingDays = days.filter(d => d.getDay() !== 0 && d.getDay() !== 6).length
+  // Mon–Fri in IST, minus national / public holidays.
+  const workingDays = days.filter(d => !isIstWeekend(d) && !trendHolidays.has(dayKey(d))).length
   const memberStats = members.map(m => {
     const myLogs = logs.filter(l => l.memberId === m.id)
     const withPlan = myLogs.filter(l => l.planSubmittedAt)
@@ -229,7 +244,9 @@ export default async function DailyAnalyticsPage({
                 return (
                   <div key={m.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                      <div className="text-sm font-medium text-gray-900">
+                      <MemberNameLink memberId={m.id} name={m.name} canLink={canLinkMembers} />
+                    </div>
                       <div className="text-xs text-gray-400">{m.role}</div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -251,7 +268,11 @@ export default async function DailyAnalyticsPage({
           <h2 className="text-sm font-semibold text-gray-900 mb-3">
             Did not add a daily ({missing.length})
           </h2>
-          {missing.length === 0 ? (
+          {selectedHoliday ? (
+            <p className="text-sm text-indigo-700 font-medium">
+              🎉 Holiday · {selectedHoliday.name} — no plan expected on this date.
+            </p>
+          ) : missing.length === 0 ? (
             <p className="text-sm text-green-700 font-medium">
               {onLeave.length > 0
                 ? 'Everyone else submitted a plan (or is on leave).'
@@ -262,7 +283,9 @@ export default async function DailyAnalyticsPage({
               {missing.map(m => (
                 <div key={m.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      <MemberNameLink memberId={m.id} name={m.name} canLink={canLinkMembers} />
+                    </div>
                     <div className="text-xs text-gray-400">{m.role}</div>
                   </div>
                   <span className="badge bg-red-100 text-red-800">No plan</span>
@@ -278,7 +301,9 @@ export default async function DailyAnalyticsPage({
               {onLeave.map(m => (
                 <div key={m.id} className="flex items-center justify-between gap-3 py-1.5">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      <MemberNameLink memberId={m.id} name={m.name} canLink={canLinkMembers} />
+                    </div>
                     <div className="text-xs text-gray-400">{m.role}</div>
                   </div>
                   <span className="badge bg-slate-100 text-slate-700">On leave</span>

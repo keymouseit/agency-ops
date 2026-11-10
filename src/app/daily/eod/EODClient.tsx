@@ -261,11 +261,14 @@ export default function EODClient({
   projects = [],
   readOnly = false,
   linkedInBdActivity = [],
+  leaveBlockMessage = null,
 }: {
   log: Log
   projects?: Project[]
   readOnly?: boolean
   linkedInBdActivity?: BdAccountActivityRow[]
+  /** Set when the log's day is an approved full-day leave — new tasks are blocked. */
+  leaveBlockMessage?: string | null
 }) {
   const isEditMode = !!log.eodSubmittedAt && !readOnly
   const [taskUpdates, setTaskUpdates] = useState<Record<string, TaskUpdate>>(() =>
@@ -628,13 +631,21 @@ export default function EODClient({
             <button
               type="button"
               onClick={() => setNewTasks(prev => [...prev, emptyNewTask()])}
-              className="btn-secondary text-xs shrink-0"
+              disabled={!!leaveBlockMessage}
+              title={leaveBlockMessage ?? undefined}
+              className="btn-secondary text-xs shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               + Add task
             </button>
           </div>
 
-          {newTasks.length === 0 && (
+          {leaveBlockMessage && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {leaveBlockMessage} You can still update the tasks you planned earlier.
+            </div>
+          )}
+
+          {newTasks.length === 0 && !leaveBlockMessage && (
             <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center text-sm text-gray-400">
               No unplanned tasks yet. Use “+ Add task” if you completed something extra.
             </div>

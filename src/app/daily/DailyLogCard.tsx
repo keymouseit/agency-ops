@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import MemberNameLink from '@/components/MemberNameLink'
 import { dailyTaskTypeColor, dailyTaskTypeLabel, canEditEod } from '@/lib/daily'
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -46,9 +47,11 @@ type Props = {
   log: Log
   isToday: boolean
   currentUserId: string
+  /** Viewer can open /settings/team/[id] — the member name links there. */
+  linkMemberName?: boolean
 }
 
-export default function DailyLogCard({ log, isToday, currentUserId }: Props) {
+export default function DailyLogCard({ log, isToday, currentUserId, linkMemberName = false }: Props) {
   const done = log.tasks.filter(t => t.status === 'done').length
   const total = log.tasks.length
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
@@ -70,7 +73,9 @@ export default function DailyLogCard({ log, isToday, currentUserId }: Props) {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-semibold text-gray-900">{log.member.name}</h3>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  <MemberNameLink memberId={log.memberId} name={log.member.name} canLink={linkMemberName} />
+                </h3>
                 <span className="badge bg-gray-100 text-gray-600 text-[11px]">{log.member.role}</span>
               </div>
               {total > 0 && (

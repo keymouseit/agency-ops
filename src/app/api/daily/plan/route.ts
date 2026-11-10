@@ -6,11 +6,21 @@ import { businessDayStart } from '@/lib/daily'
 import { syncProjectLoggedHours } from '@/lib/project-hours'
 import { invalidateProjectsListCache } from '@/lib/cache-tags'
 import { parseRequiredPositiveHours } from '@/lib/validation'
+import { getPlanLeaveBlock } from '@/lib/leave-plan-block'
 
 export async function POST(req: Request) {
   const authResult = await authorizeRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'HR', 'SocialMedia'])
   if (authResult instanceof NextResponse) return authResult
   const { memberId } = authResult
+
+  // Approved full-day leave locks the Daily Plan for that day (live DB read).
+  const leaveBlock = await getPlanLeaveBlock(memberId, businessDayStart())
+  if (leaveBlock) {
+    return NextResponse.json(
+      { error: leaveBlock.message, code: 'ON_APPROVED_LEAVE', leaveId: leaveBlock.leaveId },
+      { status: 403 },
+    )
+  }
 
   const data = await req.json()
 
