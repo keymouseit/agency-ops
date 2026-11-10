@@ -8,6 +8,7 @@ import DailyAlerts from './DailyAlerts'
 import DailyEmptyState from './DailyEmptyState'
 import DailyLogCard from './DailyLogCard'
 import { getExpectedHoursBatch } from '@/lib/expected-hours'
+import { splitNoMorningPlan } from '@/lib/missing-plan-reminder'
 import { getNonWorkingHoliday } from '@/lib/holidays'
 import { canViewMemberDetail } from '@/lib/team-permissions'
 
@@ -64,12 +65,11 @@ export default async function DailyPage({
   const myLog = logs.find(l => l.memberId === session.user.id)
   const canEditPlan = isToday && !!myLog?.planSubmittedAt && !myLog?.eodSubmittedAt
   const canNewPlan = isToday && !!myLog?.eodSubmittedAt
-
   const cadenceMembers = members.filter(m => requiresDailyCadence(m.role))
   const membersWithLog = new Set(logs.map(l => l.memberId))
   const expectedBatch = showTeamView
     ? await getExpectedHoursBatch(
-        cadenceMembers.map(m => m.id),
+        members.filter(m => requiresDailyCadence(m.role)).map(m => m.id),
         targetDate,
         targetDate,
       )
