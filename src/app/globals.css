@@ -56,6 +56,8 @@ input.date-input {
   padding-bottom: 0.65rem;
   line-height: 1.25;
   background-color: #fff;
+  /* Safari ignores normal min-width on date inputs inside grid/flex */
+  -webkit-min-logical-width: 0;
 }
 
 .label {
@@ -92,6 +94,8 @@ textarea.input {
 .app-main {
   width: min(100%, 1400px);
   max-width: 1400px;
+  min-width: 0;
+  overflow-x: clip;
   margin-left: auto;
   margin-right: auto;
 }
