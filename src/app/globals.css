@@ -46,9 +46,10 @@ body { font-family: var(--font-sans); }
 /* Keep date fields from overflowing flex/grid on iOS, without flattening native height */
 input[type='date'],
 input.date-input {
-  min-width: 0;
-  max-width: 100%;
-  width: 100%;
+  display: block;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
   box-sizing: border-box;
   min-height: 44px;
   padding-top: 0.65rem;
