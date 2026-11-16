@@ -330,14 +330,46 @@ function UserMenuDropdown({
   signingOut: boolean
   onSignOut: () => void
 }) {
+  // Same scroll lock as notifications — block background UI while open
+  useEffect(() => {
+    if (!open) return
+    const scrollY = window.scrollY
+    const { style } = document.body
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    }
+    style.overflow = 'hidden'
+    style.position = 'fixed'
+    style.top = `-${scrollY}px`
+    style.width = '100%'
+    return () => {
+      style.overflow = prev.overflow
+      style.position = prev.position
+      style.top = prev.top
+      style.width = prev.width
+      window.scrollTo(0, scrollY)
+    }
+  }, [open])
+
   if (!open) return null
 
   const roleCls = ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'
 
   return (
     <>
-      <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white shadow-xl z-20 overflow-hidden">
+      <div
+        className="fixed inset-0 z-40 bg-black/25"
+        aria-hidden="true"
+        onClick={onClose}
+        onTouchMove={(e) => e.preventDefault()}
+      />
+      <div
+        className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden"
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="px-4 py-4 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
           <div className="flex items-center gap-3">
             <UserAvatar name={name} size="lg" />
@@ -514,11 +546,28 @@ export default function Nav({
       if (e.key === 'Escape') setMobileNavOpen(false)
     }
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+
+    // iOS/PWA: overflow:hidden alone still allows background scroll
+    const scrollY = window.scrollY
+    const { style } = document.body
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    }
+    style.overflow = 'hidden'
+    style.position = 'fixed'
+    style.top = `-${scrollY}px`
+    style.width = '100%'
+
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      style.overflow = prev.overflow
+      style.position = prev.position
+      style.top = prev.top
+      style.width = prev.width
+      window.scrollTo(0, scrollY)
     }
   }, [mobileNavOpen])
 
@@ -536,7 +585,8 @@ export default function Nav({
 
   return (
     <>
-    <header className="sticky top-0 z-50 bg-gray-50 pt-3 pb-2 px-3 sm:px-0">
+    {/* fixed (not sticky) so PWA/iOS always keeps header pinned while scrolling */}
+    <header className="fixed inset-x-0 top-0 z-50 bg-gray-50 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 px-3 sm:px-0">
       <div className="app-header sm:px-0">
         <div className="flex h-12 items-center gap-2 sm:gap-3 px-2.5 sm:px-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible">
           {/* Mobile menu button */}
@@ -653,8 +703,14 @@ export default function Nav({
         </div>
       </div>
     </header>
+    {/* Spacer matching fixed header height (bar + padding + safe area) */}
+    <div
+      className="shrink-0"
+      style={{ height: 'calc(3.5rem + max(0.75rem, env(safe-area-inset-top)))' }}
+      aria-hidden="true"
+    />
 
-      {/* Outside sticky header so fixed positioning is viewport-relative */}
+      {/* Outside header so fixed positioning is viewport-relative */}
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Navigation menu">
           <button
@@ -662,8 +718,12 @@ export default function Nav({
             className="absolute inset-0 bg-gray-900/40"
             aria-label="Close menu"
             onClick={() => setMobileNavOpen(false)}
+            onTouchMove={(e) => e.preventDefault()}
           />
-          <aside className="absolute top-0 left-0 bottom-0 flex w-[min(100%,20rem)] flex-col bg-white shadow-xl ring-1 ring-black/5 animate-[nav-drawer-in_0.2s_ease-out]">
+          <aside
+            className="absolute top-0 left-0 bottom-0 flex w-[min(100%,20rem)] flex-col bg-white shadow-xl ring-1 ring-black/5 animate-[nav-drawer-in_0.2s_ease-out] pt-[env(safe-area-inset-top)]"
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-[11px] font-bold text-white shrink-0">
