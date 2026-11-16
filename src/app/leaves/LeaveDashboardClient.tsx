@@ -86,14 +86,14 @@ function DateInputWithIcon({
   ...props
 }: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="relative w-full min-w-0 max-w-full">
+    <div className="relative w-full min-w-0 max-w-full overflow-hidden">
       <input
         type="date"
         {...props}
-        className={`date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 pl-3 pr-10 py-3 ${className}`}
+        className={`date-input box-border block w-full max-w-full min-h-[44px] text-[13px] sm:text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 pl-2.5 pr-9 py-3 ${className}`}
       />
-      <span className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400">
-        <CalendarIcon />
+      <span className="pointer-events-none absolute inset-y-0 right-0 flex w-9 items-center justify-center text-gray-400">
+        <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       </span>
     </div>
   )
@@ -1361,9 +1361,12 @@ export default function LeaveDashboardClient({
                     </div>
                   )}
 
-                  {/* Stack on mobile — iOS date inputs have huge intrinsic width and blow out the card */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
-                    <div className="min-w-0 w-full max-w-full">
+                  {/* Always one row; minmax(0,1fr) prevents iOS date min-width overflow */}
+                  <div
+                    className="grid w-full min-w-0 gap-3"
+                    style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}
+                  >
+                    <div className="min-w-0 max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
                       <DateInputWithIcon
                         required
@@ -1372,7 +1375,7 @@ export default function LeaveDashboardClient({
                         min={istDateInputValue()}
                       />
                     </div>
-                    <div className="min-w-0 w-full max-w-full">
+                    <div className="min-w-0 max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
                       <DateInputWithIcon
                         required

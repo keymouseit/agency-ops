@@ -278,6 +278,30 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  // Lock background scroll while notifications are open (PWA / iOS)
+  useEffect(() => {
+    if (!open) return
+    const scrollY = window.scrollY
+    const { style } = document.body
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    }
+    style.overflow = 'hidden'
+    style.position = 'fixed'
+    style.top = `-${scrollY}px`
+    style.width = '100%'
+    return () => {
+      style.overflow = prev.overflow
+      style.position = prev.position
+      style.top = prev.top
+      style.width = prev.width
+      window.scrollTo(0, scrollY)
+    }
+  }, [open])
+
   async function markAllRead() {
     try {
       await fetch('/api/notifications', { method: 'PATCH', credentials: 'include' })
@@ -335,16 +359,18 @@ export default function NotificationBell() {
 
       {open && (
         <>
-          {/* Mobile backdrop — keeps panel fully on-screen in PWA */}
+          {/* Backdrop blocks background scroll/taps while open */}
           <div
-            className="fixed inset-0 z-40 bg-black/25 sm:hidden"
+            className="fixed inset-0 z-40 bg-black/25"
             aria-hidden="true"
             onClick={() => setOpen(false)}
+            onTouchMove={(e) => e.preventDefault()}
           />
           <div
             role="dialog"
             aria-label="Notifications"
             className="fixed left-3 right-3 top-[4.5rem] z-50 max-h-[min(24rem,calc(100dvh-5.5rem))] rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[22rem] sm:max-w-[min(22rem,calc(100vw-1.5rem))]"
+            onTouchMove={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3.5 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
