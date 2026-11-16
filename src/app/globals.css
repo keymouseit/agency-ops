@@ -49,7 +49,7 @@ body { font-family: var(--font-sans); }
   @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
 }
 
-/* iOS Safari date inputs ignore normal width constraints when side-by-side */
+/* iOS Safari date inputs: force shrink so two fields can sit on one row */
 input[type='date'],
 input.date-input {
   display: block;
@@ -62,18 +62,17 @@ input.date-input {
   padding-bottom: 0.65rem;
   line-height: 1.25;
   background-color: #fff;
-  -webkit-min-logical-width: 100%;
+  -webkit-min-logical-width: 0 !important;
   -webkit-appearance: none;
   appearance: none;
 }
 
 /* Hide native picker glyph; custom calendar icon sits on the right */
 input[type='date']::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
   opacity: 0;
+  display: block;
+  width: 2.5rem;
+  height: 100%;
   cursor: pointer;
 }
 
