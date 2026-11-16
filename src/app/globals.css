@@ -49,12 +49,13 @@ body { font-family: var(--font-sans); }
   @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
 }
 
-/* iOS Safari date inputs: one-row safe + align like selects */
+/* iOS Safari date inputs: one-row safe + left-align like selects */
 input[type='date'],
 input.date-input {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   min-width: 0 !important;
   max-width: 100% !important;
   width: 100% !important;
@@ -64,22 +65,35 @@ input.date-input {
   /* Extra right space so dd/mm/yyyy is not clipped by the calendar button */
   padding: 0 2.75rem 0 0.75rem;
   line-height: normal;
-  text-align: left;
+  text-align: left !important;
   background-color: #fff;
   -webkit-min-logical-width: 0 !important;
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* Vertically center the date text (WebKit / iOS) */
+/*
+  iOS Safari centers the selected date via ::-webkit-date-and-time-value.
+  Force left align to match Leave type / Time slot selects.
+*/
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left !important;
+  margin: 0;
+  padding: 0;
+}
+
 input[type='date']::-webkit-datetime-edit,
 input[type='date']::-webkit-datetime-edit-fields-wrapper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 0;
   margin: 0;
   height: 100%;
+  width: auto !important;
   max-width: 100%;
+  text-align: left;
+  flex: 0 1 auto;
 }
 
 input[type='date']::-webkit-datetime-edit-text,
@@ -88,6 +102,7 @@ input[type='date']::-webkit-datetime-edit-day-field,
 input[type='date']::-webkit-datetime-edit-year-field {
   padding: 0;
   margin: 0;
+  text-align: left;
 }
 
 /* Keep native indicator clickable under/near the custom icon as a fallback */
