@@ -90,10 +90,10 @@ function DateInputWithIcon({
       <input
         type="date"
         {...props}
-        className={`date-input box-border block w-full max-w-full min-h-[44px] text-[13px] sm:text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 pl-2.5 pr-9 py-3 ${className}`}
+        className={`date-input box-border w-full max-w-full h-11 text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${className}`}
       />
       <span className="pointer-events-none absolute inset-y-0 right-0 flex w-9 items-center justify-center text-gray-400">
-        <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <CalendarIcon className="h-4 w-4" />
       </span>
     </div>
   )

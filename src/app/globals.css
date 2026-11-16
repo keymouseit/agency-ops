@@ -49,31 +49,53 @@ body { font-family: var(--font-sans); }
   @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
 }
 
-/* iOS Safari date inputs: force shrink so two fields can sit on one row */
+/* iOS Safari date inputs: one-row safe + align like selects */
 input[type='date'],
 input.date-input {
-  display: block;
+  display: flex;
+  align-items: center;
   min-width: 0 !important;
   max-width: 100% !important;
   width: 100% !important;
   box-sizing: border-box;
+  height: 44px;
   min-height: 44px;
-  padding-top: 0.65rem;
-  padding-bottom: 0.65rem;
-  line-height: 1.25;
+  padding: 0 2.25rem 0 0.75rem; /* left matches select px-3; right for calendar icon */
+  line-height: normal;
+  text-align: left;
   background-color: #fff;
   -webkit-min-logical-width: 0 !important;
   -webkit-appearance: none;
   appearance: none;
 }
 
+/* Vertically center the date text (WebKit / iOS) */
+input[type='date']::-webkit-datetime-edit,
+input[type='date']::-webkit-datetime-edit-fields-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  height: 100%;
+}
+
+input[type='date']::-webkit-datetime-edit-text,
+input[type='date']::-webkit-datetime-edit-month-field,
+input[type='date']::-webkit-datetime-edit-day-field,
+input[type='date']::-webkit-datetime-edit-year-field {
+  padding: 0;
+  margin: 0;
+}
+
 /* Hide native picker glyph; custom calendar icon sits on the right */
 input[type='date']::-webkit-calendar-picker-indicator {
   opacity: 0;
   display: block;
-  width: 2.5rem;
+  width: 2.25rem;
   height: 100%;
   cursor: pointer;
+  margin: 0;
+  padding: 0;
 }
 
 .label {
