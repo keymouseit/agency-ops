@@ -185,6 +185,30 @@ export default function LeaveDashboardClient({
   const [selectedLeaveForModal, setSelectedLeaveForModal] = useState<any>(null)
   const [auditLoading, setAuditLoading] = useState(false)
 
+  // Lock page scroll while leave details modal is open (iOS Safari scroll chaining)
+  useEffect(() => {
+    if (!selectedLeaveForModal) return
+    const scrollY = window.scrollY
+    const { style } = document.body
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    }
+    style.overflow = 'hidden'
+    style.position = 'fixed'
+    style.top = `-${scrollY}px`
+    style.width = '100%'
+    return () => {
+      style.overflow = prev.overflow
+      style.position = prev.position
+      style.top = prev.top
+      style.width = prev.width
+      window.scrollTo(0, scrollY)
+    }
+  }, [selectedLeaveForModal])
+
   // Admin Manual Entry State
   const [isManualLogModalOpen, setIsManualLogModalOpen] = useState(false)
   const [adminMemberId, setAdminMemberId] = useState(memberId)
@@ -932,8 +956,8 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
@@ -941,10 +965,10 @@ export default function LeaveDashboardClient({
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
                     min={istDateInputValue()}
-                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                    className="date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -953,7 +977,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || istDateInputValue()}
                     disabled={isSameDayLeave}
-                    className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                    className={`date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -980,15 +1004,31 @@ export default function LeaveDashboardClient({
 
       {/* Audit Log Modal */}
       {selectedLeaveForModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-100 max-h-[80vh] flex flex-col">
-            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-lg font-bold text-gray-900">Leave Details & Logs</h2>
-              <button onClick={() => setSelectedLeaveForModal(null)} className="text-gray-400 hover:text-gray-600 bg-white shadow-sm ring-1 ring-gray-200 rounded-full w-8 h-8 flex items-center justify-center font-bold">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setSelectedLeaveForModal(null)}
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault()
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-details-title"
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-100 max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+              <h2 id="leave-details-title" className="text-lg font-bold text-gray-900">Leave Details & Logs</h2>
+              <button
+                type="button"
+                onClick={() => setSelectedLeaveForModal(null)}
+                className="text-gray-400 hover:text-gray-600 bg-white shadow-sm ring-1 ring-gray-200 rounded-full w-8 h-8 flex items-center justify-center font-bold"
+              >
                 ✕
               </button>
             </div>
-            <div className="p-6 overflow-y-auto">
+            <div className="p-6 overflow-y-auto overscroll-contain">
               
               {/* Leave Summary Card */}
               <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
@@ -1289,8 +1329,8 @@ export default function LeaveDashboardClient({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  <div className="flex gap-3">
+                    <div className="min-w-0 flex-1">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
                       <input
                         type="date"
@@ -1298,10 +1338,10 @@ export default function LeaveDashboardClient({
                         value={startDate}
                         onChange={e => onStartDateChange(e.target.value)}
                         min={istDateInputValue()}
-                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                        className="date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
                       <input
                         type="date"
@@ -1310,7 +1350,7 @@ export default function LeaveDashboardClient({
                         onChange={e => onEndDateChange(e.target.value)}
                         min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
-                        className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                        className={`date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                           isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                         }`}
                       />
@@ -1961,18 +2001,18 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
                     required
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -1981,7 +2021,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || undefined}
                     disabled={isSameDayLeave}
-                    className={`input ${
+                    className={`input date-input min-w-0 max-w-full ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -2057,23 +2097,23 @@ export default function LeaveDashboardClient({
                   placeholder="e.g. 1"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable from</label>
                   <input
                     type="date"
                     value={compOffFrom}
                     onChange={e => setCompOffFrom(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable to</label>
                   <input
                     type="date"
                     value={compOffTo}
                     onChange={e => setCompOffTo(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
               </div>
