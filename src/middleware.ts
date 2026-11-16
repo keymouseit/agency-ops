@@ -21,11 +21,19 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Always allow: NextAuth internals, static assets
+  // Always allow: NextAuth internals, static assets, PWA files
   if (
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon')
+    pathname.startsWith('/favicon') ||
+    pathname === '/sw.js' ||
+    pathname === '/offline.html' ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/manifest.webmanifest/' ||
+    pathname === '/icon-192x192.png' ||
+    pathname === '/icon-512x512.png' ||
+    pathname === '/apple-touch-icon.png' ||
+    pathname.startsWith('/icons/')
   ) {
     return NextResponse.next()
   }
@@ -169,6 +177,6 @@ function checkApiAccess(path: string, role: string): boolean {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|offline\\.html|icon-192x192\\.png|icon-512x512\\.png|apple-touch-icon\\.png|icons/).*)',
   ],
 }
