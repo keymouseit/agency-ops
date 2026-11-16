@@ -2004,18 +2004,19 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="flex gap-3">
-                <div className="min-w-0 flex-1">
+              <div className="flex items-start">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
                     required
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
-                    className="input date-input min-w-0 max-w-full"
+                    className="input date-input min-w-0 max-w-full min-h-[44px]"
                   />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="w-3 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -2024,7 +2025,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || undefined}
                     disabled={isSameDayLeave}
-                    className={`input date-input min-w-0 max-w-full ${
+                    className={`input date-input min-w-0 max-w-full min-h-[44px] ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -2100,23 +2101,24 @@ export default function LeaveDashboardClient({
                   placeholder="e.g. 1"
                 />
               </div>
-              <div className="flex gap-3">
-                <div className="min-w-0 flex-1">
+              <div className="flex items-start">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable from</label>
                   <input
                     type="date"
                     value={compOffFrom}
                     onChange={e => setCompOffFrom(e.target.value)}
-                    className="input date-input min-w-0 max-w-full"
+                    className="input date-input min-w-0 max-w-full min-h-[44px]"
                   />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="w-3 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable to</label>
                   <input
                     type="date"
                     value={compOffTo}
                     onChange={e => setCompOffTo(e.target.value)}
-                    className="input date-input min-w-0 max-w-full"
+                    className="input date-input min-w-0 max-w-full min-h-[44px]"
                   />
                 </div>
               </div>
