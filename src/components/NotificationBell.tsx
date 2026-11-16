@@ -317,6 +317,7 @@ export default function NotificationBell() {
         onClick={handleOpen}
         className="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
         aria-label="Notifications"
+        aria-expanded={open}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path
@@ -333,52 +334,64 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[22rem] rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden">
-          <div className="px-4 py-3.5 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-base shadow-sm">
-                🔔
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                <p className="text-[11px] text-gray-500">
-                  {notifications.length === 0
-                    ? 'Nothing new'
-                    : unread > 0
-                      ? `${unread} unread`
-                      : 'All caught up'}
-                </p>
-              </div>
-            </div>
-            {notifications.some(n => !n.read) && (
-              <button
-                type="button"
-                onClick={markAllRead}
-                className="text-[11px] font-medium text-blue-600 hover:text-blue-800 shrink-0"
-              >
-                Mark all read
-              </button>
-            )}
-          </div>
-
-          <div className="max-h-[22rem] overflow-y-auto p-1.5">
-            {notifications.length === 0 ? (
-              <div className="px-4 py-10 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-xl">
+        <>
+          {/* Mobile backdrop — keeps panel fully on-screen in PWA */}
+          <div
+            className="fixed inset-0 z-40 bg-black/25 sm:hidden"
+            aria-hidden="true"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            className="fixed left-3 right-3 top-[4.5rem] z-50 max-h-[min(24rem,calc(100dvh-5.5rem))] rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[22rem] sm:max-w-[min(22rem,calc(100vw-1.5rem))]"
+          >
+            <div className="px-4 py-3.5 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-base shadow-sm shrink-0">
                   🔔
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                  <p className="text-[11px] text-gray-500">
+                    {notifications.length === 0
+                      ? 'Nothing new'
+                      : unread > 0
+                        ? `${unread} unread`
+                        : 'All caught up'}
+                  </p>
                 </div>
-                <p className="text-sm font-medium text-gray-700">No notifications yet</p>
-                <p className="text-xs text-gray-400 mt-1">Updates on projects, QA, MOM, and daily ops appear here.</p>
               </div>
-            ) : (
-              <div className="space-y-0.5">
-                {notifications.map(n => (
-                  <NotificationItem key={n.id} notification={n} onClick={() => handleClick(n)} />
-                ))}
-              </div>
-            )}
+              {notifications.some(n => !n.read) && (
+                <button
+                  type="button"
+                  onClick={markAllRead}
+                  className="text-[11px] font-medium text-blue-600 hover:text-blue-800 shrink-0"
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-[min(18rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain p-1.5 sm:max-h-[22rem]">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-10 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-xl">
+                    🔔
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">No notifications yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Updates on projects, QA, MOM, and daily ops appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {notifications.map(n => (
+                    <NotificationItem key={n.id} notification={n} onClick={() => handleClick(n)} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
