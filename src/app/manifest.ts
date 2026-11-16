@@ -1,16 +1,12 @@
 import type { MetadataRoute } from 'next'
 import { DEFAULT_BRANDING } from '@/lib/branding'
 
-export default function manifest(): MetadataRoute.Manifest {
-  const name = DEFAULT_BRANDING.name
-  const shortName =
-    process.env.NEXT_PUBLIC_COMPANY_INITIALS?.trim() ||
-    DEFAULT_BRANDING.initials ||
-    'AO'
+const PWA_NAME = 'Agency Ops'
 
+export default function manifest(): MetadataRoute.Manifest {
   return {
-    name,
-    short_name: shortName,
+    name: PWA_NAME,
+    short_name: PWA_NAME,
     description: DEFAULT_BRANDING.tagline,
     start_url: '/',
     scope: '/',

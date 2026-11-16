@@ -20,11 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: branding.name,
     description: branding.tagline,
-    applicationName: branding.name,
+    applicationName: 'Agency Ops',
     appleWebApp: {
       capable: true,
       statusBarStyle: 'default',
-      title: branding.name,
+      title: 'Agency Ops',
     },
     formatDetection: {
       telephone: false,
