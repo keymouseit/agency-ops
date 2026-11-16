@@ -83,18 +83,45 @@ function CalendarIcon({ className = 'h-4 w-4' }: { className?: string }) {
 
 function DateInputWithIcon({
   className = '',
+  disabled,
   ...props
 }: InputHTMLAttributes<HTMLInputElement>) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function openPicker() {
+    const el = inputRef.current
+    if (!el || disabled) return
+    try {
+      if (typeof el.showPicker === 'function') {
+        void el.showPicker()
+        return
+      }
+    } catch {
+      // Some browsers only allow showPicker from direct gestures; fall through.
+    }
+    el.focus()
+    el.click()
+  }
+
   return (
-    <div className="relative w-full min-w-0 max-w-full overflow-hidden">
+    <div className="relative w-full min-w-0 max-w-full">
       <input
+        ref={inputRef}
         type="date"
+        disabled={disabled}
         {...props}
-        className={`date-input box-border w-full max-w-full h-11 text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${className}`}
+        className={`date-input box-border w-full max-w-full h-11 text-[13px] sm:text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${className}`}
       />
-      <span className="pointer-events-none absolute inset-y-0 right-0 flex w-9 items-center justify-center text-gray-400">
+      <button
+        type="button"
+        tabIndex={-1}
+        disabled={disabled}
+        aria-label="Open calendar"
+        onClick={openPicker}
+        className="absolute inset-y-0 right-0 z-[1] flex w-10 items-center justify-center rounded-r-xl text-gray-400 hover:text-gray-600 disabled:opacity-40"
+      >
         <CalendarIcon className="h-4 w-4" />
-      </span>
+      </button>
     </div>
   )
 }
