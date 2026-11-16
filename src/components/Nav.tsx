@@ -330,14 +330,46 @@ function UserMenuDropdown({
   signingOut: boolean
   onSignOut: () => void
 }) {
+  // Same scroll lock as notifications — block background UI while open
+  useEffect(() => {
+    if (!open) return
+    const scrollY = window.scrollY
+    const { style } = document.body
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    }
+    style.overflow = 'hidden'
+    style.position = 'fixed'
+    style.top = `-${scrollY}px`
+    style.width = '100%'
+    return () => {
+      style.overflow = prev.overflow
+      style.position = prev.position
+      style.top = prev.top
+      style.width = prev.width
+      window.scrollTo(0, scrollY)
+    }
+  }, [open])
+
   if (!open) return null
 
   const roleCls = ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'
 
   return (
     <>
-      <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white shadow-xl z-20 overflow-hidden">
+      <div
+        className="fixed inset-0 z-40 bg-black/25"
+        aria-hidden="true"
+        onClick={onClose}
+        onTouchMove={(e) => e.preventDefault()}
+      />
+      <div
+        className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden"
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="px-4 py-4 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
           <div className="flex items-center gap-3">
             <UserAvatar name={name} size="lg" />
