@@ -717,7 +717,7 @@ export default function LeaveDashboardClient({
         : leavesInPeriod.filter(l => l.status === myLeaveFilter)
 
   return (
-    <div className="w-full min-w-0 max-w-6xl mx-auto pb-12 overflow-x-clip">
+    <div className="w-full min-w-0 max-w-6xl mx-auto pb-12">
       <Toaster position="bottom-right" />
 
       {/* Confirm Delete Modal */}
@@ -956,8 +956,8 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-3 w-full min-w-0">
-                <div className="min-w-0 max-w-full overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
+                <div className="min-w-0 w-full max-w-full">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
@@ -965,10 +965,10 @@ export default function LeaveDashboardClient({
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
                     min={istDateInputValue()}
-                    className="date-input box-border w-full min-w-0 max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-2.5 sm:px-3 py-3"
+                    className="date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3"
                   />
                 </div>
-                <div className="min-w-0 max-w-full overflow-hidden">
+                <div className="min-w-0 w-full max-w-full">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -977,7 +977,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || istDateInputValue()}
                     disabled={isSameDayLeave}
-                    className={`date-input box-border w-full min-w-0 max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-2.5 sm:px-3 py-3 ${
+                    className={`date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3 ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -1247,7 +1247,7 @@ export default function LeaveDashboardClient({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start min-w-0">
             {/* Apply */}
             <div className="lg:col-span-5 min-w-0">
-              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm ring-1 ring-gray-900/5 sticky top-4 w-full min-w-0 overflow-hidden">
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-200 sticky top-4 w-full min-w-0 max-w-full box-border">
                 <div className="mb-5">
                   <h2 className="text-lg font-bold text-gray-900">Request time off</h2>
                   <p className="text-xs text-gray-500 mt-1">HR will review and notify you.</p>
@@ -1271,7 +1271,7 @@ export default function LeaveDashboardClient({
                           setEndDate(startDate)
                         }
                       }}
-                      className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                      className="w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-white"
                     >
                       <option value="full_day">Full Day</option>
                       <option value="half_day">Half Day</option>
@@ -1329,8 +1329,9 @@ export default function LeaveDashboardClient({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3 w-full min-w-0">
-                    <div className="min-w-0 max-w-full overflow-hidden">
+                  {/* Stack on mobile — iOS date inputs have huge intrinsic width and blow out the card */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
+                    <div className="min-w-0 w-full max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
                       <input
                         type="date"
@@ -1338,10 +1339,10 @@ export default function LeaveDashboardClient({
                         value={startDate}
                         onChange={e => onStartDateChange(e.target.value)}
                         min={istDateInputValue()}
-                        className="date-input box-border w-full min-w-0 max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-2.5 sm:px-3 py-3"
+                        className="date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3"
                       />
                     </div>
-                    <div className="min-w-0 max-w-full overflow-hidden">
+                    <div className="min-w-0 w-full max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
                       <input
                         type="date"
@@ -1350,7 +1351,7 @@ export default function LeaveDashboardClient({
                         onChange={e => onEndDateChange(e.target.value)}
                         min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
-                        className={`date-input box-border w-full min-w-0 max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-2.5 sm:px-3 py-3 ${
+                        className={`date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3 ${
                           isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                         }`}
                       />
@@ -1364,7 +1365,7 @@ export default function LeaveDashboardClient({
                       value={reason}
                       onChange={e => setReason(e.target.value)}
                       rows={3}
-                      className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                      className="w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       placeholder="e.g., Medical appointment"
                     />
                   </div>
@@ -1429,7 +1430,7 @@ export default function LeaveDashboardClient({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5 bg-white p-1 rounded-xl ring-1 ring-gray-200 shadow-sm">
+              <div className="flex flex-wrap gap-1.5 bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full min-w-0 max-w-full box-border">
                 {(
                   [
                     { key: 'all', label: 'All' },
@@ -1465,7 +1466,7 @@ export default function LeaveDashboardClient({
               </div>
 
               {filteredMyLeaves.length === 0 ? (
-                <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 px-6 py-16 text-center shadow-sm">
+                <div className="rounded-2xl bg-white border border-gray-200 px-6 py-16 text-center shadow-sm w-full min-w-0 max-w-full box-border">
                   <p className="text-base font-semibold text-gray-900">
                     {myLeaveFilter === 'all'
                       ? myLeavePeriod === 'year'
@@ -1485,7 +1486,7 @@ export default function LeaveDashboardClient({
                 filteredMyLeaves.map(l => (
                   <div
                     key={l.id}
-                    className="rounded-2xl bg-white ring-1 ring-gray-900/5 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+                    className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4 w-full min-w-0 max-w-full box-border"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
