@@ -932,8 +932,8 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
@@ -941,10 +941,10 @@ export default function LeaveDashboardClient({
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
                     min={istDateInputValue()}
-                    className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                    className="date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -953,7 +953,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || istDateInputValue()}
                     disabled={isSameDayLeave}
-                    className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                    className={`date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -1289,8 +1289,8 @@ export default function LeaveDashboardClient({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  <div className="flex gap-3">
+                    <div className="min-w-0 flex-1">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
                       <input
                         type="date"
@@ -1298,10 +1298,10 @@ export default function LeaveDashboardClient({
                         value={startDate}
                         onChange={e => onStartDateChange(e.target.value)}
                         min={istDateInputValue()}
-                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
+                        className="date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
                       <input
                         type="date"
@@ -1310,7 +1310,7 @@ export default function LeaveDashboardClient({
                         onChange={e => onEndDateChange(e.target.value)}
                         min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
-                        className={`w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
+                        className={`date-input w-full min-w-0 max-w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 ${
                           isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                         }`}
                       />
@@ -1961,18 +1961,18 @@ export default function LeaveDashboardClient({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Date</label>
                   <input
                     type="date"
                     required
                     value={startDate}
                     onChange={e => onStartDateChange(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">End Date</label>
                   <input
                     type="date"
@@ -1981,7 +1981,7 @@ export default function LeaveDashboardClient({
                     onChange={e => onEndDateChange(e.target.value)}
                     min={startDate || undefined}
                     disabled={isSameDayLeave}
-                    className={`input ${
+                    className={`input date-input min-w-0 max-w-full ${
                       isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                     }`}
                   />
@@ -2057,23 +2057,23 @@ export default function LeaveDashboardClient({
                   placeholder="e.g. 1"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable from</label>
                   <input
                     type="date"
                     value={compOffFrom}
                     onChange={e => setCompOffFrom(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Applicable to</label>
                   <input
                     type="date"
                     value={compOffTo}
                     onChange={e => setCompOffTo(e.target.value)}
-                    className="input"
+                    className="input date-input min-w-0 max-w-full"
                   />
                 </div>
               </div>

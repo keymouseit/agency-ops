@@ -43,6 +43,17 @@ body { font-family: var(--font-sans); }
   @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
 }
 
+/* iOS Safari date inputs have a large intrinsic min-width that collapses grid/flex gaps */
+input[type='date'],
+input.date-input {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #fff;
+}
+
 .label {
   @apply block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide;
 }
