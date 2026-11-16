@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type FormEvent, type InputHTMLAttributes } from 'react'
 import Link from 'next/link'
 import MemberNameLink from '@/components/MemberNameLink'
 import { useRouter } from 'next/navigation'
@@ -65,6 +65,38 @@ function parseAuditJson(raw: string | null | undefined) {
   } catch {
     return null
   }
+}
+
+function CalendarIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 2v3M16 2v3M3.5 9h17M5 5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 21H5a1.5 1.5 0 0 1-1.5-1.5v-13A1.5 1.5 0 0 1 5 5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function DateInputWithIcon({
+  className = '',
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="relative w-full min-w-0 max-w-full">
+      <input
+        type="date"
+        {...props}
+        className={`date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 pl-3 pr-10 py-3 ${className}`}
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400">
+        <CalendarIcon />
+      </span>
+    </div>
+  )
 }
 
 export default function LeaveDashboardClient({
@@ -1333,27 +1365,22 @@ export default function LeaveDashboardClient({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
                     <div className="min-w-0 w-full max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start</label>
-                      <input
-                        type="date"
+                      <DateInputWithIcon
                         required
                         value={startDate}
                         onChange={e => onStartDateChange(e.target.value)}
                         min={istDateInputValue()}
-                        className="date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3"
                       />
                     </div>
                     <div className="min-w-0 w-full max-w-full">
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">End</label>
-                      <input
-                        type="date"
+                      <DateInputWithIcon
                         required
                         value={endDate}
                         onChange={e => onEndDateChange(e.target.value)}
                         min={startDate || istDateInputValue()}
                         disabled={isSameDayLeave}
-                        className={`date-input box-border block w-full max-w-full min-h-[44px] text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-3 ${
-                          isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
-                        }`}
+                        className={isSameDayLeave ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}
                       />
                     </div>
                   </div>
