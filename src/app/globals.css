@@ -21,6 +21,12 @@
   --me-duration: 0.2s;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body { font-family: var(--font-sans); }
 
 .card {
