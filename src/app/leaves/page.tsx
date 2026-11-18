@@ -19,6 +19,7 @@ export default async function LeavesPage() {
 
   const isAdmin = ['Founder', 'Manager', 'HR'].includes(member.role)
   const canManageBalances = ['Founder', 'HR'].includes(member.role)
+  const hideMyLeavesTab = member.role === 'Founder'
   const currentYear = istYearAndMonth().year
 
   const myLeaves = await prisma.leaveRequest.findMany({
@@ -61,6 +62,7 @@ export default async function LeavesPage() {
       memberId={member.id}
       isAdmin={isAdmin}
       canManageBalances={canManageBalances}
+      hideMyLeavesTab={hideMyLeavesTab}
       myLeaves={myLeaves}
       accrued={accrued}
       used={used}

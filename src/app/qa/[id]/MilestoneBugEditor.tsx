@@ -10,6 +10,7 @@ import {
   BUG_STATUS_CONFIG,
   SerializedBug,
 } from '@/lib/milestone-qa'
+import SimpleSelect from '@/components/SimpleSelect'
 
 export default function MilestoneBugEditor({
   milestoneId,
@@ -96,35 +97,37 @@ export default function MilestoneBugEditor({
   }
 
   return (
-    <div className="mt-4 pt-4 border-t border-gray-100">
+    <div className="mt-4 pt-4 border-t border-gray-100 min-w-0">
       <h4 className="text-xs font-semibold text-gray-700 mb-2">Log bug</h4>
 
       {canLogBugs && (
-        <form onSubmit={logBug} className="space-y-2 mb-4">
+        <form onSubmit={logBug} className="space-y-2 mb-4 min-w-0">
           <input
-            className="input text-sm w-full"
+            className="input w-full"
             placeholder="Bug title (e.g. Login button unresponsive on mobile)"
             value={title}
             onChange={e => setTitle(e.target.value)}
           />
           <textarea
-            className="input text-sm w-full"
+            className="input w-full"
             rows={2}
             placeholder="Steps to reproduce, expected vs actual behavior"
             value={description}
             onChange={e => setDescription(e.target.value)}
           />
-          <div className="flex gap-2">
-            <select
-              className="input text-sm"
-              value={severity}
-              onChange={e => setSeverity(e.target.value)}
-            >
-              {BUG_SEVERITIES.map(s => (
-                <option key={s} value={s}>{BUG_SEVERITY_CONFIG[s].label}</option>
-              ))}
-            </select>
-            <button type="submit" disabled={adding || !title.trim()} className="btn-primary text-xs">
+          <div className="flex flex-col sm:flex-row gap-2 min-w-0">
+            <div className="min-w-0 flex-1">
+              <SimpleSelect
+                aria-label="Bug severity"
+                value={severity}
+                onChange={setSeverity}
+                options={BUG_SEVERITIES.map(s => ({
+                  value: s,
+                  label: BUG_SEVERITY_CONFIG[s].label,
+                }))}
+              />
+            </div>
+            <button type="submit" disabled={adding || !title.trim()} className="btn-primary text-xs shrink-0">
               {adding ? 'Logging…' : 'Log bug'}
             </button>
           </div>
@@ -139,58 +142,57 @@ export default function MilestoneBugEditor({
             const linkedToTestCase = !!bug.testCaseId
 
             return (
-              <div key={bug.id} className="rounded-lg border border-gray-100 bg-white p-2.5">
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className={`badge text-xs ${severityCfg.cls}`}>{severityCfg.label}</span>
-                      <span className="text-sm font-medium text-gray-900">{bug.title}</span>
-                      {linkedToTestCase && (
-                        <span className="text-[10px] text-gray-400">auto from test case</span>
-                      )}
-                    </div>
-                    {bug.description && (
-                      <p className="text-xs text-gray-600 whitespace-pre-wrap">{bug.description}</p>
+              <div key={bug.id} className="rounded-lg border border-gray-100 bg-white p-3 min-w-0 space-y-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`badge text-xs ${severityCfg.cls}`}>{severityCfg.label}</span>
+                    <span className="text-sm font-medium text-gray-900 break-words">{bug.title}</span>
+                    {linkedToTestCase && (
+                      <span className="text-[10px] text-gray-400">auto from test case</span>
                     )}
-                    <p className="text-xs text-gray-400 mt-1">
-                      {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
-                    </p>
                   </div>
-                  {canChangeStatus ? (
-                    loading === bug.id ? (
-                      <div
-                        className="inline-flex items-center gap-1.5 text-xs text-gray-500 px-1.5 py-1"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <span
-                          className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
-                          aria-hidden="true"
-                        />
-                        Saving…
-                      </div>
-                    ) : (
-                      <select
-                        value={bug.status}
-                        onChange={e => updateBug(bug.id, { status: e.target.value })}
-                        className="text-xs rounded border border-gray-200 bg-white text-gray-800 px-1.5 py-1"
-                        aria-label={`Status for ${bug.title}`}
-                      >
-                        {BUG_STATUSES.map(s => (
-                          <option key={s} value={s}>{BUG_STATUS_CONFIG[s].label}</option>
-                        ))}
-                      </select>
-                    )
-                  ) : (
-                    <span className={`badge text-xs ${statusCfg.cls}`}>{statusCfg.label}</span>
+                  {bug.description && (
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap break-words">{bug.description}</p>
                   )}
+                  <p className="text-xs text-gray-400 mt-1 break-words">
+                    {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
+                  </p>
                 </div>
+                {canChangeStatus ? (
+                  loading === bug.id ? (
+                    <div
+                      className="inline-flex items-center gap-1.5 text-xs text-gray-500"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Saving…
+                    </div>
+                  ) : (
+                    <div className="w-full min-w-0 sm:max-w-[11rem]">
+                      <SimpleSelect
+                        value={bug.status}
+                        onChange={v => updateBug(bug.id, { status: v })}
+                        aria-label={`Status for ${bug.title}`}
+                        options={BUG_STATUSES.map(s => ({
+                          value: s,
+                          label: BUG_STATUS_CONFIG[s].label,
+                        }))}
+                      />
+                    </div>
+                  )
+                ) : (
+                  <span className={`badge text-xs ${statusCfg.cls}`}>{statusCfg.label}</span>
+                )}
                 {canLogBugs && !linkedToTestCase && (
                   <button
                     type="button"
                     onClick={() => deleteBug(bug.id)}
                     disabled={loading === bug.id}
-                    className="text-xs text-red-500 hover:text-red-700 mt-1"
+                    className="text-xs text-red-500 hover:text-red-700"
                   >
                     Delete
                   </button>

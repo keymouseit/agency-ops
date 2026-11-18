@@ -10,6 +10,7 @@ import {
   validateRequiredSelect,
 } from '@/lib/validation'
 import { FormLabel } from '@/components/FormLabel'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type FieldErrors = {
   name?: string
@@ -28,6 +29,8 @@ export default function CampaignForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [channel, setChannel] = useState('LinkedIn')
+  const [status, setStatus] = useState('active')
   const router = useRouter()
 
   function validateForm(data: Record<string, FormDataEntryValue>): string | null {
@@ -112,26 +115,28 @@ export default function CampaignForm() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <FormLabel required>Channel</FormLabel>
-          <select
+          <SimpleSelect
             name="channel"
             required
-            className={`input ${fieldErrors.channel ? 'border-red-300 focus:border-red-400' : ''}`}
-            defaultValue="LinkedIn"
-          >
-            {CAMPAIGN_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+            aria-label="Channel"
+            value={channel}
+            onChange={setChannel}
+            className={fieldErrors.channel ? 'border-red-300 focus:border-red-400' : ''}
+            options={CAMPAIGN_CHANNELS.map(c => ({ value: c, label: c }))}
+          />
           <FieldError message={fieldErrors.channel} />
         </div>
         <div>
           <FormLabel required>Status</FormLabel>
-          <select
+          <SimpleSelect
             name="status"
             required
-            className={`input ${fieldErrors.status ? 'border-red-300 focus:border-red-400' : ''}`}
-            defaultValue="active"
-          >
-            {CAMPAIGN_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+            aria-label="Status"
+            value={status}
+            onChange={setStatus}
+            className={fieldErrors.status ? 'border-red-300 focus:border-red-400' : ''}
+            options={CAMPAIGN_STATUSES.map(s => ({ value: s, label: s }))}
+          />
           <FieldError message={fieldErrors.status} />
         </div>
       </div>

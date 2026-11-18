@@ -8,6 +8,7 @@ import {
   TEST_CASE_STATUS_CONFIG,
   testCaseSummary,
 } from '@/lib/milestone-qa'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type TestCase = {
   id: string
@@ -150,7 +151,7 @@ export default function MilestoneTestCaseEditor({
   if (!canView && !showStartTesting) return null
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
+    <div className="mt-3 pt-3 border-t border-gray-100 min-w-0">
       {showStartTesting && (
         <div className="mb-3">
           <button
@@ -170,13 +171,13 @@ export default function MilestoneTestCaseEditor({
       )}
 
       {testCases.length > 0 && (
-        <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
-          <span>
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-2 text-xs text-gray-500">
+          <span className="min-w-0">
             {summary.completed}/{summary.total} completed
             {summary.failed > 0 && <span className="text-red-600 ml-1">· {summary.failed} failed</span>}
             {summary.blocked > 0 && <span className="text-orange-600 ml-1">· {summary.blocked} blocked</span>}
           </span>
-          <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-full sm:w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden shrink-0">
             <div
               className={`h-full rounded-full ${summary.failed > 0 ? 'bg-red-400' : summary.blocked > 0 ? 'bg-amber-400' : 'bg-green-500'}`}
               style={{ width: `${summary.pct}%` }}
@@ -189,19 +190,19 @@ export default function MilestoneTestCaseEditor({
         {testCases.map(tc => {
           const cfg = TEST_CASE_STATUS_CONFIG[tc.status] ?? TEST_CASE_STATUS_CONFIG.pending
           return (
-            <div key={tc.id} className="rounded-lg border border-gray-100 bg-white p-2.5">
-              <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
+            <div key={tc.id} className="rounded-lg border border-gray-100 bg-white p-3 min-w-0 space-y-2">
+              <div className="flex items-start justify-between gap-2 min-w-0">
+                <div className="min-w-0 flex-1">
                   {editingId === tc.id ? (
                     <form
-                      className="flex items-center gap-1.5"
+                      className="flex flex-col sm:flex-row sm:items-center gap-1.5"
                       onSubmit={e => {
                         e.preventDefault()
                         void saveTitle(tc.id)
                       }}
                     >
                       <input
-                        className="input text-sm flex-1 min-w-0"
+                        className="input text-sm w-full min-w-0"
                         value={editTitle}
                         autoFocus
                         disabled={loading === tc.id}
@@ -210,25 +211,29 @@ export default function MilestoneTestCaseEditor({
                           if (e.key === 'Escape') cancelEdit()
                         }}
                       />
-                      <button
-                        type="submit"
-                        disabled={loading === tc.id || !editTitle.trim()}
-                        className="btn-primary text-xs py-1 px-2 shrink-0"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        disabled={loading === tc.id}
-                        className="btn-secondary text-xs py-1 px-2 shrink-0"
-                      >
-                        Cancel
-                      </button>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          type="submit"
+                          disabled={loading === tc.id || !editTitle.trim()}
+                          className="btn-primary text-xs py-1 px-2"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          disabled={loading === tc.id}
+                          className="btn-secondary text-xs py-1 px-2"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </form>
                   ) : (
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">{tc.title}</div>
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 break-words min-w-0">
+                        {tc.title}
+                      </div>
                       {tc.status === 'fail' && (
                         <span className="badge text-xs bg-red-100 text-red-800 shrink-0">Failed</span>
                       )}
@@ -254,41 +259,47 @@ export default function MilestoneTestCaseEditor({
                     </div>
                   )}
                   {tc.testedAt && tc.testedBy && editingId !== tc.id && (
-                    <div className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-gray-400 mt-0.5 break-words">
                       {tc.testedBy.name} · {fmtDate(tc.testedAt)}
-                    </div>
+                    </p>
                   )}
                 </div>
-                {canEdit && editingId !== tc.id && (
-                  loading === tc.id ? (
-                    <div
-                      className="inline-flex items-center gap-1.5 text-xs text-gray-500 px-1.5 py-1"
-                      role="status"
-                      aria-live="polite"
-                    >
-                      <span
-                        className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Saving…
-                    </div>
-                  ) : (
-                    <select
-                      value={tc.status}
-                      onChange={e => updateCase(tc.id, { status: e.target.value })}
-                      className="text-xs rounded border border-gray-200 bg-white text-gray-800 px-1.5 py-1"
-                    >
-                      {TEST_CASE_STATUSES.map(s => (
-                        <option key={s} value={s}>{TEST_CASE_STATUS_CONFIG[s].label}</option>
-                      ))}
-                    </select>
-                  )
+                {!canEdit && (
+                  <span className={`badge text-xs shrink-0 ${cfg.cls}`}>{cfg.label}</span>
                 )}
-                {!canEdit && <span className={`badge text-xs ${cfg.cls}`}>{cfg.label}</span>}
               </div>
+
+              {canEdit && editingId !== tc.id && (
+                loading === tc.id ? (
+                  <div
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-500"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span
+                      className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"
+                      aria-hidden="true"
+                    />
+                    Saving…
+                  </div>
+                ) : (
+                  <div className="w-full min-w-0 sm:max-w-[11rem]">
+                    <SimpleSelect
+                      aria-label="Test case status"
+                      value={tc.status}
+                      onChange={v => updateCase(tc.id, { status: v })}
+                      options={TEST_CASE_STATUSES.map(s => ({
+                        value: s,
+                        label: TEST_CASE_STATUS_CONFIG[s].label,
+                      }))}
+                    />
+                  </div>
+                )
+              )}
+
               {canEdit ? (
                 <textarea
-                  className="input text-xs mt-2 w-full"
+                  className="input w-full"
                   rows={2}
                   placeholder="Notes (failure reason, steps, etc.)"
                   defaultValue={tc.notes ?? ''}
@@ -298,14 +309,15 @@ export default function MilestoneTestCaseEditor({
                   }}
                 />
               ) : tc.notes ? (
-                <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{tc.notes}</p>
+                <p className="text-xs text-gray-500 whitespace-pre-wrap break-words">{tc.notes}</p>
               ) : null}
+
               {canEdit && (
                 <button
                   type="button"
                   onClick={() => deleteCase(tc.id)}
                   disabled={loading === tc.id}
-                  className="text-xs text-red-500 hover:text-red-700 mt-1"
+                  className="text-xs text-red-500 hover:text-red-700"
                 >
                   Delete
                 </button>
@@ -316,9 +328,9 @@ export default function MilestoneTestCaseEditor({
       </div>
 
       {canEdit && (
-        <form onSubmit={addTestCase} className="flex gap-2">
+        <form onSubmit={addTestCase} className="flex flex-col sm:flex-row gap-2 min-w-0">
           <input
-            className="input text-sm flex-1"
+            className="input w-full min-w-0"
             placeholder="Add test case (e.g. Login with valid credentials)"
             value={newTitle}
             onChange={e => setNewTitle(e.target.value)}

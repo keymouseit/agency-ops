@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { ROLE_COLORS, STATUS_COLORS } from '@/lib/utils'
 import { checkInProjectsForMember, type CheckInProject } from '@/lib/checkin'
 import { shortDisplayName } from '@/lib/employee-order'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 
@@ -477,6 +478,8 @@ export default function CheckInClient({
   const [lastProjectName, setLastProjectName] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [formKey, setFormKey] = useState(0)
+  const [newProjectId, setNewProjectId] = useState('')
+  const [newScopeChange, setNewScopeChange] = useState('none')
   const [detailCheckIn, setDetailCheckIn] = useState<ThisWeekCheckIn | null>(null)
   const [showSelfDetail, setShowSelfDetail] = useState(false)
   const router = useRouter()
@@ -504,6 +507,8 @@ export default function CheckInClient({
   function openNewCheckInForm() {
     setError('')
     setLastProjectName(null)
+    setNewProjectId('')
+    setNewScopeChange('none')
     setFormKey(k => k + 1)
     setShowForm(true)
     setStep('project')
@@ -795,16 +800,15 @@ export default function CheckInClient({
                     <form key={formKey} onSubmit={submitProject} className="space-y-5">
                       <div>
                         <label className="label">Select project</label>
-                        <select name="projectId" className="input bg-white" required defaultValue="">
-                          <option value="" disabled>
-                            Choose a project…
-                          </option>
-                          {remainingProjects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
+                        <SimpleSelect
+                          name="projectId"
+                          required
+                          aria-label="Select project"
+                          placeholder="Choose a project…"
+                          value={newProjectId}
+                          onChange={setNewProjectId}
+                          options={remainingProjects.map(p => ({ value: p.id, label: p.name }))}
+                        />
                         <p className="mt-1 text-xs text-gray-500">
                           Projects already checked in this week are hidden.
                         </p>
@@ -844,11 +848,17 @@ export default function CheckInClient({
 
                       <div>
                         <label className="label">Scope changes this week?</label>
-                        <select name="scopeChange" className="input bg-white">
-                          <option value="none">None</option>
-                          <option value="logged">Yes — logged with change order</option>
-                          <option value="unlogged">Yes — NOT logged yet</option>
-                        </select>
+                        <SimpleSelect
+                          name="scopeChange"
+                          aria-label="Scope changes this week"
+                          value={newScopeChange}
+                          onChange={setNewScopeChange}
+                          options={[
+                            { value: 'none', label: 'None' },
+                            { value: 'logged', label: 'Yes — logged with change order' },
+                            { value: 'unlogged', label: 'Yes — NOT logged yet' },
+                          ]}
+                        />
                       </div>
 
                       <div>

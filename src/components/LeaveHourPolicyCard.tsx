@@ -20,11 +20,11 @@ export default function LeaveHourPolicyCard() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white ring-1 ring-gray-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition-colors shrink-0 whitespace-nowrap"
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-white ring-1 ring-gray-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors shrink-0 whitespace-nowrap"
         aria-label="Attendance and leave hour requirements"
         title="Rules & regulations"
       >
-        <svg viewBox="0 0 24 24" fill="none" className="h-4.5 w-4.5 h-[18px] w-[18px]" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
           <path
             d="M8 4h9.5A1.5 1.5 0 0 1 19 5.5v14A1.5 1.5 0 0 1 17.5 21H8"
             stroke="currentColor"
@@ -39,7 +39,7 @@ export default function LeaveHourPolicyCard() {
           />
           <path d="M11 8h5M11 12h5M11 16h3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
         </svg>
-        <span className="text-xs font-semibold">Rules</span>
+        <span className="text-[11px] font-semibold leading-none">Rules</span>
       </button>
 
       {open && (

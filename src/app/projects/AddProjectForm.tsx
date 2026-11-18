@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
 import BodyScrollLock from '@/components/BodyScrollLock'
 import AssigneeMultiSelect from './AssigneeMultiSelect'
+import SimpleSelect from '@/components/SimpleSelect'
+
+const CURRENCIES = ['USD', 'AED', 'INR', 'GBP', 'EUR', 'AUD'] as const
 
 type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
@@ -22,6 +25,8 @@ export default function AddProjectForm({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [bdMemberId, setBdMemberId] = useState('')
+  const [currency, setCurrency] = useState<string>('USD')
   const router = useRouter()
 
   // Check if current user is BD or Both (should be auto-assigned as client manager)
@@ -83,7 +88,11 @@ export default function AddProjectForm({
       <button
         type="button"
         className="btn-primary inline-flex items-center justify-center text-sm !px-3 !py-2 whitespace-nowrap shrink-0"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setBdMemberId('')
+          setCurrency('USD')
+          setOpen(true)
+        }}
       >
         + New project
       </button>
@@ -138,10 +147,19 @@ export default function AddProjectForm({
                       </div>
                     </>
                   ) : (
-                    <select name="bdMemberId" className="input">
-                      <option value="">No BD assigned</option>
-                      {members.filter(m => ['BD', 'Both', 'Founder'].includes(m.role)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                    </select>
+                    <SimpleSelect
+                      name="bdMemberId"
+                      aria-label="BD (client manager)"
+                      placeholder="No BD assigned"
+                      value={bdMemberId}
+                      onChange={setBdMemberId}
+                      options={[
+                        { value: '', label: 'No BD assigned' },
+                        ...members
+                          .filter(m => ['BD', 'Both', 'Founder'].includes(m.role))
+                          .map(m => ({ value: m.id, label: m.name })),
+                      ]}
+                    />
                   )}
                 </div>
               </div>
@@ -156,9 +174,13 @@ export default function AddProjectForm({
                 </div>
                 <div>
                   <label className="label">Currency</label>
-                  <select name="currency" className="input">
-                    {['USD','AED','INR','GBP','EUR','AUD'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="currency"
+                    aria-label="Currency"
+                    value={currency}
+                    onChange={setCurrency}
+                    options={CURRENCIES.map(c => ({ value: c, label: c }))}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

@@ -9,6 +9,7 @@ import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
 import HoursMinutesFields from '@/components/HoursMinutesFields'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -348,19 +349,17 @@ export default function MorningPlanForm({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="label">Project *</label>
-                      <select
+                      <SimpleSelect
+                        aria-label="Project"
+                        placeholder="— Select project —"
                         value={task.projectId}
-                        onChange={e => updateTask(i, 'projectId', e.target.value)}
-                        required
-                        className="input bg-gray-50/50 focus:bg-white"
-                      >
-                        <option value="">— Select project —</option>
-                        {projects.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={v => updateTask(i, 'projectId', v)}
+                        className="bg-gray-50/50 focus:bg-white"
+                        options={[
+                          { value: '', label: '— Select project —' },
+                          ...projects.map(p => ({ value: p.id, label: p.name })),
+                        ]}
+                      />
                     </div>
                     <div>
                       <label className="label">Milestone</label>
@@ -419,21 +418,16 @@ export default function MorningPlanForm({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="label">Type</label>
-                      <select
+                      <SimpleSelect
+                        aria-label="Type"
                         value={task.taskType}
-                        onChange={e => updateTask(i, 'taskType', e.target.value)}
-                        className="input bg-gray-50/50 focus:bg-white"
-                      >
-                        {(taskTypeGroupsForRole(catalog, member.role, task.taskType) ?? dailyTaskTypeGroupsForRole(member.role, task.taskType)).map(group => (
-                          <optgroup key={group.label} label={group.label}>
-                            {group.types.map(t => (
-                              <option key={t.value} value={t.value}>
-                                {t.label}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                        onChange={v => updateTask(i, 'taskType', v)}
+                        className="bg-gray-50/50 focus:bg-white"
+                        options={(
+                          taskTypeGroupsForRole(catalog, member.role, task.taskType) ??
+                          dailyTaskTypeGroupsForRole(member.role, task.taskType)
+                        ).flatMap(group => group.types.map(t => ({ value: t.value, label: t.label })))}
+                      />
                     </div>
                     <div>
                       <HoursMinutesFields

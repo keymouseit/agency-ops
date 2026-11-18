@@ -205,21 +205,23 @@ export default function GoalsClient({
                 />
               </div>
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="label">Goal title *</label>
-              <input
+              <textarea
                 name="title"
                 required
-                className="input"
+                rows={2}
+                className="input !min-h-0 min-h-[2.75rem] resize-y"
                 placeholder="e.g. Zero client-reported bugs for 4 consecutive weeks"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="label">What does success look like? (measurable)</label>
-              <input
+              <textarea
                 name="successMetric"
-                className="input"
-                placeholder="e.g. 4 weeks in a row with no client-reported bug"
+                rows={2}
+                className="input !min-h-0 min-h-[2.75rem] resize-y"
+                placeholder="e.g. 4 weeks in a row with no client-reported bugs"
               />
             </div>
             <div>

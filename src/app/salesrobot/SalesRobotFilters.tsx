@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSalesRobotTransition } from './SalesRobotLoading'
+import SimpleSelect from '@/components/SimpleSelect'
 
 const PRESETS = [
   { value: 'today', label: 'Today' },
@@ -129,69 +130,62 @@ export default function SalesRobotFilters({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <label className="text-xs font-medium text-gray-500">
           Date range
-          <select
-            className={selectClass}
+          <SimpleSelect
+            className={`${selectClass} mt-1.5`}
+            aria-label="Date range"
             value={preset}
             disabled={pending}
-            onChange={e => update({ preset: e.target.value })}
-          >
-            {PRESETS.map(p => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onChange={v => update({ preset: v })}
+            options={PRESETS.map(p => ({ value: p.value, label: p.label }))}
+          />
         </label>
 
         <label className="text-xs font-medium text-gray-500">
           Campaign
-          <select
-            className={selectClass}
+          <SimpleSelect
+            className={`${selectClass} mt-1.5`}
+            aria-label="Campaign"
+            placeholder="All campaigns"
             value={campaignId}
             disabled={pending}
-            onChange={e => update({ campaignId: e.target.value || null })}
-          >
-            <option value="">All campaigns</option>
-            {visibleCampaigns.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+            onChange={v => update({ campaignId: v || null })}
+            options={[
+              { value: '', label: 'All campaigns' },
+              ...visibleCampaigns.map(c => ({ value: c.id, label: c.label })),
+            ]}
+          />
         </label>
 
         <label className="text-xs font-medium text-gray-500">
           LinkedIn account
-          <select
-            className={selectClass}
+          <SimpleSelect
+            className={`${selectClass} mt-1.5`}
+            aria-label="LinkedIn account"
+            placeholder="All accounts"
             value={accountId}
             disabled={pending}
-            onChange={e => update({ accountId: e.target.value || null })}
-          >
-            <option value="">All accounts</option>
-            {accounts.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
+            onChange={v => update({ accountId: v || null })}
+            options={[
+              { value: '', label: 'All accounts' },
+              ...accounts.map(a => ({ value: a.id, label: a.label })),
+            ]}
+          />
         </label>
 
         <label className="text-xs font-medium text-gray-500">
           Campaign status
-          <select
-            className={selectClass}
+          <SimpleSelect
+            className={`${selectClass} mt-1.5`}
+            aria-label="Campaign status"
+            placeholder="All statuses"
             value={status}
             disabled={pending}
-            onChange={e => update({ status: e.target.value || null })}
-          >
-            <option value="">All statuses</option>
-            {statuses.map(s => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            onChange={v => update({ status: v || null })}
+            options={[
+              { value: '', label: 'All statuses' },
+              ...statuses.map(s => ({ value: s, label: s })),
+            ]}
+          />
         </label>
       </div>
 

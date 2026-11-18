@@ -55,12 +55,12 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
-          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 break-words">{project.name}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-500">
             <span>Dev owner: {project.developer.name}</span>
-            <span>·</span>
+            <span className="hidden sm:inline">·</span>
             <span className={`badge ${project.status === 'qa' ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600'}`}>
               {project.status}
             </span>
@@ -79,40 +79,52 @@ export default async function QAProjectPage({ params }: { params: { id: string }
 
       {/* QA Handoff Information */}
       {project.qaModulesDelivered && (
-        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-          <div className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
-            📋 QA Handoff Information
+        <div className="mb-6 p-3 sm:p-4 bg-purple-50 border border-purple-200 rounded-xl min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2.5">
+            <h2 className="text-sm font-semibold text-purple-900">📋 QA Handoff</h2>
             {project.qaHandoffAt && (
-              <span className="text-xs text-purple-600 font-normal">
-                · Handed off on {fmtDate(project.qaHandoffAt)}
+              <span className="text-xs text-purple-600">
+                Handed off {fmtDate(project.qaHandoffAt)}
               </span>
             )}
           </div>
-          <div className="space-y-3">
-            <div>
-              <div className="text-xs text-purple-700 font-medium mb-1">Modules/Features Delivered:</div>
-              <p className="text-sm text-purple-900">{project.qaModulesDelivered}</p>
+
+          <div
+            className={`grid gap-x-4 gap-y-2 min-w-0 ${
+              project.qaSuggestedTestType ? 'grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-xs text-purple-700 font-medium mb-0.5">Modules</div>
+              <p className="text-sm text-purple-900 break-words">{project.qaModulesDelivered}</p>
             </div>
-            {project.qaSuggestedTestType && (
-              <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Suggested Test Type:</div>
-                <span className="inline-block text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded capitalize">
+
+            {project.qaSuggestedTestType ? (
+              <div className="min-w-0">
+                <div className="text-xs text-purple-700 font-medium mb-0.5">Test type</div>
+                <span className="inline-flex text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded capitalize">
                   {project.qaSuggestedTestType}
                 </span>
               </div>
-            )}
-            {project.qaTestingNotes && (
-              <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Testing Notes:</div>
-                <p className="text-sm text-purple-900 whitespace-pre-wrap">{project.qaTestingNotes}</p>
+            ) : null}
+
+            {project.qaTestingNotes ? (
+              <div className="col-span-full min-w-0">
+                <div className="text-xs text-purple-700 font-medium mb-0.5">Notes</div>
+                <p className="text-sm text-purple-900 whitespace-pre-wrap break-words">
+                  {project.qaTestingNotes}
+                </p>
               </div>
-            )}
-            {project.qaAreasChanged && (
-              <div>
-                <div className="text-xs text-purple-700 font-medium mb-1">Areas Changed:</div>
-                <p className="text-sm text-purple-900 whitespace-pre-wrap font-mono text-xs">{project.qaAreasChanged}</p>
+            ) : null}
+
+            {project.qaAreasChanged ? (
+              <div className="col-span-full min-w-0">
+                <div className="text-xs text-purple-700 font-medium mb-0.5">Areas</div>
+                <p className="text-sm text-purple-900 whitespace-pre-wrap font-mono text-xs break-words">
+                  {project.qaAreasChanged}
+                </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
@@ -178,8 +190,8 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       )}
 
       {/* Milestone approval */}
-      <div className="card p-5 mb-4">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Milestone Approval</h2>
+      <div className="card p-4 sm:p-5 mb-4 min-w-0 overflow-hidden">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Milestone Approval</h2>
         <MilestoneApproval
           milestones={project.milestones.map(m => ({
             ...m,
@@ -259,15 +271,9 @@ export default async function QAProjectPage({ params }: { params: { id: string }
       )}
 
       {/* Post-delivery issues */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Post-delivery issues</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Issues the client reported after delivery. Not a bug tracker — log the ones we missed.
-            </p>
-          </div>
-          {hasSignOff && canManageQA && (
+      <div className="card p-4 sm:p-5 mb-4 min-w-0 overflow-hidden">
+        {hasSignOff && canManageQA ? (
+          <div className="mb-4 min-w-0">
             <QAProjectActions
               project={{ id: project.id, name: project.name, status: project.status }}
               members={members}
@@ -275,9 +281,24 @@ export default async function QAProjectPage({ params }: { params: { id: string }
               latestCycleId={undefined}
               issueMode
               hasSignOff={hasSignOff}
+              titleSlot={
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-gray-900">Post-delivery issues</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Issues the client reported after delivery. Not a bug tracker — log the ones we missed.
+                  </p>
+                </div>
+              }
             />
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-gray-900">Post-delivery issues</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Issues the client reported after delivery. Not a bug tracker — log the ones we missed.
+            </p>
+          </div>
+        )}
 
         {project.postDeliveryIssues.length === 0 ? (
           <p className="text-sm text-green-700">No post-delivery issues reported. ✓</p>

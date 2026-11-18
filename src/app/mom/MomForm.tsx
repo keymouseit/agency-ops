@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { LEAD_SOURCES, MOM_FINAL_STATUSES, MOM_MEETING_TYPES, ROLE_COLORS, momRequiresActionItems } from '@/lib/utils'
 import { momClientKey } from '@/lib/mom'
 import MomActionItemsEditor, { newActionRow, type ActionRowDraft } from './MomActionItemsEditor'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 type CustomAttendee = { name: string; role: string }
@@ -232,15 +233,13 @@ function AttendeePicker({
             className="input flex-1"
             placeholder="Name (e.g. client contact)"
           />
-          <select
+          <SimpleSelect
+            aria-label="Guest role"
+            className="sm:w-36"
             value={customRole}
-            onChange={e => setCustomRole(e.target.value)}
-            className="input sm:w-36"
-          >
-            {CUSTOM_ATTENDEE_ROLES.map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+            onChange={setCustomRole}
+            options={CUSTOM_ATTENDEE_ROLES.map(r => ({ value: r, label: r }))}
+          />
           <button
             type="button"
             onClick={addCustom}
@@ -334,6 +333,9 @@ export default function MomForm({
   const [meetingDate, setMeetingDate] = useState(initialFields.meetingDate)
   const [meetingTime, setMeetingTime] = useState(initialFields.meetingTime)
   const [leadSource, setLeadSource] = useState(initialFields.leadSource)
+  const [meetingType, setMeetingType] = useState(
+    initialMom?.meetingType ?? prefill?.meetingType ?? '',
+  )
   const router = useRouter()
 
   const selectedCall = campaignCalls.find(c => c.id === selectedCallId)
@@ -465,16 +467,16 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Select call (optional)</label>
-            <select
-              className="input"
+            <SimpleSelect
+              aria-label="Campaign call"
+              placeholder="— Not from a campaign call —"
               value={selectedCallId}
-              onChange={e => onCampaignCallChange(e.target.value)}
-            >
-              <option value="">— Not from a campaign call —</option>
-              {campaignCalls.map(c => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+              onChange={onCampaignCallChange}
+              options={[
+                { value: '', label: '— Not from a campaign call —' },
+                ...campaignCalls.map(c => ({ value: c.id, label: c.label })),
+              ]}
+            />
           </div>
           {selectedCall && (
             <div className="px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-900 flex items-center justify-between gap-3">
@@ -518,42 +520,40 @@ export default function MomForm({
           </div>
           <div>
             <label className="label">Meeting type *</label>
-            <select
+            <SimpleSelect
               name="meetingType"
               required
-              className="input"
-              defaultValue={initialMom?.meetingType ?? prefill?.meetingType ?? ''}
-            >
-              <option value="">Select type</option>
-              {MOM_MEETING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+              aria-label="Meeting type"
+              placeholder="Select type"
+              value={meetingType}
+              onChange={setMeetingType}
+              options={MOM_MEETING_TYPES.map(t => ({ value: t, label: t }))}
+            />
           </div>
           <div>
             <label className="label">Final status *</label>
-            <select
+            <SimpleSelect
               name="finalStatus"
               required
-              className="input"
+              aria-label="Final status"
               value={finalStatus}
-              onChange={e => setFinalStatus(e.target.value)}
-            >
-              {MOM_FINAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+              onChange={setFinalStatus}
+              options={MOM_FINAL_STATUSES.map(s => ({ value: s, label: s }))}
+            />
             <p className="text-xs text-gray-400 mt-1">
               Active, Waiting Response, Demo Given / Committed / Prepared, Hold, or Closed.
             </p>
           </div>
           <div>
             <label className="label">Lead source</label>
-            <select
+            <SimpleSelect
               name="leadSource"
-              className="input"
+              aria-label="Lead source"
+              placeholder="Select source"
               value={leadSource}
-              onChange={e => setLeadSource(e.target.value)}
-            >
-              <option value="">Select source</option>
-              {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+              onChange={setLeadSource}
+              options={LEAD_SOURCES.map(s => ({ value: s, label: s }))}
+            />
           </div>
         </div>
         <div>

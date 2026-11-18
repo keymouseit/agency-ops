@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MOM_FINAL_STATUSES, MOM_FINAL_STATUS_COLORS } from '@/lib/utils'
+import SimpleSelect from '@/components/SimpleSelect'
 
 export default function MomFinalStatusControl({
   id,
@@ -77,28 +78,14 @@ export default function MomFinalStatusControl({
                 Saving…
               </span>
             )}
-            <div className="relative inline-flex">
-              <select
-                value={value}
-                disabled={loading}
-                onChange={e => onChange(e.target.value)}
-                className="appearance-none inline-flex items-center h-[30px] max-w-[16rem] pl-2.5 pr-8 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-800 cursor-pointer disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300"
-                aria-label="Deal status"
-                aria-busy={loading || undefined}
-              >
-                {MOM_FINAL_STATUSES.map(s => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] leading-none text-gray-400"
-              >
-                ▼
-              </span>
-            </div>
+            <SimpleSelect
+              aria-label="Deal status"
+              disabled={loading}
+              value={value}
+              onChange={onChange}
+              className="!h-[30px] max-w-[16rem] !py-0 text-xs font-medium"
+              options={MOM_FINAL_STATUSES.map(s => ({ value: s, label: s }))}
+            />
           </div>
         ) : (
           <span
