@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { formatIstDate, formatIstLeaveRange, istDateInputValue } from '@/lib/ist'
 import { SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
+import SimpleSelect from '@/components/SimpleSelect'
 import toast, { Toaster } from 'react-hot-toast'
 
 type Employee = { id: string; name: string; email: string; role: string }
@@ -182,17 +183,15 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
-            <select
+            <SimpleSelect
+              aria-label="Employee"
               value={memberId}
-              onChange={e => setMemberId(e.target.value)}
-              className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5"
-            >
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.name} · {e.role}
-                </option>
-              ))}
-            </select>
+              onChange={setMemberId}
+              options={employees.map(e => ({
+                value: e.id,
+                label: `${e.name} · ${e.role}`,
+              }))}
+            />
           </div>
 
           <div>
@@ -267,89 +266,85 @@ export default function LeaveUsageClient({ employees }: { employees: Employee[] 
       ) : data ? (
         <>
           {data.balance && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-              <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+              <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 truncate">
                   Available ({data.balance.year})
                 </p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.available}</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.balance.available}</p>
               </div>
-              <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+              <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 truncate">
                   Total ({data.balance.year})
                 </p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.accrued}</p>
-                <p className="text-xs text-gray-400 mt-1">1 day accrued per month</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.balance.accrued}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate">1 day / month</p>
               </div>
-              <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+              <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 truncate">
                   Used ({data.balance.year})
                 </p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.used}</p>
-                <p className="text-xs text-gray-400 mt-1">paid days deducted this year</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.balance.used}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate">paid days</p>
               </div>
-              <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                  Short leaves this year
+              <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 truncate">
+                  Short leaves
                 </p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{data.balance.shortLeaves}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Count of approved short leaves in {data.balance.year} — not deducted from Total (max 2 per month)
+                <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.balance.shortLeaves}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate" title="Not deducted from Total (max 2 per month)">
+                  max 2 / month
                 </p>
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Days taken</p>
-              <p className="text-3xl font-bold mt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+            <div className="rounded-xl bg-slate-900 text-white px-3 py-2.5 shadow-sm min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-300 truncate">Days taken</p>
+              <p className="text-xl font-bold mt-0.5 tabular-nums">
                 {data.usage.takenDays ?? data.usage.fullDayDays + data.usage.halfDayDays}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                 {data.usage.totalDayBalance} paid
-                {(data.usage.unpaidDayBalance ?? 0) > 0
-                  ? ` · ${data.usage.unpaidDayBalance} unpaid`
-                  : ' · full + half days'}
+                {(data.usage.unpaidDayBalance ?? 0) > 0 ? ` · ${data.usage.unpaidDayBalance} unpaid` : ''}
               </p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Full day</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{data.usage.fullDayCount}</p>
-              <p className="text-xs text-gray-500 mt-1">{data.usage.fullDayDays} day(s) taken</p>
+            <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-600 truncate">Full day</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.usage.fullDayCount}</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 truncate">{data.usage.fullDayDays} day(s)</p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Half day</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{data.usage.halfDayCount}</p>
-              <p className="text-xs text-gray-500 mt-1">{data.usage.halfDayDays} day(s) total</p>
+            <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 truncate">Half day</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{data.usage.halfDayCount}</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 truncate">{data.usage.halfDayDays} day(s)</p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
+            <div className="rounded-xl bg-white ring-1 ring-gray-900/5 px-3 py-2.5 shadow-sm min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 truncate">Short leave</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">
                 {data.usage.shortLeaveCount}/{SHORT_LEAVE_MONTHLY_CAP}
               </p>
-              <p className="text-xs text-gray-500 mt-1">used / monthly cap</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 truncate">used / cap</p>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-                Approved leaves in range
-              </h2>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-gray-500">
-                  {data.usage.totalRequests} requests
-                </span>
-                <button
-                  type="button"
-                  onClick={downloadReport}
-                  disabled={downloading}
-                  className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {downloading ? 'Preparing…' : 'Download CSV'}
-                </button>
+            <div className="px-4 py-3 sm:px-5 border-b border-gray-100 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-gray-900">Approved leaves in range</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {data.usage.totalRequests} request{data.usage.totalRequests === 1 ? '' : 's'}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={downloadReport}
+                disabled={downloading}
+                className="btn-secondary inline-flex items-center justify-center text-xs !px-3 !py-1.5 whitespace-nowrap self-start sm:self-auto disabled:opacity-50"
+              >
+                {downloading ? 'Preparing…' : 'Download CSV'}
+              </button>
             </div>
 
             {data.usage.leaves.length === 0 ? (

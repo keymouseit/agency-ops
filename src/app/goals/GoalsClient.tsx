@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MemberNameLink from '@/components/MemberNameLink'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 type Goal = {
@@ -34,6 +35,9 @@ export default function GoalsClient({
   const [error, setError] = useState('')
   const [filterMember, setFilterMember] = useState('')
   const [filterQuarter, setFilterQuarter] = useState('')
+  const [newMemberId, setNewMemberId] = useState(members[0]?.id ?? '')
+  const [newCategory, setNewCategory] = useState(CATEGORIES[0])
+  const [newQuarter, setNewQuarter] = useState(QUARTERS[QUARTERS.length - 1] ?? 'Q4-2026')
   const router = useRouter()
 
   async function createGoal(e: React.FormEvent<HTMLFormElement>) {
@@ -100,74 +104,123 @@ export default function GoalsClient({
 
   const quarters = [...new Set(goals.map(g => g.quarter))].sort().reverse()
 
+  function openNewFor(memberId?: string) {
+    if (memberId) setNewMemberId(memberId)
+    setShowNew(true)
+  }
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Goals & KRAs</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Quarterly goals per team member. Set by founder. Progress updated weekly.</p>
+    <div className="min-w-0 w-full max-w-full pb-8">
+      <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-gray-900">Goals &amp; KRAs</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Quarterly goals per team member. Set by founder. Progress updated weekly.
+          </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowNew(true)}>+ Set goal</button>
+        <button
+          type="button"
+          className="btn-primary inline-flex items-center justify-center self-start shrink-0 text-sm !px-3 !py-2 whitespace-nowrap"
+          onClick={() => openNewFor()}
+        >
+          + Set goal
+        </button>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-6">
-        <select className="input w-auto" value={filterMember} onChange={e => setFilterMember(e.target.value)}>
-          <option value="">All members</option>
-          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-        <select className="input w-auto" value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)}>
-          <option value="">All quarters</option>
-          {quarters.map(q => <option key={q}>{q}</option>)}
-        </select>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5 max-w-xl">
+        <SimpleSelect
+          aria-label="Filter by member"
+          value={filterMember}
+          onChange={setFilterMember}
+          options={[
+            { value: '', label: 'All members' },
+            ...members.map(m => ({ value: m.id, label: m.name })),
+          ]}
+        />
+        <SimpleSelect
+          aria-label="Filter by quarter"
+          value={filterQuarter}
+          onChange={setFilterQuarter}
+          options={[
+            { value: '', label: 'All quarters' },
+            ...quarters.map(q => ({ value: q, label: q })),
+          ]}
+        />
       </div>
 
       {/* New goal form */}
       {showNew && (
-        <div className="card p-6 mb-6 bg-blue-50 border-blue-100">
+        <div className="card p-4 sm:p-6 mb-6 bg-blue-50/80 border-blue-100">
           <h2 className="text-sm font-semibold text-blue-900 mb-4">Set a new goal</h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-2 text-red-800">
                 <span className="text-lg">⚠</span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold">Failed to create goal</div>
-                  <div className="text-xs text-red-700 mt-0.5">{error}</div>
+                  <div className="text-xs text-red-700 mt-0.5 break-words">{error}</div>
                 </div>
-                <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">✕</button>
+                <button type="button" onClick={() => setError('')} className="text-red-400 hover:text-red-600 shrink-0">
+                  ✕
+                </button>
               </div>
             </div>
           )}
 
           <form onSubmit={createGoal} className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="min-w-0">
                 <label className="label">Team member *</label>
-                <select name="memberId" required className="input">
-                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
+                <SimpleSelect
+                  aria-label="Team member"
+                  name="memberId"
+                  required
+                  value={newMemberId}
+                  onChange={setNewMemberId}
+                  options={members.map(m => ({ value: m.id, label: m.name }))}
+                />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="label">Category *</label>
-                <select name="category" required className="input">
-                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                </select>
+                <SimpleSelect
+                  aria-label="Category"
+                  name="category"
+                  required
+                  value={newCategory}
+                  onChange={setNewCategory}
+                  options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="label">Quarter *</label>
-                <select name="quarter" required className="input">
-                  {QUARTERS.map(q => <option key={q}>{q}</option>)}
-                </select>
+                <SimpleSelect
+                  aria-label="Quarter"
+                  name="quarter"
+                  required
+                  value={newQuarter}
+                  onChange={setNewQuarter}
+                  options={QUARTERS.map(q => ({ value: q, label: q }))}
+                />
               </div>
             </div>
             <div>
               <label className="label">Goal title *</label>
-              <input name="title" required className="input" placeholder="e.g. Zero client-reported bugs for 4 consecutive weeks" />
+              <input
+                name="title"
+                required
+                className="input"
+                placeholder="e.g. Zero client-reported bugs for 4 consecutive weeks"
+              />
             </div>
             <div>
               <label className="label">What does success look like? (measurable)</label>
-              <input name="successMetric" className="input" placeholder="e.g. 4 weeks in a row with no client-reported bug" />
+              <input
+                name="successMetric"
+                className="input"
+                placeholder="e.g. 4 weeks in a row with no client-reported bug"
+              />
             </div>
             <div>
               <label className="label">Context / why this matters</label>
@@ -175,11 +228,19 @@ export default function GoalsClient({
             </div>
             <div>
               <label className="label">Target date</label>
-              <input name="targetDate" type="date" className="input" />
+              <input name="targetDate" type="date" className="input date-input" />
             </div>
-            <div className="flex gap-2">
-              <button type="submit" disabled={loading} className="btn-primary">{loading ? '...' : 'Set goal'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setShowNew(false)}>Cancel</button>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="submit" disabled={loading} className="btn-primary text-sm !px-3 !py-2">
+                {loading ? '...' : 'Set goal'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm !px-3 !py-2"
+                onClick={() => setShowNew(false)}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
@@ -187,81 +248,128 @@ export default function GoalsClient({
 
       {/* Goals by member */}
       {byMember.map(({ member: m, goals: mg }) => (
-        <div key={m.id} className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <MemberNameLink memberId={m.id} name={m.name} canLink={canLinkMembers} className="text-sm font-semibold text-gray-800" />
+        <div key={m.id} className="mb-5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-2 px-0.5">
+            <MemberNameLink
+              memberId={m.id}
+              name={m.name}
+              canLink={canLinkMembers}
+              className="text-sm font-semibold text-gray-800"
+            />
             <span className="text-xs text-gray-400">{m.role}</span>
-            <span className="text-xs text-gray-400">· {mg.length} goal{mg.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">
+              · {mg.length} goal{mg.length !== 1 ? 's' : ''}
+            </span>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {mg.map(g => (
-              <div key={g.id} className={`card p-4 ${g.status === 'achieved' ? 'bg-green-50 border-green-100' : g.status === 'missed' ? 'bg-red-50 border-red-100' : ''}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
+              <div
+                key={g.id}
+                className={`card p-3.5 sm:p-4 ${
+                  g.status === 'achieved'
+                    ? 'bg-green-50 border-green-100'
+                    : g.status === 'missed'
+                      ? 'bg-red-50 border-red-100'
+                      : ''
+                }`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900">{g.title}</span>
-                      <span className={`badge text-xs ${CAT_COLORS[g.category] ?? 'bg-gray-100 text-gray-600'}`}>{g.category}</span>
+                      <span className="text-sm font-semibold text-gray-900 break-words">{g.title}</span>
+                      <span className={`badge text-xs ${CAT_COLORS[g.category] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {g.category}
+                      </span>
                       <span className="text-xs text-gray-400">{g.quarter}</span>
-                      {g.status === 'achieved' && <span className="badge bg-green-100 text-green-800 text-xs">✓ Achieved</span>}
-                      {g.status === 'missed' && <span className="badge bg-red-100 text-red-800 text-xs">✗ Missed</span>}
+                      {g.status === 'achieved' && (
+                        <span className="badge bg-green-100 text-green-800 text-xs">✓ Achieved</span>
+                      )}
+                      {g.status === 'missed' && (
+                        <span className="badge bg-red-100 text-red-800 text-xs">✗ Missed</span>
+                      )}
                     </div>
                     {g.successMetric && (
-                      <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 mb-2">
+                      <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 mb-2 break-words">
                         ✓ Done when: {g.successMetric}
                       </p>
                     )}
-                    {g.description && <p className="text-xs text-gray-500 mb-2">{g.description}</p>}
+                    {g.description && (
+                      <p className="text-xs text-gray-500 mb-2 break-words">{g.description}</p>
+                    )}
 
-                    {/* Progress bar + slider */}
                     {g.status === 'active' && (
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${g.progressPct >= 80 ? 'bg-green-500' : g.progressPct >= 50 ? 'bg-amber-400' : 'bg-gray-300'}`}
-                            style={{ width: `${g.progressPct}%` }}
-                          />
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-0">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                g.progressPct >= 80
+                                  ? 'bg-green-500'
+                                  : g.progressPct >= 50
+                                    ? 'bg-amber-400'
+                                    : 'bg-gray-300'
+                              }`}
+                              style={{ width: `${g.progressPct}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-700 tabular-nums shrink-0">
+                            {g.progressPct}%
+                          </span>
                         </div>
-                        <span className="text-sm font-semibold text-gray-700 w-10">{g.progressPct}%</span>
                         <input
-                          type="range" min="0" max="100" step="5"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
                           defaultValue={g.progressPct}
                           onChange={e => updateProgress(g.id, parseInt(e.target.value))}
-                          className="w-24"
+                          className="w-full sm:w-24"
                         />
                       </div>
                     )}
                   </div>
 
                   {g.status === 'active' && (
-                    <div className="flex flex-col gap-1 flex-shrink-0">
+                    <div className="flex flex-row sm:flex-col gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => updateStatus(g.id, 'achieved')}
-                        className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
-                      >Mark achieved</button>
+                        className="text-xs px-2.5 py-1.5 bg-green-100 text-green-800 rounded-lg hover:bg-green-200"
+                      >
+                        Mark achieved
+                      </button>
                       <button
                         type="button"
                         onClick={() => updateStatus(g.id, 'missed')}
-                        className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
-                      >Mark missed</button>
+                        className="text-xs px-2.5 py-1.5 bg-red-100 text-red-800 rounded-lg hover:bg-red-200"
+                      >
+                        Mark missed
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
             ))}
             {mg.length === 0 && (
-              <div className="card p-4 text-sm text-gray-400 text-center">
-                No goals set for {m.name} yet.
-                <button className="ml-2 text-blue-600 hover:underline" onClick={() => setShowNew(true)}>Set one →</button>
+              <div className="rounded-xl border border-dashed border-gray-200 bg-white px-3.5 py-3 flex items-center justify-between gap-3">
+                <p className="text-sm text-gray-500 min-w-0">No goals set yet.</p>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800 shrink-0 whitespace-nowrap"
+                  onClick={() => openNewFor(m.id)}
+                >
+                  Set one →
+                </button>
               </div>
             )}
           </div>
         </div>
       ))}
 
-      {goals.length === 0 && (
-        <div className="card p-12 text-center text-gray-400 text-sm">
-          No goals set yet. Goals are the "what good looks like" target that weekly scores measure progress toward.
+      {goals.length === 0 && !showNew && (
+        <div className="card p-6 sm:p-10 text-center text-gray-400 text-sm">
+          No goals set yet. Goals are the &quot;what good looks like&quot; target that weekly scores measure
+          progress toward.
         </div>
       )}
     </div>

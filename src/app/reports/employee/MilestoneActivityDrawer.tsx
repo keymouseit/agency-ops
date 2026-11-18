@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useCallback, useEffect, useState } from 'react'
 import { formatIst, formatIstDate } from '@/lib/ist'
@@ -170,6 +171,7 @@ export default function MilestoneActivityDrawer({
 
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Milestone activity">
+          <BodyScrollLock />
       <button
         type="button"
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"

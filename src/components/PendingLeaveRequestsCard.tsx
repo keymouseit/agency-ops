@@ -116,44 +116,45 @@ export default function PendingLeaveRequestsCard({
             const unpaid = unpaidLabel(req)
             const deciding = activeId === req.id && decision
             return (
-              <li key={req.id} className="py-1.5 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-2 min-h-[32px]">
+              <li key={req.id} className="py-2.5 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="text-sm font-semibold text-gray-900 truncate">
-                        {req.memberName}
-                      </span>
-                      <span className="text-[11px] text-gray-500 truncate">{req.dateLabel}</span>
-                    </div>
+                    <p className="text-sm font-semibold text-gray-900 break-words">
+                      {req.memberName}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-gray-500 break-words">{req.dateLabel}</p>
                     {req.reason ? (
-                      <p className="text-[11px] text-gray-500 truncate" title={req.reason}>
+                      <p className="mt-0.5 text-[11px] text-gray-500 line-clamp-2" title={req.reason}>
                         {req.reason}
                       </p>
                     ) : null}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize whitespace-nowrap ring-1 ring-inset ${typeBadgeClass(req.leaveType)}`}
+                      >
+                        {req.label}
+                      </span>
+                      {unpaid ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap bg-orange-50 text-orange-800 ring-1 ring-orange-600/15">
+                          {unpaid}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <span
-                    className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ring-1 ring-inset ${typeBadgeClass(req.leaveType)}`}
-                  >
-                    {req.label}
-                  </span>
-                  {unpaid ? (
-                    <span className="hidden sm:inline-flex shrink-0 items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide bg-orange-50 text-orange-800 ring-1 ring-orange-600/15">
-                      {unpaid}
-                    </span>
-                  ) : null}
+
                   {deciding ? null : (
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 self-stretch sm:self-start">
                       <button
                         type="button"
                         onClick={() => openDecision(req.id, 'rejected')}
-                        className="px-2 py-1 rounded-md text-[11px] font-semibold text-red-700 hover:bg-red-50"
+                        className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-red-700 hover:bg-red-50 ring-1 ring-red-100"
                       >
                         Reject
                       </button>
                       <button
                         type="button"
                         onClick={() => openDecision(req.id, 'approved')}
-                        className="px-2 py-1 rounded-md text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+                        className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
                       >
                         Approve
                       </button>
@@ -162,37 +163,39 @@ export default function PendingLeaveRequestsCard({
                 </div>
 
                 {deciding ? (
-                  <div className="mt-1.5 flex items-center gap-2">
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
-                      className="flex-1 min-w-0 text-xs rounded-md border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="w-full min-w-0 text-xs rounded-md border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 sm:flex-1"
                       placeholder={
                         decision === 'rejected'
                           ? 'Rejection reason'
                           : 'Approval comment'
                       }
                     />
-                    <button
-                      type="button"
-                      onClick={cancelDecision}
-                      disabled={saving}
-                      className="px-2 py-1 rounded-md text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={submitDecision}
-                      disabled={saving}
-                      className={`px-2 py-1 rounded-md text-[11px] font-semibold text-white disabled:opacity-50 ${
-                        decision === 'rejected'
-                          ? 'bg-red-600 hover:bg-red-700'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {saving ? 'Saving…' : 'Confirm'}
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={cancelDecision}
+                        disabled={saving}
+                        className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={submitDecision}
+                        disabled={saving}
+                        className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-white disabled:opacity-50 ${
+                          decision === 'rejected'
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-emerald-600 hover:bg-emerald-700'
+                        }`}
+                      >
+                        {saving ? 'Saving…' : 'Confirm'}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </li>

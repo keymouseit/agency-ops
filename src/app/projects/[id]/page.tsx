@@ -145,47 +145,49 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         releaseSignedOff={!!project.releaseSignOff}
         techStack={project.techStack}
         actions={
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
-            <ProjectActions
-              project={{
-                id: project.id,
-                status: project.status,
-                postMortem: project.postMortem,
-                bdMemberId: project.bdMemberId,
-                developerId: project.developerId,
-                assigneeIds: assignment.assigneeIds,
-                releaseSignOff: project.releaseSignOff,
-              }}
-              members={members}
-              userRole={userRole}
-            />
-            {showEdit && (
-              <EditProjectForm
-                project={{
-                  id: project.id,
-                  name: project.name,
-                  leadId: project.leadId,
-                  developerId: project.developerId,
-                  assigneeIds: assignment.assigneeIds,
-                  bdMemberId: project.bdMemberId,
-                  clientName: project.clientName,
-                  contractValue: project.contractValue,
-                  currency: project.currency,
-                  estimatedHours: project.estimatedHours,
-                  actualHours: project.actualHours,
-                  techStack: project.techStack,
-                  startDate: project.startDate?.toISOString() ?? null,
-                  estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
-                }}
-                members={members}
-                wonLeads={wonLeads}
-                editableFields={editableFields}
-              />
-            )}
-            {showDelete && (
-              <DeleteProjectButton projectId={project.id} projectName={project.name} />
-            )}
-          </div>
+          <ProjectActions
+            project={{
+              id: project.id,
+              status: project.status,
+              postMortem: project.postMortem,
+              bdMemberId: project.bdMemberId,
+              developerId: project.developerId,
+              assigneeIds: assignment.assigneeIds,
+              releaseSignOff: project.releaseSignOff,
+            }}
+            members={members}
+            userRole={userRole}
+            trailing={
+              <>
+                {showEdit && (
+                  <EditProjectForm
+                    project={{
+                      id: project.id,
+                      name: project.name,
+                      leadId: project.leadId,
+                      developerId: project.developerId,
+                      assigneeIds: assignment.assigneeIds,
+                      bdMemberId: project.bdMemberId,
+                      clientName: project.clientName,
+                      contractValue: project.contractValue,
+                      currency: project.currency,
+                      estimatedHours: project.estimatedHours,
+                      actualHours: project.actualHours,
+                      techStack: project.techStack,
+                      startDate: project.startDate?.toISOString() ?? null,
+                      estimatedEnd: project.estimatedEnd?.toISOString() ?? null,
+                    }}
+                    members={members}
+                    wonLeads={wonLeads}
+                    editableFields={editableFields}
+                  />
+                )}
+                {showDelete && (
+                  <DeleteProjectButton projectId={project.id} projectName={project.name} />
+                )}
+              </>
+            }
+          />
         }
       />
 

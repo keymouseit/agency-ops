@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { formatIst, istDateInputValue } from '@/lib/ist'
 import Link from 'next/link'
+import SimpleSelect from '@/components/SimpleSelect'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 type AuditLog = {
   id: string
@@ -204,90 +206,79 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
   }
 
   return (
-    <div>
+    <div className="min-w-0 w-full max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Audit Log</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Complete audit trail of all system changes · {total.toLocaleString()} entries
-          </p>
-        </div>
-        <Link href="/settings" className="text-sm text-gray-600 hover:text-gray-900">
+      <div className="mb-5 sm:mb-6">
+        <Link
+          href="/settings"
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900 mb-3"
+        >
           ← Back to Settings
         </Link>
+        <h1 className="text-2xl font-semibold text-gray-900">Audit Log</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Complete audit trail of all system changes · {total.toLocaleString()} entries
+        </p>
       </div>
 
       {/* Filters */}
-      <div className="card p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+      <div className="card p-3 sm:p-4 mb-5 sm:mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3 sm:mb-4">
           {/* User Filter */}
-          <div>
+          <div className="min-w-0">
             <label className="label text-xs">User</label>
-            <select
+            <SimpleSelect
+              aria-label="User"
               value={userId}
-              onChange={e => setUserId(e.target.value)}
-              className="input text-sm"
-            >
-              <option value="">All Users</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+              onChange={setUserId}
+              options={[
+                { value: '', label: 'All Users' },
+                ...members.map(m => ({ value: m.id, label: m.name })),
+              ]}
+            />
           </div>
 
           {/* Entity Type Filter */}
-          <div>
+          <div className="min-w-0">
             <label className="label text-xs">Entity Type</label>
-            <select
+            <SimpleSelect
+              aria-label="Entity type"
               value={entityType}
-              onChange={e => setEntityType(e.target.value)}
-              className="input text-sm"
-            >
-              {ENTITY_TYPES.map(type => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+              onChange={setEntityType}
+              options={ENTITY_TYPES.map(type => ({ value: type, label: type }))}
+            />
           </div>
 
           {/* Action Filter */}
-          <div>
+          <div className="min-w-0">
             <label className="label text-xs">Action</label>
-            <select
+            <SimpleSelect
+              aria-label="Action"
               value={action}
-              onChange={e => setAction(e.target.value)}
-              className="input text-sm"
-            >
-              {ACTIONS.map(act => (
-                <option key={act} value={act}>
-                  {act}
-                </option>
-              ))}
-            </select>
+              onChange={setAction}
+              options={ACTIONS.map(act => ({ value: act, label: act }))}
+            />
           </div>
 
           {/* Date Range */}
-          <div>
+          <div className="min-w-0">
             <label className="label text-xs">Date Range</label>
-            <select
+            <SimpleSelect
+              aria-label="Date range"
               value={dateRange}
-              onChange={e => setDateRange(e.target.value)}
-              className="input text-sm"
-            >
-              <option value="1">Last 24 hours</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-              <option value="all">All time</option>
-            </select>
+              onChange={setDateRange}
+              options={[
+                { value: '1', label: 'Last 24 hours' },
+                { value: '7', label: 'Last 7 days' },
+                { value: '30', label: 'Last 30 days' },
+                { value: '90', label: 'Last 90 days' },
+                { value: 'all', label: 'All time' },
+              ]}
+            />
           </div>
 
           {/* Search */}
-          <div>
+          <div className="min-w-0 sm:col-span-2 lg:col-span-1">
             <label className="label text-xs">Search</label>
             <input
               type="text"
@@ -300,14 +291,14 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button onClick={handleSearch} className="btn-primary text-sm">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleSearch} className="btn-primary text-sm">
             Apply Filters
           </button>
-          <button onClick={handleReset} className="btn-secondary text-sm">
+          <button type="button" onClick={handleReset} className="btn-secondary text-sm">
             Reset
           </button>
-          <button onClick={exportToCSV} className="btn-secondary text-sm ml-auto">
+          <button type="button" onClick={exportToCSV} className="btn-secondary text-sm sm:ml-auto">
             Export to CSV
           </button>
         </div>
@@ -329,7 +320,57 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
 
       {!loading && logs.length > 0 && (
         <>
-          <div className="card overflow-hidden">
+          {/* Mobile / PWA cards */}
+          <div className="card overflow-hidden md:hidden">
+            <ul className="divide-y divide-gray-100">
+              {logs.map(log => (
+                <li key={log.id} className="px-4 py-3.5 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-500">
+                        {formatIst(log.timestamp, {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hourCycle: 'h23',
+                        })}
+                      </p>
+                      <p className="font-semibold text-gray-900 mt-0.5 break-words">
+                        {log.userName || 'System'}
+                      </p>
+                      {log.userEmail ? (
+                        <p className="text-xs text-gray-500 break-all">{log.userEmail}</p>
+                      ) : null}
+                    </div>
+                    <span
+                      className={`badge text-[10px] shrink-0 ${
+                        ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {log.action}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-600 break-words">
+                    <span className="font-medium text-gray-800">{log.entityType}</span>
+                    {' · '}
+                    {log.entityName || 'N/A'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLog(log)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    View details
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Desktop table */}
+          <div className="card overflow-hidden hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
@@ -346,7 +387,14 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
                   {logs.map(log => (
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {formatIst(log.timestamp, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
+                        {formatIst(log.timestamp, {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hourCycle: 'h23',
+                        })}
                       </td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-gray-900">
@@ -355,7 +403,11 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
                         <div className="text-xs text-gray-400">{log.userEmail}</div>
                       </td>
                       <td className="px-3 py-3">
-                        <span className={`badge text-xs ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-600'}`}>
+                        <span
+                          className={`badge text-xs ${
+                            ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
                           {log.action}
                         </span>
                       </td>
@@ -364,10 +416,13 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
                         <div className="font-medium text-gray-900">
                           {log.entityName || 'N/A'}
                         </div>
-                        <div className="text-xs text-gray-400 font-mono">{log.entityId.substring(0, 8)}...</div>
+                        <div className="text-xs text-gray-400 font-mono">
+                          {log.entityId.substring(0, 8)}...
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <button
+                          type="button"
                           onClick={() => setSelectedLog(log)}
                           className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                         >
@@ -382,12 +437,13 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between mt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
             <div className="text-sm text-gray-600">
               Page {page} of {totalPages} · {total.toLocaleString()} total entries
             </div>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -395,6 +451,7 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
                 ← Previous
               </button>
               <button
+                type="button"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -412,8 +469,9 @@ export default function AuditLogClient({ members }: { members: Member[] }) {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={() => setSelectedLog(null)}
         >
+          <BodyScrollLock />
           <div
-            className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto overscroll-contain"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">

@@ -68,10 +68,10 @@ export default function ProjectHeader({
         </Link>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold text-gray-900">{name}</h1>
+            <h1 className="text-xl font-semibold text-gray-900 break-words">{name}</h1>
             <span className={`badge ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-700'}`}>
               {PROJECT_STATUS_LABELS[status] ?? status}
             </span>
@@ -84,13 +84,13 @@ export default function ProjectHeader({
           {metaParts.length > 0 && (
             <p className="mt-1.5 text-sm text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
               {metaParts.map(part => (
-                <span key={String(part)}>{part}</span>
+                <span key={String(part)} className="break-words">{part}</span>
               ))}
             </p>
           )}
         </div>
 
-        <div className="shrink-0">{actions}</div>
+        <div className="w-full min-w-0">{actions}</div>
       </div>
     </div>
   )

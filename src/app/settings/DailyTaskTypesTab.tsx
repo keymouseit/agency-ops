@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import SimpleSelect from '@/components/SimpleSelect'
 import { ROLES } from '@/lib/utils'
 
 type DailyTaskTypeRecord = {
@@ -229,19 +230,16 @@ export default function DailyTaskTypesTab({
             </div>
             <div>
               <label className="label">Group</label>
-              <select
-                className="input"
+              <SimpleSelect
+                aria-label="Group"
                 value={groupLabel}
-                onChange={e => setGroupLabel(e.target.value)}
-              >
-                <option value="">Select group</option>
-                {groupLabels.map(group => (
-                  <option key={group} value={group}>
-                    {group}
-                  </option>
-                ))}
-                <option value="__new__">New group…</option>
-              </select>
+                onChange={setGroupLabel}
+                placeholder="Select group"
+                options={[
+                  ...groupLabels.map(group => ({ value: group, label: group })),
+                  { value: '__new__', label: 'New group…' },
+                ]}
+              />
             </div>
           </div>
           {groupLabel === '__new__' ? (

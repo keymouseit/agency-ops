@@ -36,12 +36,12 @@ export default function MomExportButton() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-stretch sm:items-end gap-1">
       <button
         type="button"
         onClick={download}
         disabled={loading}
-        className="btn-secondary inline-flex items-center gap-1.5 disabled:opacity-60"
+        className="btn-secondary inline-flex items-center justify-center gap-1.5 text-sm !px-3 !py-2 whitespace-nowrap disabled:opacity-60"
       >
         {loading ? 'Preparing…' : 'Download XLSX'}
       </button>

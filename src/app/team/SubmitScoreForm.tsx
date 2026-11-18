@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 type Member = { id: string; name: string; role: string }
 const DIMS = ['delivery', 'process', 'communication', 'growth', 'culture'] as const
@@ -72,6 +73,7 @@ export default function SubmitScoreForm({
       <button type="button" className={btnClass} onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <BodyScrollLock />
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-1">
               {founderMode ? 'Submit team member score' : 'Weekly self-assessment'}

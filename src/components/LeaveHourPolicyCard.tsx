@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useEffect, useState } from 'react'
 
@@ -19,7 +20,7 @@ export default function LeaveHourPolicyCard() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl bg-white ring-1 ring-gray-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white ring-1 ring-gray-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition-colors shrink-0 whitespace-nowrap"
         aria-label="Attendance and leave hour requirements"
         title="Rules & regulations"
       >
@@ -46,6 +47,7 @@ export default function LeaveHourPolicyCard() {
           className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
+          <BodyScrollLock />
           <div
             role="dialog"
             aria-modal="true"

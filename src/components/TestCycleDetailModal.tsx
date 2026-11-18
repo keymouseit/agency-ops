@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { fmtDate } from '@/lib/utils'
 import {
@@ -59,6 +60,7 @@ export default function TestCycleDetailModal({
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
+          <BodyScrollLock />
       <div
         className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-xl flex flex-col"
         onClick={e => e.stopPropagation()}

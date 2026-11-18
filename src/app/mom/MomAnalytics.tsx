@@ -321,26 +321,30 @@ export function LeadMomStrip({ stats }: { stats: AttentionStats }) {
   ]
 
   return (
-    <div className="card mb-4 px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5">
-      {items.map(item => (
-        <Link
-          key={item.label}
-          href={item.href}
-          className="inline-flex items-baseline gap-1.5 text-sm text-gray-600 hover:text-gray-900"
-        >
-          <span
-            className={`font-semibold tabular-nums ${
-              item.tone === 'red' ? 'text-red-700' : item.tone === 'amber' ? 'text-amber-700' : 'text-gray-900'
-            }`}
-          >
-            {item.count}
-          </span>
-          {item.label}
+    <div className="card mb-4 px-3 py-3 sm:px-4 sm:py-2.5">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-x-4 gap-y-2 min-w-0">
+          {items.map(item => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="inline-flex items-baseline gap-1.5 text-sm text-gray-600 hover:text-gray-900 min-w-0"
+            >
+              <span
+                className={`font-semibold tabular-nums shrink-0 ${
+                  item.tone === 'red' ? 'text-red-700' : item.tone === 'amber' ? 'text-amber-700' : 'text-gray-900'
+                }`}
+              >
+                {item.count}
+              </span>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+        <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 shrink-0">
+          What needs you →
         </Link>
-      ))}
-      <Link href="/" className="ml-auto text-xs text-gray-500 hover:text-gray-900">
-        What needs you →
-      </Link>
+      </div>
     </div>
   )
 }

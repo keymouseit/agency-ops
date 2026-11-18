@@ -100,7 +100,88 @@ export default function LeaveBalancesClient({
           <span className="text-xs font-semibold text-gray-500">{rows.length} people · {year}</span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile / PWA cards */}
+        <ul className="md:hidden divide-y divide-gray-100">
+          {rows.map(row => {
+            const accruedNum = Number(row.accruedInput)
+            const usedNum = Number(row.usedInput)
+            const available =
+              Number.isFinite(accruedNum) && Number.isFinite(usedNum)
+                ? Math.max(0, accruedNum - usedNum)
+                : '—'
+            const dirty =
+              String(row.accrued) !== row.accruedInput || String(row.used) !== row.usedInput
+
+            return (
+              <li key={row.memberId} className="px-4 py-4 space-y-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{row.name}</div>
+                  <div className="text-xs text-gray-400 truncate">{row.email}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{row.role}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="block min-w-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Total</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={24}
+                      step={0.25}
+                      value={row.accruedInput}
+                      onChange={e =>
+                        setRows(prev =>
+                          prev.map(r =>
+                            r.memberId === row.memberId ? { ...r, accruedInput: e.target.value } : r,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="block min-w-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Used</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={24}
+                      step={0.25}
+                      value={row.usedInput}
+                      onChange={e =>
+                        setRows(prev =>
+                          prev.map(r =>
+                            r.memberId === row.memberId ? { ...r, usedInput: e.target.value } : r,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-gray-500">
+                    Available <span className="font-bold text-gray-900">{available}</span>
+                    <span className="mx-1.5 text-gray-300">·</span>
+                    Comp off{' '}
+                    <span className="font-semibold text-teal-700 tabular-nums">
+                      {Number(row.compOffUsed || 0)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={row.saving || !dirty}
+                    onClick={() => saveRow(row.memberId)}
+                    className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-800"
+                  >
+                    {row.saving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">

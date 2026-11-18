@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 type Notification = {
   id: string
@@ -278,29 +279,7 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  // Lock background scroll while notifications are open (PWA / iOS)
-  useEffect(() => {
-    if (!open) return
-    const scrollY = window.scrollY
-    const { style } = document.body
-    const prev = {
-      overflow: style.overflow,
-      position: style.position,
-      top: style.top,
-      width: style.width,
-    }
-    style.overflow = 'hidden'
-    style.position = 'fixed'
-    style.top = `-${scrollY}px`
-    style.width = '100%'
-    return () => {
-      style.overflow = prev.overflow
-      style.position = prev.position
-      style.top = prev.top
-      style.width = prev.width
-      window.scrollTo(0, scrollY)
-    }
-  }, [open])
+  useBodyScrollLock(open)
 
   async function markAllRead() {
     try {

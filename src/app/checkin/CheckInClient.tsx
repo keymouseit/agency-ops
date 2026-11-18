@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -111,6 +112,7 @@ function CheckInDetailModal({
       aria-modal="true"
       aria-labelledby="checkin-detail-title"
     >
+          <BodyScrollLock />
       <div
         className="flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
@@ -382,6 +384,7 @@ function SelfScoreDetailModal({
       aria-modal="true"
       aria-labelledby="self-score-detail-title"
     >
+          <BodyScrollLock />
       <div
         className="flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}

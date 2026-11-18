@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { fmtDate } from '@/lib/utils'
 import { istDateInputValue } from '@/lib/ist'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const NO_FURTHER_STATUSES = ['Hold', 'Closed'] as const
 
@@ -46,17 +47,15 @@ export default function MomFollowUpButton({
     setOutcomeText(followUpOutcome)
   }, [completedAt, followUpOutcome])
 
+  useBodyScrollLock(open)
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !loading) close()
     }
     document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open, loading])
 
   function resetForm() {

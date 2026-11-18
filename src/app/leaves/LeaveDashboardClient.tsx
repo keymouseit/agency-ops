@@ -26,6 +26,7 @@ import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
 import NavCountBadge from '@/components/NavCountBadge'
 import LeaveHourPolicyCard from '@/components/LeaveHourPolicyCard'
 import SimpleSelect from '@/components/SimpleSelect'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { shortDisplayName } from '@/lib/employee-order'
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
@@ -110,7 +111,7 @@ function DateInputWithIcon({
         type="date"
         disabled={disabled}
         {...props}
-        className={`date-input box-border w-full max-w-full h-11 text-[13px] sm:text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${className}`}
+        className={`date-input box-border w-full max-w-full h-11 text-base sm:text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${className}`}
       />
       <button
         type="button"
@@ -244,29 +245,6 @@ export default function LeaveDashboardClient({
   const [selectedLeaveForModal, setSelectedLeaveForModal] = useState<any>(null)
   const [auditLoading, setAuditLoading] = useState(false)
 
-  // Lock page scroll while leave details modal is open (iOS Safari scroll chaining)
-  useEffect(() => {
-    if (!selectedLeaveForModal) return
-    const scrollY = window.scrollY
-    const { style } = document.body
-    const prev = {
-      overflow: style.overflow,
-      position: style.position,
-      top: style.top,
-      width: style.width,
-    }
-    style.overflow = 'hidden'
-    style.position = 'fixed'
-    style.top = `-${scrollY}px`
-    style.width = '100%'
-    return () => {
-      style.overflow = prev.overflow
-      style.position = prev.position
-      style.top = prev.top
-      style.width = prev.width
-      window.scrollTo(0, scrollY)
-    }
-  }, [selectedLeaveForModal])
 
   // Admin Manual Entry State
   const [isManualLogModalOpen, setIsManualLogModalOpen] = useState(false)
@@ -274,6 +252,7 @@ export default function LeaveDashboardClient({
 
   // HR Assign Comp Off State
   const [isCompOffModalOpen, setIsCompOffModalOpen] = useState(false)
+
   const [compOffMemberId, setCompOffMemberId] = useState(memberId)
   const [compOffDays, setCompOffDays] = useState('1')
   const [compOffFrom, setCompOffFrom] = useState('')
@@ -285,6 +264,18 @@ export default function LeaveDashboardClient({
   const [confirmModal, setConfirmModal] = useState<{ leaveId: string; status: 'approved' | 'rejected' } | null>(null)
   const [decisionNotes, setDecisionNotes] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
+
+  useBodyScrollLock(
+    !!(
+      selectedLeaveForModal ||
+      editingLeaveId ||
+      isManualLogModalOpen ||
+      isCompOffModalOpen ||
+      confirmModal ||
+      deleteConfirmLeave ||
+      revokeConfirmLeave
+    )
+  )
 
   // Report Filter & View State
   const [reportEmployeeFilter, setReportEmployeeFilter] = useState('all')
@@ -965,23 +956,27 @@ export default function LeaveDashboardClient({
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
-                <select value={leaveType} onChange={e => {
-                  const next = e.target.value
-                  setLeaveType(next)
-                  setTimeSlot('')
-                  if ((next === 'half_day' || next === 'short_leave') && startDate) {
-                    setEndDate(startDate)
-                  }
-                }} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5">
-                  <option value="full_day">Full Day</option>
-                  <option value="half_day">Half Day</option>
-                  <option value="short_leave">Short Leave (2 hours)</option>
-                  <option value="birthday_leave">Birthday Leave</option>
-                  {(canApplyCompOff || leaveType === 'comp_off_leave') && (
-                    <option value="comp_off_leave">Comp Off Leave</option>
-                  )}
-                  <option value="work_from_home">Work From Home</option>
-                </select>
+                <SimpleSelect
+                  aria-label="Leave type"
+                  value={leaveType}
+                  onChange={next => {
+                    setLeaveType(next)
+                    setTimeSlot('')
+                    if ((next === 'half_day' || next === 'short_leave') && startDate) {
+                      setEndDate(startDate)
+                    }
+                  }}
+                  options={[
+                    { value: 'full_day', label: 'Full Day' },
+                    { value: 'half_day', label: 'Half Day' },
+                    { value: 'short_leave', label: 'Short Leave (2 hours)' },
+                    { value: 'birthday_leave', label: 'Birthday Leave' },
+                    ...((canApplyCompOff || leaveType === 'comp_off_leave')
+                      ? [{ value: 'comp_off_leave', label: 'Comp Off Leave' }]
+                      : []),
+                    { value: 'work_from_home', label: 'Work From Home' },
+                  ]}
+                />
                 {leaveType === 'half_day' ? (
                   <p className="text-xs text-amber-700 mt-1.5">
                     You must work at least 4.5 hours on this day for it to count as a half day.
@@ -996,22 +991,36 @@ export default function LeaveDashboardClient({
               {leaveType === 'half_day' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
-                    <option value="" disabled>Select a slot</option>
-                    <option value="before_lunch">Before Lunch</option>
-                    <option value="after_lunch">After Lunch</option>
-                  </select>
+                  <SimpleSelect
+                    aria-label="Time slot"
+                    required
+                    value={timeSlot}
+                    onChange={setTimeSlot}
+                    placeholder="Select a slot"
+                    className="!bg-blue-50/30"
+                    options={[
+                      { value: 'before_lunch', label: 'Before Lunch' },
+                      { value: 'after_lunch', label: 'After Lunch' },
+                    ]}
+                  />
                 </div>
               )}
 
               {leaveType === 'short_leave' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-blue-50/30">
-                    <option value="" disabled>Select a slot</option>
-                    <option value="morning">Morning</option>
-                    <option value="evening">Evening</option>
-                  </select>
+                  <SimpleSelect
+                    aria-label="Time slot"
+                    required
+                    value={timeSlot}
+                    onChange={setTimeSlot}
+                    placeholder="Select a slot"
+                    className="!bg-blue-50/30"
+                    options={[
+                      { value: 'morning', label: 'Morning' },
+                      { value: 'evening', label: 'Evening' },
+                    ]}
+                  />
                 </div>
               )}
               
@@ -1210,12 +1219,14 @@ export default function LeaveDashboardClient({
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+        <div className="min-w-0 w-full md:w-auto">
+          <div className="flex items-start justify-between gap-3 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 min-w-0 flex-1 leading-tight">
               {tab === 'admin' ? 'Team Leaves' : 'Leave Management'}
             </h1>
-            <LeaveHourPolicyCard />
+            <div className="shrink-0 pt-0.5">
+              <LeaveHourPolicyCard />
+            </div>
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {tab === 'admin'
@@ -1251,53 +1262,65 @@ export default function LeaveDashboardClient({
 
       {tab === 'my_leaves' && (
         <div className="space-y-6">
-          {/* Balance strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-            <div className="rounded-2xl bg-slate-900 text-white p-5 shadow-sm col-span-2 lg:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Available</p>
-              <p className="text-4xl font-bold mt-1 tracking-tight">{Math.max(0, accrued - used)}</p>
-              <p className="text-xs text-slate-400 mt-1">
+          {/* Balance strip — mobile: 2×3 like native; desktop: 6-across */}
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+            <div className="rounded-2xl bg-slate-900 text-white p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-300 truncate">
+                Available
+              </p>
+              <p className="text-2xl sm:text-4xl font-bold mt-1 tracking-tight tabular-nums">
+                {Math.max(0, accrued - used)}
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-400 mt-auto pt-1 line-clamp-2">
                 {pendingDays > 0
-                  ? `${freePaidDays} free · ${pendingDays} held by pending`
-                  : 'days you can still take'}
+                  ? `${freePaidDays} free · ${pendingDays} held`
+                  : 'days left'}
               </p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{accrued}</p>
-              <p className="text-xs text-gray-500 mt-1">total this year</p>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-gray-400 truncate">
+                Total
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">{accrued}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-auto pt-1 truncate">this year</p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-red-500">Used</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{used}</p>
-              <p className="text-xs text-gray-500 mt-1">half / full days taken</p>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-red-500 truncate">
+                Used
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">{used}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-auto pt-1 truncate">days taken</p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600">Comp Off</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-teal-600 truncate">
+                Comp Off
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">
                 {compOffUsedDisplay}/{compOffGrantedDisplay}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                taken / granted
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-auto pt-1 truncate">
                 {compOffGrantedDisplay - compOffUsedDisplay > 0
-                  ? ` · ${Number((compOffGrantedDisplay - compOffUsedDisplay).toFixed(2))} left`
-                  : ''}
+                  ? `${Number((compOffGrantedDisplay - compOffUsedDisplay).toFixed(2))} left`
+                  : 'taken / granted'}
               </p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Short leave</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-sky-600 truncate">
+                Short
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">
                 {shortLeavesThisMonth}/{SHORT_LEAVE_MONTHLY_CAP}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                taken this month
-                {pendingShortLeaves > 0 ? ` · ${pendingShortLeaves} pending` : ''}
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-auto pt-1 truncate">
+                {pendingShortLeaves > 0 ? `${pendingShortLeaves} pending` : 'this month'}
               </p>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-5 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Pending</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{pendingDays}</p>
-              <p className="text-xs text-gray-500 mt-1">days awaiting approval</p>
+            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-5 shadow-sm min-w-0 flex flex-col">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-amber-600 truncate">
+                Pending
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">{pendingDays}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-auto pt-1 truncate">awaiting</p>
             </div>
           </div>
 
@@ -1318,27 +1341,27 @@ export default function LeaveDashboardClient({
                 <form onSubmit={handleApplyLeave} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave type</label>
-                    <select
+                    <SimpleSelect
+                      aria-label="Leave type"
                       value={leaveType}
-                      onChange={e => {
-                        const next = e.target.value
+                      onChange={next => {
                         setLeaveType(next)
                         setTimeSlot('')
                         if ((next === 'half_day' || next === 'short_leave') && startDate) {
                           setEndDate(startDate)
                         }
                       }}
-                      className="w-full text-sm rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-white"
-                    >
-                      <option value="full_day">Full Day</option>
-                      <option value="half_day">Half Day</option>
-                      <option value="short_leave">Short Leave (2 hours)</option>
-                      <option value="birthday_leave">Birthday Leave</option>
-                      {(canApplyCompOff || leaveType === 'comp_off_leave') && (
-                        <option value="comp_off_leave">Comp Off Leave</option>
-                      )}
-                      <option value="work_from_home">Work From Home</option>
-                    </select>
+                      options={[
+                        { value: 'full_day', label: 'Full Day' },
+                        { value: 'half_day', label: 'Half Day' },
+                        { value: 'short_leave', label: 'Short Leave (2 hours)' },
+                        { value: 'birthday_leave', label: 'Birthday Leave' },
+                        ...((canApplyCompOff || leaveType === 'comp_off_leave')
+                          ? [{ value: 'comp_off_leave', label: 'Comp Off Leave' }]
+                          : []),
+                        { value: 'work_from_home', label: 'Work From Home' },
+                      ]}
+                    />
                     {leaveType === 'half_day' ? (
                       <p className="text-xs text-amber-700 mt-1.5">
                         You must work at least 4.5 hours on this day for it to count as a half day.
@@ -1357,32 +1380,36 @@ export default function LeaveDashboardClient({
                   {leaveType === 'half_day' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time slot</label>
-                      <select
+                      <SimpleSelect
+                        aria-label="Time slot"
                         required
                         value={timeSlot}
-                        onChange={e => setTimeSlot(e.target.value)}
-                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-slate-50"
-                      >
-                        <option value="" disabled>Select a slot</option>
-                        <option value="before_lunch">Before Lunch</option>
-                        <option value="after_lunch">After Lunch</option>
-                      </select>
+                        onChange={setTimeSlot}
+                        placeholder="Select a slot"
+                        className="!bg-slate-50"
+                        options={[
+                          { value: 'before_lunch', label: 'Before Lunch' },
+                          { value: 'after_lunch', label: 'After Lunch' },
+                        ]}
+                      />
                     </div>
                   )}
 
                   {leaveType === 'short_leave' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time slot</label>
-                      <select
+                      <SimpleSelect
+                        aria-label="Time slot"
                         required
                         value={timeSlot}
-                        onChange={e => setTimeSlot(e.target.value)}
-                        className="w-full text-sm rounded-xl border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2.5 bg-slate-50"
-                      >
-                        <option value="" disabled>Select a slot</option>
-                        <option value="morning">Morning</option>
-                        <option value="evening">Evening</option>
-                      </select>
+                        onChange={setTimeSlot}
+                        placeholder="Select a slot"
+                        className="!bg-slate-50"
+                        options={[
+                          { value: 'morning', label: 'Morning' },
+                          { value: 'evening', label: 'Evening' },
+                        ]}
+                      />
                     </div>
                   )}
 
@@ -1485,7 +1512,7 @@ export default function LeaveDashboardClient({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5 bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full min-w-0 max-w-full box-border">
+              <div className="flex flex-nowrap gap-0.5 sm:gap-1.5 bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full min-w-0 max-w-full box-border overflow-x-auto">
                 {(
                   [
                     { key: 'all', label: 'All' },
@@ -1501,7 +1528,7 @@ export default function LeaveDashboardClient({
                       key={tabItem.key}
                       type="button"
                       onClick={() => setMyLeaveFilter(tabItem.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                      className={`flex-1 min-w-0 px-1.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
                         active
                           ? 'bg-slate-900 text-white shadow-sm'
                           : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
@@ -1509,7 +1536,7 @@ export default function LeaveDashboardClient({
                     >
                       {tabItem.label}
                       <span
-                        className={`min-w-[1.25rem] text-center text-[10px] font-bold px-1 py-0.5 rounded-md ${
+                        className={`shrink-0 min-w-[1rem] text-center text-[10px] font-bold px-1 py-0.5 rounded-md ${
                           active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
@@ -1604,37 +1631,54 @@ export default function LeaveDashboardClient({
 
       {tab === 'admin' && (
         <div className="space-y-6">
-          {/* Summary + quick actions */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Needs review</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{pendingLeaves.length}</p>
-              <p className="text-xs text-gray-500 mt-1">Pending requests</p>
+          {/* Compact summary strip + quick actions */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+              <div className="rounded-xl sm:rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-4 shadow-sm min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-amber-600 truncate">
+                  Review
+                </p>
+                <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                  {pendingLeaves.length}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">pending</p>
+              </div>
+              <div className="rounded-xl sm:rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-4 shadow-sm min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-600 truncate">
+                  Month
+                </p>
+                <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                  {approvedThisMonth}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">approved</p>
+              </div>
+              <div className="rounded-xl sm:rounded-2xl bg-white ring-1 ring-gray-900/5 p-3 sm:p-4 shadow-sm min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-sky-600 truncate">
+                  Out today
+                </p>
+                <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                  {onLeaveToday}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">on leave</p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">This month</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{approvedThisMonth}</p>
-              <p className="text-xs text-gray-500 mt-1">Approved leaves</p>
-            </div>
-            <div className="rounded-2xl bg-white ring-1 ring-gray-900/5 p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600">Out today</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{onLeaveToday}</p>
-              <p className="text-xs text-gray-500 mt-1">On approved leave</p>
-            </div>
-            <div className="rounded-2xl bg-slate-900 text-white p-4 shadow-sm flex flex-col justify-between gap-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Quick actions</p>
-              <div className="flex flex-col gap-2">
+
+            <div className="rounded-xl sm:rounded-2xl bg-slate-900 text-white p-3.5 sm:p-4 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-2.5">
+                Quick actions
+              </p>
+              <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-2.5">
                 {canManageBalances && (
                   <>
                     <Link
                       href="/leaves/usage"
-                      className="text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-xl px-3 py-2 text-center transition-colors"
+                      className="text-[11px] sm:text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-lg sm:rounded-xl px-3 py-2 sm:px-3 sm:py-2 text-center transition-colors"
                     >
                       Leave usage
                     </Link>
                     <Link
                       href="/leaves/balances"
-                      className="text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-xl px-3 py-2 text-center transition-colors"
+                      className="text-[11px] sm:text-sm font-semibold bg-white/10 hover:bg-white/15 rounded-lg sm:rounded-xl px-3 py-2 sm:px-3 sm:py-2 text-center transition-colors"
                     >
                       Edit balances
                     </Link>
@@ -1645,7 +1689,7 @@ export default function LeaveDashboardClient({
                         setCompOffMemberId(allMembers[0]?.id || memberId)
                         setIsCompOffModalOpen(true)
                       }}
-                      className="text-sm font-semibold bg-teal-500/20 hover:bg-teal-500/30 text-teal-50 rounded-xl px-3 py-2 transition-colors"
+                      className="text-[11px] sm:text-sm font-semibold bg-teal-500/20 hover:bg-teal-500/30 text-teal-50 rounded-lg sm:rounded-xl px-3 py-2 sm:px-3 sm:py-2 transition-colors"
                     >
                       Assign Comp Off
                     </button>
@@ -1654,9 +1698,9 @@ export default function LeaveDashboardClient({
                 <button
                   type="button"
                   onClick={() => setIsManualLogModalOpen(true)}
-                  className="text-sm font-semibold bg-white text-slate-900 hover:bg-slate-100 rounded-xl px-3 py-2 transition-colors"
+                  className="text-[11px] sm:text-sm font-semibold bg-white text-slate-900 hover:bg-slate-100 rounded-lg sm:rounded-xl px-3 py-2 sm:px-3 sm:py-2 transition-colors"
                 >
-                  Log leave manually
+                  Log manually
                 </button>
               </div>
             </div>
@@ -1795,21 +1839,83 @@ export default function LeaveDashboardClient({
                   <p className="text-xs text-gray-500 mt-0.5">Filter by person. All statuses are listed here.</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <select
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-56">
+                  <SimpleSelect
+                    aria-label="Filter by employee"
                     value={reportEmployeeFilter}
-                    onChange={e => setReportEmployeeFilter(e.target.value)}
-                    className="text-sm font-medium rounded-xl border-gray-200 py-2 pl-3 pr-8 focus:border-blue-500 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="all">All employees</option>
-                    {allMembers.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
+                    onChange={setReportEmployeeFilter}
+                    options={[
+                      { value: 'all', label: 'All employees' },
+                      ...allMembers.map(m => ({ value: m.id, label: m.name })),
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile / PWA cards */}
+              <ul className="md:hidden divide-y divide-gray-100">
+                {filteredLeavesForReports.length === 0 ? (
+                  <li className="px-4 py-12 text-center text-gray-500">
+                    <span className="font-medium text-gray-900">No leaves found</span>
+                    <span className="block text-xs text-gray-400 mt-1">Try a different employee filter.</span>
+                  </li>
+                ) : (
+                  filteredLeavesForReports.map(l => (
+                    <li key={l.id} className="px-4 py-4 space-y-2.5">
+                      <div className="flex items-start justify-between gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 truncate">
+                            <MemberNameLink memberId={l.member?.id ?? l.memberId} name={l.member.name} canLink={isAdmin} />
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                            {formatLeaveType(l.leaveType, l.timeSlot)}
+                          </p>
+                          <p className="text-xs text-gray-700 mt-1">
+                            {formatLeaveDates(l.startDate, l.endDate)}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold capitalize whitespace-nowrap ring-1 ring-inset
+                            ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' :
+                              l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
+                              'bg-red-50 text-red-700 ring-red-600/20'}`}>
+                            {l.status}
+                          </span>
+                          {l.unpaid && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
+                              {unpaidPillLabel(l)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => viewHistory(l)}
+                          className="text-gray-600 hover:text-blue-600 font-bold text-xs bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          View Details
+                        </button>
+                        {l.status === 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRevokeNotes('')
+                              setRevokeConfirmLeave(l)
+                            }}
+                            className="text-amber-800 hover:text-amber-900 font-bold text-xs bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50/80 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                       <tr>
@@ -1842,14 +1948,14 @@ export default function LeaveDashboardClient({
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize ring-1 ring-inset
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize whitespace-nowrap ring-1 ring-inset
                                   ${l.status === 'approved' ? 'bg-green-50 text-green-700 ring-green-600/20' :
                                     l.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
                                     'bg-red-50 text-red-700 ring-red-600/20'}`}>
                                   {l.status}
                                 </span>
                                 {l.unpaid && (
-                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ring-1 ring-inset bg-orange-50 text-orange-800 ring-orange-600/20">
                                     {unpaidPillLabel(l)}
                                   </span>
                                 )}
@@ -1917,16 +2023,17 @@ export default function LeaveDashboardClient({
                       Waiting
                     </span>
                   </div>
-                  <select
-                    value={reportEmployeeFilter}
-                    onChange={e => setReportEmployeeFilter(e.target.value)}
-                    className="text-sm font-medium rounded-xl border-gray-200 py-2 pl-3 pr-8 focus:border-blue-500 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="all">All employees</option>
-                    {allMembers.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
+                  <div className="w-full sm:w-56">
+                    <SimpleSelect
+                      aria-label="Filter by employee"
+                      value={reportEmployeeFilter}
+                      onChange={setReportEmployeeFilter}
+                      options={[
+                        { value: 'all', label: 'All employees' },
+                        ...allMembers.map(m => ({ value: m.id, label: m.name })),
+                      ]}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2018,42 +2125,60 @@ export default function LeaveDashboardClient({
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
-                <select value={leaveType} onChange={e => {
-                  const next = e.target.value
-                  setLeaveType(next)
-                  setTimeSlot('')
-                  if ((next === 'half_day' || next === 'short_leave') && startDate) {
-                    setEndDate(startDate)
-                  }
-                }} className="input">
-                  <option value="full_day">Full Day</option>
-                  <option value="half_day">Half Day</option>
-                  <option value="short_leave">Short Leave (2 hours)</option>
-                  <option value="birthday_leave">Birthday Leave</option>
-                  <option value="comp_off_leave">Comp Off Leave</option>
-                  <option value="work_from_home">Work From Home</option>
-                </select>
+                <SimpleSelect
+                  aria-label="Leave type"
+                  value={leaveType}
+                  onChange={next => {
+                    setLeaveType(next)
+                    setTimeSlot('')
+                    if ((next === 'half_day' || next === 'short_leave') && startDate) {
+                      setEndDate(startDate)
+                    }
+                  }}
+                  options={[
+                    { value: 'full_day', label: 'Full Day' },
+                    { value: 'half_day', label: 'Half Day' },
+                    { value: 'short_leave', label: 'Short Leave (2 hours)' },
+                    { value: 'birthday_leave', label: 'Birthday Leave' },
+                    { value: 'comp_off_leave', label: 'Comp Off Leave' },
+                    { value: 'work_from_home', label: 'Work From Home' },
+                  ]}
+                />
               </div>
               
               {leaveType === 'half_day' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="input bg-blue-50/30">
-                    <option value="" disabled>Select a slot</option>
-                    <option value="before_lunch">Before Lunch</option>
-                    <option value="after_lunch">After Lunch</option>
-                  </select>
+                  <SimpleSelect
+                    aria-label="Time slot"
+                    required
+                    value={timeSlot}
+                    onChange={setTimeSlot}
+                    placeholder="Select a slot"
+                    className="!bg-blue-50/30"
+                    options={[
+                      { value: 'before_lunch', label: 'Before Lunch' },
+                      { value: 'after_lunch', label: 'After Lunch' },
+                    ]}
+                  />
                 </div>
               )}
 
               {leaveType === 'short_leave' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Time Slot</label>
-                  <select required value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="input bg-blue-50/30">
-                    <option value="" disabled>Select a slot</option>
-                    <option value="morning">Morning</option>
-                    <option value="evening">Evening</option>
-                  </select>
+                  <SimpleSelect
+                    aria-label="Time slot"
+                    required
+                    value={timeSlot}
+                    onChange={setTimeSlot}
+                    placeholder="Select a slot"
+                    className="!bg-blue-50/30"
+                    options={[
+                      { value: 'morning', label: 'Morning' },
+                      { value: 'evening', label: 'Evening' },
+                    ]}
+                  />
                 </div>
               )}
               

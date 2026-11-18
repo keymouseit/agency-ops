@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { formatIst } from '@/lib/ist'
 import { formatQAActivitySummary } from '@/lib/qa-audit-format'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 type AuditLog = {
   id: string
@@ -211,8 +212,9 @@ export default function EntityAuditTrail({ entityType, entityId, title = 'Change
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={() => setSelectedLog(null)}
         >
+          <BodyScrollLock />
           <div
-            className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto overscroll-contain"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">

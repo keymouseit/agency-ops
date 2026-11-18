@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { differenceInDays, formatDistanceToNow, startOfDay } from 'date-fns'
+import SimpleSelect from '@/components/SimpleSelect'
 import {
   fmtDate,
   isMomActionClosed,
@@ -134,14 +135,14 @@ function MomListRow({
     return (
       <Link
         href={`/mom/${record.id}`}
-        className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(180px,26%)] gap-2 sm:gap-6 px-6 py-4 hover:bg-[#f7f7f7] transition-colors items-center"
+        className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(180px,26%)] gap-2 sm:gap-6 px-4 sm:px-6 py-3.5 sm:py-4 hover:bg-[#f7f7f7] transition-colors items-start sm:items-center"
       >
         <div className="text-sm text-gray-500">
           <div>{fmtDate(record.meetingDate)}</div>
           <div className="mt-0.5 text-xs">{formatDistanceToNow(record.meetingDate, { addSuffix: true })}</div>
         </div>
         <div className="min-w-0">
-          <div className="text-[15px] text-gray-900 font-medium leading-snug truncate">{title}</div>
+          <div className="text-[15px] text-gray-900 font-medium leading-snug break-words">{title}</div>
           {pill ? (
             <div className="mt-1">
               <span className={`badge border ${pill.cls}`}>{pill.text}</span>
@@ -150,7 +151,7 @@ function MomListRow({
             <div className="mt-0.5 text-xs text-gray-500">{nextCallNote}</div>
           ) : null}
         </div>
-        <div className="text-xs text-gray-500 sm:text-right truncate">
+        <div className="text-xs text-gray-500 sm:text-right break-words">
           {record.meetingType} · {record.createdBy.name}
         </div>
       </Link>
@@ -160,7 +161,7 @@ function MomListRow({
   return (
     <Link
       href={`/mom/${record.id}`}
-      className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(200px,28%)] gap-2 sm:gap-6 px-6 py-5 hover:bg-[#f7f7f7] transition-colors items-center"
+      className="grid grid-cols-1 sm:grid-cols-[minmax(140px,18%)_minmax(0,1fr)_minmax(200px,28%)] gap-2 sm:gap-6 px-4 sm:px-6 py-3.5 sm:py-5 hover:bg-[#f7f7f7] transition-colors items-start sm:items-center"
     >
       <div className="text-sm text-[#5e6d55]">
         <div>{fmtDate(record.meetingDate)}</div>
@@ -169,7 +170,7 @@ function MomListRow({
         </div>
       </div>
       <div className="min-w-0">
-        <div className="text-[15px] text-[#1f57c3] underline leading-snug">
+        <div className="text-[15px] text-[#1f57c3] underline leading-snug break-words">
           {title}
         </div>
         {showBadges && (
@@ -223,8 +224,8 @@ function StatusCard({
 }) {
   return (
     <section className="rounded-2xl border border-[#e0e0e0] bg-white overflow-hidden">
-      <div className="px-6 py-5">
-        <h2 className="text-xl font-semibold text-[#001e00]">
+      <div className="px-4 sm:px-6 py-3.5 sm:py-5">
+        <h2 className="text-lg sm:text-xl font-semibold text-[#001e00]">
           {title} ({records.length})
         </h2>
       </div>
@@ -454,28 +455,28 @@ export default function MomListPanel({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="mom-status-filter" className="text-xs font-medium text-gray-500 shrink-0">
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:min-w-[16rem]">
+          <label className="text-xs font-medium text-gray-500 shrink-0">
             Status
           </label>
-          <select
-            id="mom-status-filter"
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-            className="input py-2 text-sm bg-white w-full sm:min-w-[16rem]"
-            aria-label="Filter clients by status"
-          >
-            <option value="all">All statuses ({afterExtra.length})</option>
-            {MOM_FINAL_STATUSES.map(status => (
-              <option key={status} value={status}>
-                {status} ({statusCounts[status]})
-              </option>
-            ))}
-          </select>
+          <div className="min-w-0 flex-1">
+            <SimpleSelect
+              aria-label="Filter clients by status"
+              value={statusFilter}
+              onChange={v => setStatusFilter(v as StatusFilter)}
+              options={[
+                { value: 'all', label: `All statuses (${afterExtra.length})` },
+                ...MOM_FINAL_STATUSES.map(status => ({
+                  value: status,
+                  label: `${status} (${statusCounts[status]})`,
+                })),
+              ]}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-nowrap gap-1.5 mb-3 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-hide">
         {([
           ['all', `All (${searched.length})`],
           ['my_actions', `My actions (${myActionsCount})`],
@@ -487,7 +488,7 @@ export default function MomListPanel({
             key={key}
             type="button"
             onClick={() => setExtraFilter(key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
               extraFilter === key
                 ? simpleBadges
                   ? 'bg-gray-900 text-white border-gray-900'

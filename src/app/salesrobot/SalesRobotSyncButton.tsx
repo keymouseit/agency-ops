@@ -167,14 +167,14 @@ export default function SalesRobotSyncButton({
   }
 
   return (
-    <div className="flex flex-col items-stretch sm:items-end gap-2 min-w-[220px]">
+    <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[220px] sm:items-end">
       {canSync && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={running}
             onClick={() => sync(false)}
-            className="btn-primary text-xs px-3 py-1.5 disabled:opacity-60"
+            className="btn-primary inline-flex items-center justify-center text-xs !px-3 !py-1.5 whitespace-nowrap disabled:opacity-60"
           >
             {running && status?.mode !== 'full' ? 'Syncing…' : 'Sync now'}
           </button>
@@ -182,24 +182,30 @@ export default function SalesRobotSyncButton({
             type="button"
             disabled={running}
             onClick={() => sync(true)}
-            className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-60"
+            className="btn-secondary inline-flex items-center justify-center text-xs !px-3 !py-1.5 whitespace-nowrap disabled:opacity-60"
             title="Deeper inbox pull for client last messages (runs in background)"
           >
             {running && status?.mode === 'full' ? 'Full sync…' : 'Full sync'}
           </button>
         </div>
       )}
-      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-right min-w-[200px]">
+      <div
+        className={`w-full sm:w-auto rounded-xl border px-3 py-2.5 text-left ${
+          running
+            ? 'border-amber-200 bg-amber-50/60'
+            : 'border-gray-200 bg-white'
+        }`}
+      >
         {running ? (
-          <>
-            <div className="text-[10px] uppercase tracking-wide text-amber-600">
+          <div className="space-y-1">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
               {status?.mode === 'full' ? 'Full sync running' : 'Sync running'}
             </div>
-            <div className="text-xs font-medium text-amber-800 mt-0.5">
+            <div className="text-xs font-medium text-amber-900 break-words">
               {status?.message || 'Working in background…'}
             </div>
             {status?.startedAt && (
-              <div className="text-[11px] text-gray-500 mt-1">
+              <div className="text-[11px] text-gray-500">
                 Started {fmtDateTime(status.startedAt)}
               </div>
             )}
@@ -208,24 +214,26 @@ export default function SalesRobotSyncButton({
                 type="button"
                 disabled={starting}
                 onClick={() => clearStuckSync()}
-                className="mt-2 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60"
+                className="mt-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60"
               >
                 Stuck? Clear sync
               </button>
             )}
-          </>
+          </div>
         ) : status?.state === 'done' && status.message ? (
-          <>
-            <div className="text-[10px] uppercase tracking-wide text-emerald-600">
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
               {status.mode === 'full' ? 'Full sync done' : 'Sync done'}
             </div>
-            <div className="text-xs font-medium text-gray-800 mt-0.5">{displayLastSync}</div>
-          </>
+            <div className="text-xs font-medium text-gray-800">{displayLastSync}</div>
+          </div>
         ) : (
-          <>
-            <div className="text-[10px] uppercase tracking-wide text-gray-400">Last sync</div>
-            <div className="text-xs font-medium text-gray-800 mt-0.5">{displayLastSync}</div>
-          </>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Last sync
+            </div>
+            <div className="text-xs font-medium text-gray-800">{displayLastSync}</div>
+          </div>
         )}
       </div>
     </div>

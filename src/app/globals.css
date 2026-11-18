@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light only;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* My Day design tokens — Linear/Stripe depth + soft surfaces */
   --me-border: rgb(226 232 240); /* slate-200 */
@@ -25,6 +26,17 @@ html,
 body {
   max-width: 100%;
   overflow-x: hidden;
+  color-scheme: light only;
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+/* Keep form controls light even when the phone OS is in dark mode */
+input,
+textarea,
+select,
+button {
+  color-scheme: light;
 }
 
 body { font-family: var(--font-sans); }
@@ -34,7 +46,7 @@ body { font-family: var(--font-sans); }
 }
 
 .badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap;
 }
 
 .btn-primary {
@@ -46,7 +58,21 @@ body { font-family: var(--font-sans); }
 }
 
 .input {
-  @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
+  /* text-base (16px) on mobile — iOS zooms inputs under 16px on focus */
+  @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent;
+}
+
+/*
+  iOS Safari / PWA: focusing an input with computed font-size < 16px
+  auto-zooms the viewport. Force 16px on narrow screens for all fields,
+  including one-off text-[13px] / text-sm classes.
+*/
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 /* iOS Safari date inputs: one-row safe + left-align like selects */
@@ -107,6 +133,72 @@ input[type='date']::-webkit-datetime-edit-year-field {
 
 /* Keep native indicator clickable under/near the custom icon as a fallback */
 input[type='date']::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 2.75rem;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* iOS Safari / PWA time inputs: left-align like date + white surface */
+input[type='time'],
+input.time-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 2.75rem 0 0.75rem;
+  line-height: normal;
+  text-align: left !important;
+  background-color: #fff !important;
+  -webkit-min-logical-width: 0 !important;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light;
+}
+
+input[type='time']::-webkit-date-and-time-value {
+  text-align: left !important;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+input[type='time']::-webkit-datetime-edit,
+input[type='time']::-webkit-datetime-edit-fields-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  width: auto !important;
+  max-width: 100%;
+  text-align: left;
+  flex: 0 1 auto;
+}
+
+input[type='time']::-webkit-datetime-edit-hour-field,
+input[type='time']::-webkit-datetime-edit-minute-field,
+input[type='time']::-webkit-datetime-edit-second-field,
+input[type='time']::-webkit-datetime-edit-ampm-field,
+input[type='time']::-webkit-datetime-edit-text {
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+input[type='time']::-webkit-calendar-picker-indicator {
   position: absolute;
   right: 0;
   top: 0;

@@ -9,7 +9,8 @@ import { auth } from '@/lib/auth'
 import { getBranding } from '@/lib/branding'
 
 export const viewport: Viewport = {
-  themeColor: '#111827',
+  themeColor: '#f9fafb',
+  colorScheme: 'light',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -46,8 +47,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [session, branding] = await Promise.all([auth(), getBranding()])
 
   return (
-    <html lang="en">
-      <body className="bg-gray-50 min-h-screen">
+    <html lang="en" className="light" style={{ colorScheme: 'light' }}>
+      <body className="bg-gray-50 min-h-screen text-gray-900" style={{ colorScheme: 'light' }}>
         <SessionProvider session={session}>
           <AppToaster />
           <PwaRegister />
