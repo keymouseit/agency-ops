@@ -511,7 +511,7 @@ export default function MomForm({
             <input
               name="meetingTime"
               type="time"
-              className="input"
+              className="input time-input"
               value={meetingTime}
               onChange={e => setMeetingTime(e.target.value)}
             />

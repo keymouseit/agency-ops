@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
+import BodyScrollLock from '@/components/BodyScrollLock'
 import AssigneeMultiSelect from './AssigneeMultiSelect'
 
 type Member = { id: string; name: string; role: string }
@@ -81,14 +82,15 @@ export default function AddProjectForm({
     <>
       <button
         type="button"
-        className="inline-flex items-center rounded-full border border-green-700 px-4 py-1.5 text-sm font-medium text-green-800 hover:bg-green-50"
+        className="btn-primary inline-flex items-center justify-center text-sm !px-3 !py-2 whitespace-nowrap shrink-0"
         onClick={() => setOpen(true)}
       >
-        New project
+        + New project
       </button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+          <BodyScrollLock />
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain">
             <h2 className="text-lg font-semibold mb-4">New project</h2>
 
             {error && (

@@ -43,27 +43,29 @@ export default async function ProjectsPage() {
 
   return (
     <div className="w-full">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Projects</h1>
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">Projects</h1>
           {isBD ? (
-            <p className="text-sm text-gray-600 mt-2">
+            <p className="text-sm text-gray-600 mt-1">
               Value in progress:{' '}
               <span className="font-medium text-green-700">{fmtCurrency(activeValue)}</span>
             </p>
           ) : (
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-1">
               {active.length} active · {delivered.length} delivered
             </p>
           )}
         </div>
         {!isDev && (
-          <AddProjectForm
-            members={members}
-            wonLeads={leads}
-            currentUserId={userId}
-            currentUserRole={userRole}
-          />
+          <div className="shrink-0 pt-0.5">
+            <AddProjectForm
+              members={members}
+              wonLeads={leads}
+              currentUserId={userId}
+              currentUserRole={userRole}
+            />
+          </div>
         )}
       </div>
 

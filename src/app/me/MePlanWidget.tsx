@@ -59,17 +59,20 @@ export default function MePlanWidget({
         </Link>
       </div>
 
-      <ol className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-gray-200/80 pt-4">
+      <ol className="mt-4 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-4 border-t border-gray-200/80 pt-4">
         {[
           { n: '1', t: 'Add tasks' },
           { n: '2', t: 'Set hours' },
           { n: '3', t: 'Submit plan' },
         ].map(step => (
-          <li key={step.n} className="flex items-center gap-2 text-xs text-gray-600">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-700 tabular-nums">
+          <li
+            key={step.n}
+            className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-2 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap"
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-700 tabular-nums">
               {step.n}
             </span>
-            <span className="font-medium">{step.t}</span>
+            <span className="font-medium truncate">{step.t}</span>
           </li>
         ))}
       </ol>

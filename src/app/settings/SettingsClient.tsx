@@ -75,15 +75,15 @@ export default function SettingsClient({
   }
 
   const allTabs = [
-    { id: 'team' as const, label: 'Team Members', icon: '👥' },
-    { id: 'company' as const, label: 'Company Profile', icon: '🏢' },
-    { id: 'notifications' as const, label: 'Notifications', icon: '🔔' },
-    { id: 'types' as const, label: 'Task types', icon: '⚙️' },
+    { id: 'team' as const, label: 'Team Members', shortLabel: 'Team', icon: '👥' },
+    { id: 'company' as const, label: 'Company Profile', shortLabel: 'Company', icon: '🏢' },
+    { id: 'notifications' as const, label: 'Notifications', shortLabel: 'Alerts', icon: '🔔' },
+    { id: 'types' as const, label: 'Task types', shortLabel: 'Tasks', icon: '⚙️' },
   ]
   const tabs = teamOnly ? allTabs.filter(t => t.id === 'team') : allTabs
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">
           {teamOnly ? 'Employee profiles' : 'Settings'}
@@ -95,22 +95,28 @@ export default function SettingsClient({
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — equal columns on mobile so icons/labels stay aligned */}
       {tabs.length > 1 && (
       <div className="border-b border-gray-200 mb-6">
-        <div className="flex gap-1">
+        <div className="grid grid-cols-4 gap-0">
           {tabs.map(tab => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => selectTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 py-2.5 sm:flex-row sm:gap-2 sm:px-3 text-[11px] sm:text-sm font-medium transition-colors border-b-2 min-w-0 ${
                 activeTab === tab.id
                   ? 'border-gray-900 text-gray-900'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.label}
+              <span className="text-base sm:text-sm leading-none" aria-hidden>
+                {tab.icon}
+              </span>
+              <span className="text-center leading-tight whitespace-nowrap truncate max-w-full">
+                <span className="sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </span>
             </button>
           ))}
         </div>

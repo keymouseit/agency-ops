@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -130,6 +131,7 @@ export default function WeeklyScoreBanner({ userId, weekKey, isFriday = false }:
           aria-labelledby="weekly-score-modal-title"
           onClick={() => setModalOpen(false)}
         >
+          <BodyScrollLock />
           <div
             className="w-full max-w-sm rounded-xl border border-indigo-200 bg-white p-5 shadow-xl"
             onClick={e => e.stopPropagation()}

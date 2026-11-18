@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -425,6 +426,7 @@ export default function MilestoneTimeline({
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <BodyScrollLock />
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
               <h3 className="text-base font-semibold text-gray-900">Edit milestone</h3>

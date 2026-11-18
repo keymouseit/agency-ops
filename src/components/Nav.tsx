@@ -8,6 +8,7 @@ import NotificationBell from './NotificationBell'
 import NavCountBadge from './NavCountBadge'
 import { useNavigationPending } from './NavigationProvider'
 import { usePendingLeaveCount } from '@/hooks/usePendingLeaveCount'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type { Branding } from '@/lib/branding'
 import { shortDisplayName } from '@/lib/employee-order'
 
@@ -330,29 +331,7 @@ function UserMenuDropdown({
   signingOut: boolean
   onSignOut: () => void
 }) {
-  // Same scroll lock as notifications — block background UI while open
-  useEffect(() => {
-    if (!open) return
-    const scrollY = window.scrollY
-    const { style } = document.body
-    const prev = {
-      overflow: style.overflow,
-      position: style.position,
-      top: style.top,
-      width: style.width,
-    }
-    style.overflow = 'hidden'
-    style.position = 'fixed'
-    style.top = `-${scrollY}px`
-    style.width = '100%'
-    return () => {
-      style.overflow = prev.overflow
-      style.position = prev.position
-      style.top = prev.top
-      style.width = prev.width
-      window.scrollTo(0, scrollY)
-    }
-  }, [open])
+  useBodyScrollLock(open)
 
   if (!open) return null
 
@@ -546,30 +525,10 @@ export default function Nav({
       if (e.key === 'Escape') setMobileNavOpen(false)
     }
     document.addEventListener('keydown', onKey)
-
-    // iOS/PWA: overflow:hidden alone still allows background scroll
-    const scrollY = window.scrollY
-    const { style } = document.body
-    const prev = {
-      overflow: style.overflow,
-      position: style.position,
-      top: style.top,
-      width: style.width,
-    }
-    style.overflow = 'hidden'
-    style.position = 'fixed'
-    style.top = `-${scrollY}px`
-    style.width = '100%'
-
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      style.overflow = prev.overflow
-      style.position = prev.position
-      style.top = prev.top
-      style.width = prev.width
-      window.scrollTo(0, scrollY)
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [mobileNavOpen])
+
+  useBodyScrollLock(mobileNavOpen)
 
   function handleNavigate() {
     startNavigation()
@@ -581,7 +540,8 @@ export default function Nav({
     await signOut({ callbackUrl: '/login' })
   }
 
-  if (!user) return null
+  // Hide on login even if session briefly exists after signIn (before redirect)
+  if (!user || path === '/login') return null
 
   return (
     <>

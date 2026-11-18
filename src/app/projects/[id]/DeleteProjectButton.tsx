@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -45,7 +46,7 @@ export default function DeleteProjectButton({
           setShowModal(true)
         }}
         disabled={loading}
-        className="inline-flex items-center rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
+        className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50 whitespace-nowrap"
       >
         Delete project
       </button>
@@ -55,6 +56,7 @@ export default function DeleteProjectButton({
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={() => !loading && setShowModal(false)}
         >
+          <BodyScrollLock />
           <div
             className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
             onClick={e => e.stopPropagation()}

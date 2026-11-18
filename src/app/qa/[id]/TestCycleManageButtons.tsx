@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -74,6 +75,7 @@ export default function TestCycleManageButtons({
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
           onClick={() => !deleting && setShowDeleteModal(false)}
         >
+          <BodyScrollLock />
           <div
             className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
             onClick={e => e.stopPropagation()}

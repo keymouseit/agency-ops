@@ -148,11 +148,11 @@ export type Kpi = {
 export function KpiCard({ k }: { k: Kpi }) {
   const body = (
     <>
-      <div className="flex items-center gap-2.5">
-        <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${TINT[k.tint]}`}>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${TINT[k.tint]}`}>
           <KpiIcon name={k.icon} />
         </span>
-        <span className="text-xs font-medium text-gray-500 leading-tight">{k.label}</span>
+        <span className="text-[11px] sm:text-xs font-medium text-gray-500 leading-tight">{k.label}</span>
         {k.href ? (
           <span className="ml-auto text-xs text-gray-300 transition-colors group-hover:text-gray-500" aria-hidden="true">
             →
@@ -160,19 +160,19 @@ export function KpiCard({ k }: { k: Kpi }) {
         ) : null}
       </div>
       <div>
-        <div className={`text-2xl font-semibold tabular-nums leading-tight ${VALUE_TONE[k.tone]}`}>{k.value}</div>
-        <div className="text-xs text-gray-500 mt-1">{k.sub}</div>
-        {k.hint ? <div className="text-[11px] text-gray-400 mt-0.5">{k.hint}</div> : null}
+        <div className={`text-xl sm:text-2xl font-semibold tabular-nums leading-tight ${VALUE_TONE[k.tone]}`}>{k.value}</div>
+        <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1 break-words">{k.sub}</div>
+        {k.hint ? <div className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 break-words">{k.hint}</div> : null}
       </div>
     </>
   )
 
-  if (!k.href) return <div className="card p-4 sm:p-5 flex flex-col gap-3">{body}</div>
+  if (!k.href) return <div className="card p-3 sm:p-5 flex flex-col gap-2 sm:gap-3">{body}</div>
 
   return (
     <Link
       href={k.href}
-      className="card group p-4 sm:p-5 flex flex-col gap-3 transition hover:border-gray-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/70"
+      className="card group p-3 sm:p-5 flex flex-col gap-2 sm:gap-3 transition hover:border-gray-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/70"
     >
       {body}
       {k.cta ? <span className="sr-only">{k.cta}</span> : null}
@@ -180,11 +180,11 @@ export function KpiCard({ k }: { k: Kpi }) {
   )
 }
 
-/** Responsive KPI row: 1 → 2 → 4 columns, or 1 → 3 with `cols={3}`. */
+/** Responsive KPI row: 2 → 4 columns on phone, or 1 → 3 with `cols={3}`. */
 export function KpiGrid({ kpis, cols = 4 }: { kpis: Kpi[]; cols?: 3 | 4 }) {
-  const grid = cols === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4'
+  const grid = cols === 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'
   return (
-    <div className={`grid ${grid} gap-3 sm:gap-4`}>
+    <div className={`grid ${grid} gap-2 sm:gap-4`}>
       {kpis.map(k => (
         <KpiCard key={k.label} k={k} />
       ))}

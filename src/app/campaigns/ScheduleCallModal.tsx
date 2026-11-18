@@ -10,6 +10,7 @@ import {
   validateScheduledDateTime,
 } from '@/lib/validation'
 import { FormLabel } from '@/components/FormLabel'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 type Props = {
   campaignId: string
@@ -40,17 +41,15 @@ export default function ScheduleCallModal({ campaignId, campaignName, channel = 
 
   const today = istDateInputValue()
 
+  useBodyScrollLock(open)
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open])
 
   function close() {

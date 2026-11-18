@@ -1,4 +1,5 @@
 'use client'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -452,6 +453,7 @@ export default function WorkDrawer({
 
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={dayFocusKey ? "Day details" : "Week details"}>
+          <BodyScrollLock />
       <button
         type="button"
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"

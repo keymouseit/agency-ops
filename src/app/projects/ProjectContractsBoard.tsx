@@ -267,7 +267,7 @@ export default function ProjectContractsBoard({
   return (
     <div>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
-        <div className="flex flex-wrap gap-1 border-b border-gray-200">
+        <div className="grid grid-cols-4 gap-0 border-b border-gray-200 w-full lg:w-auto lg:inline-grid">
           {sections.map(section => {
             const active = section.id === (current?.id ?? tab)
             return (
@@ -279,14 +279,14 @@ export default function ProjectContractsBoard({
                   setQuery('')
                   setPhases(new Set())
                 }}
-                className={`px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                className={`inline-flex items-center justify-center gap-1 px-1 sm:px-3 py-2.5 text-[11px] sm:text-sm font-medium border-b-2 -mb-px transition-colors min-w-0 ${
                   active
                     ? 'border-gray-900 text-gray-900'
                     : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                 }`}
               >
-                {section.title}
-                <span className={`ml-2 text-xs tabular-nums ${active ? 'text-gray-700' : 'text-gray-400'}`}>
+                <span className="truncate">{section.title}</span>
+                <span className={`tabular-nums shrink-0 ${active ? 'text-gray-700' : 'text-gray-400'}`}>
                   {section.projects.length}
                 </span>
               </button>

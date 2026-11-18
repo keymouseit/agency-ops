@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import SimpleSelect from '@/components/SimpleSelect'
 import { DESIGNATION_MAX_LENGTH } from '@/lib/team-permissions'
 
 export type MemberFormValues = {
@@ -196,16 +197,12 @@ export default function MemberForm({
       <Section title="Access" description="What they can see and whether they can sign in">
         <div>
           <label className="label" htmlFor="role">Role *</label>
-          <select
-            id="role"
+          <SimpleSelect
+            aria-label="Role"
             value={values.role}
-            onChange={e => set('role', e.target.value)}
-            className="input"
-          >
-            {roleOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={v => set('role', v)}
+            options={roleOptions}
+          />
           <FieldError message={fieldErrors.role} />
           <p className="mt-1 text-xs text-gray-400">System access role (controls which pages they can use)</p>
         </div>

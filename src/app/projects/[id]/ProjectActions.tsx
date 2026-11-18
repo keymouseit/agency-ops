@@ -4,6 +4,12 @@ import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import AssigneeMultiSelect from '../AssigneeMultiSelect'
+import BodyScrollLock from '@/components/BodyScrollLock'
+
+const btn =
+  'inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap'
+const btnPrimary =
+  'btn-primary inline-flex items-center justify-center text-xs !px-3 !py-2 whitespace-nowrap'
 
 type Member = { id: string; name: string; role?: string }
 type Project = {
@@ -48,6 +54,7 @@ function ActionModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <BodyScrollLock />
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 shrink-0">
           <div>
@@ -73,10 +80,13 @@ export default function ProjectActions({
   project,
   members,
   userRole,
+  trailing,
 }: {
   project: Project
   members: Member[]
   userRole?: string
+  /** Edit / Delete (or other) actions rendered in the same toolbar. */
+  trailing?: ReactNode
 }) {
   const [view, setView] = useState<ActionView>(null)
   const [loading, setLoading] = useState(false)
@@ -152,55 +162,57 @@ export default function ProjectActions({
   const canAssignBD = ['Founder', 'Manager'].includes(userRole || '')
   const canAssignDeveloper = ['Founder', 'Manager', 'BD', 'Both'].includes(userRole || '')
 
-  const btn =
-    'inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap'
-  const btnPrimary =
-    'inline-flex items-center rounded-full bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 whitespace-nowrap'
-
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        {isActive && (
-          <button type="button" className={btnPrimary} onClick={() => open('milestone')}>
-            + Milestone
-          </button>
+      <div className="w-full min-w-0 space-y-2">
+        {(isActive || (canAddPostMortem && !project.postMortem)) && (
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {isActive && (
+              <button type="button" className={btnPrimary} onClick={() => open('milestone')}>
+                + Milestone
+              </button>
+            )}
+            {isActive && (
+              <button type="button" className={btn} onClick={() => open('checkin')}>
+                + Check-in
+              </button>
+            )}
+            {isActive && (
+              <button type="button" className={btn} onClick={() => open('scope')}>
+                + Scope
+              </button>
+            )}
+            {canAddPostMortem && !project.postMortem && (
+              <button type="button" className={btn} onClick={() => open('postmortem')}>
+                + Post-mortem
+              </button>
+            )}
+          </div>
         )}
-        {isActive && (
-          <button type="button" className={btn} onClick={() => open('checkin')}>
-            + Check-in
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <button type="button" className={btn} onClick={() => open('status')}>
+            Status
           </button>
-        )}
-        {isActive && (
-          <button type="button" className={btn} onClick={() => open('scope')}>
-            + Scope
-          </button>
-        )}
-        {canAddPostMortem && !project.postMortem && (
-          <button type="button" className={btn} onClick={() => open('postmortem')}>
-            + Post-mortem
-          </button>
-        )}
-        <button type="button" className={btn} onClick={() => open('status')}>
-          Status
-        </button>
-        {canAssignBD && (
-          <button type="button" className={btn} onClick={() => open('assignbd')}>
-            {project.bdMemberId ? 'BD' : 'Assign BD'}
-          </button>
-        )}
-        {canAssignDeveloper && (
-          <button type="button" className={btn} onClick={() => open('assigndev')}>
-            Assigned
-          </button>
-        )}
+          {canAssignBD && (
+            <button type="button" className={btn} onClick={() => open('assignbd')}>
+              {project.bdMemberId ? 'BD' : 'Assign BD'}
+            </button>
+          )}
+          {canAssignDeveloper && (
+            <button type="button" className={btn} onClick={() => open('assigndev')}>
+              Assigned
+            </button>
+          )}
+          {trailing}
+        </div>
       </div>
 
       {view === 'checkin' && (
         <ActionModal title="Weekly check-in" onClose={close}>
           <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/checkin`)} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <div className="min-w-0">
                 <label className="label">Submitted by</label>
                 <select name="submittedById" required className="input">
                   {members.map(m => (
@@ -210,30 +222,36 @@ export default function ProjectActions({
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="label">Progress (%)</label>
                 <input name="progressPct" type="number" min="0" max="100" required className="input" placeholder="0–100" />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="label">On track?</label>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="min-w-0 flex flex-col gap-1">
+                <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
+                  On track?
+                </span>
                 <select name="onTrack" className="input">
                   <option value="yes">Yes</option>
                   <option value="at_risk">At risk</option>
                   <option value="no">No</option>
                 </select>
               </div>
-              <div>
-                <label className="label">Scope change?</label>
+              <div className="min-w-0 flex flex-col gap-1">
+                <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
+                  Scope change?
+                </span>
                 <select name="scopeChange" className="input">
                   <option value="none">None</option>
                   <option value="logged">Logged with CO</option>
                   <option value="unlogged">Unlogged ⚠</option>
                 </select>
               </div>
-              <div>
-                <label className="label">Client updated?</label>
+              <div className="min-w-0 flex flex-col gap-1">
+                <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
+                  Client updated?
+                </span>
                 <select name="clientUpdated" className="input">
                   <option value="true">Yes</option>
                   <option value="false">No</option>

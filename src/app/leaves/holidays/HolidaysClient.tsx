@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import SimpleSelect from '@/components/SimpleSelect'
 import {
   HOLIDAY_TYPES,
   HOLIDAY_TYPE_LABELS,
@@ -9,6 +10,11 @@ import {
   type HolidayEntry,
   type HolidayType,
 } from '@/lib/holidays-shared'
+
+const HOLIDAY_TYPE_OPTIONS = HOLIDAY_TYPES.map(t => ({
+  value: t,
+  label: HOLIDAY_TYPE_LABELS[t],
+}))
 
 const TYPE_BADGE: Record<HolidayType, string> = {
   national: 'bg-orange-100 text-orange-800',
@@ -270,18 +276,12 @@ export default function HolidaysClient({
           </div>
           <div>
             <label className="label" htmlFor="holiday-type">Type</label>
-            <select
-              id="holiday-type"
-              className="input"
+            <SimpleSelect
+              aria-label="Holiday type"
               value={draft.type}
-              onChange={e => setDraft(d => ({ ...d, type: e.target.value as HolidayType }))}
-            >
-              {HOLIDAY_TYPES.map(t => (
-                <option key={t} value={t}>
-                  {HOLIDAY_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
+              onChange={v => setDraft(d => ({ ...d, type: v as HolidayType }))}
+              options={HOLIDAY_TYPE_OPTIONS}
+            />
           </div>
           <button type="submit" className="btn-primary" disabled={busy || usingFallback}>
             Add to {year}
@@ -295,65 +295,44 @@ export default function HolidaysClient({
             No holidays added for {year} yet.{canManage ? ' Add them above.' : ''}
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Date</th>
-                <th className="px-4 py-2.5 font-medium">Day</th>
-                <th className="px-4 py-2.5 font-medium">Holiday</th>
-                <th className="px-4 py-2.5 font-medium">Type</th>
-                {canManage && <th className="px-4 py-2.5 font-medium text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <>
+            {/* Mobile / PWA: card list — no horizontal scroll */}
+            <ul className="md:hidden divide-y divide-gray-100">
               {yearHolidays.map(h => {
                 const past = h.date < todayKey
                 const isToday = h.date === todayKey
                 const soon = !past && daysUntil(todayKey, h.date) <= 7
                 const editing = editingId === h.id && editDraft
                 return (
-                  <tr
+                  <li
                     key={h.id}
-                    className={
-                      isToday || soon
-                        ? 'bg-indigo-50/60'
-                        : past
-                          ? 'text-gray-400'
-                          : ''
-                    }
+                    className={`px-4 py-3.5 ${
+                      isToday || soon ? 'bg-indigo-50/60' : past ? 'text-gray-400' : ''
+                    }`}
                   >
                     {editing ? (
-                      <>
-                        <td className="px-4 py-2" colSpan={2}>
-                          <input
-                            type="date"
-                            className="input"
-                            value={editDraft.date}
-                            onChange={e => setEditDraft(d => (d ? { ...d, date: e.target.value } : d))}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            className="input"
-                            maxLength={100}
-                            value={editDraft.name}
-                            onChange={e => setEditDraft(d => (d ? { ...d, name: e.target.value } : d))}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <select
-                            className="input"
-                            value={editDraft.type}
-                            onChange={e => setEditDraft(d => (d ? { ...d, type: e.target.value as HolidayType } : d))}
-                          >
-                            {HOLIDAY_TYPES.map(t => (
-                              <option key={t} value={t}>
-                                {HOLIDAY_TYPE_LABELS[t]}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                      <div className="space-y-2.5">
+                        <input
+                          type="date"
+                          className="input"
+                          value={editDraft.date}
+                          onChange={e => setEditDraft(d => (d ? { ...d, date: e.target.value } : d))}
+                        />
+                        <input
+                          className="input"
+                          maxLength={100}
+                          value={editDraft.name}
+                          onChange={e => setEditDraft(d => (d ? { ...d, name: e.target.value } : d))}
+                        />
+                        <SimpleSelect
+                          aria-label="Holiday type"
+                          value={editDraft.type}
+                          onChange={v =>
+                            setEditDraft(d => (d ? { ...d, type: v as HolidayType } : d))
+                          }
+                          options={HOLIDAY_TYPE_OPTIONS}
+                        />
+                        <div className="flex gap-2 pt-1">
                           <button
                             type="button"
                             className="btn-primary text-xs !px-3 !py-1.5"
@@ -361,7 +340,7 @@ export default function HolidaysClient({
                             onClick={() => saveEdit(h.id)}
                           >
                             Save
-                          </button>{' '}
+                          </button>
                           <button
                             type="button"
                             className="btn-secondary text-xs !px-3 !py-1.5"
@@ -372,59 +351,213 @@ export default function HolidaysClient({
                           >
                             Cancel
                           </button>
-                        </td>
-                      </>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">
-                          {formatDate(h.date)}
-                        </td>
-                        <td className="px-4 py-3">{weekday(h.date)}</td>
-                        <td className="px-4 py-3">
-                          <span className={past ? '' : 'text-gray-900 font-medium'}>{h.name}</span>
-                          {isToday && <span className="badge bg-indigo-600 text-white ml-2">Today</span>}
-                          {!isToday && soon && (
-                            <span className="badge bg-indigo-100 text-indigo-800 ml-2">
-                              In {daysUntil(todayKey, h.date)} day{daysUntil(todayKey, h.date) === 1 ? '' : 's'}
+                      <div className="min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold leading-snug ${past ? '' : 'text-gray-900'}`}>
+                              {h.name}
+                            </p>
+                            <p className="mt-0.5 text-xs tabular-nums text-gray-500">
+                              {formatDate(h.date)} · {weekday(h.date)}
+                            </p>
+                          </div>
+                          {canManage && (
+                            <div className="flex shrink-0 gap-3 pt-0.5">
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-gray-600 hover:text-gray-900"
+                                disabled={busy || usingFallback}
+                                onClick={() => {
+                                  setEditingId(h.id)
+                                  setEditDraft({ date: h.date, name: h.name, type: h.type })
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-red-600 hover:text-red-800"
+                                disabled={busy || usingFallback}
+                                onClick={() => remove(h)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${TYPE_BADGE[h.type]}`}
+                          >
+                            {HOLIDAY_TYPE_LABELS[h.type]}
+                          </span>
+                          {!isNonWorkingHolidayType(h.type) && (
+                            <span className="text-[10px] text-gray-400">optional</span>
+                          )}
+                          {isToday && (
+                            <span className="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white whitespace-nowrap">
+                              Today
                             </span>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`badge ${TYPE_BADGE[h.type]}`}>{HOLIDAY_TYPE_LABELS[h.type]}</span>
-                          {!isNonWorkingHolidayType(h.type) && (
-                            <span className="ml-1.5 text-xs text-gray-400">optional</span>
+                          {!isToday && soon && (
+                            <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-800 whitespace-nowrap">
+                              In {daysUntil(todayKey, h.date)} day
+                              {daysUntil(todayKey, h.date) === 1 ? '' : 's'}
+                            </span>
                           )}
-                        </td>
-                        {canManage && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="text-xs font-medium text-gray-600 hover:text-gray-900"
-                              disabled={busy || usingFallback}
-                              onClick={() => {
-                                setEditingId(h.id)
-                                setEditDraft({ date: h.date, name: h.name, type: h.type })
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="ml-3 text-xs font-medium text-red-600 hover:text-red-800"
-                              disabled={busy || usingFallback}
-                              onClick={() => remove(h)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        )}
-                      </>
+                        </div>
+                      </div>
                     )}
-                  </tr>
+                  </li>
                 )
               })}
-            </tbody>
-          </table>
+            </ul>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2.5 font-medium">Date</th>
+                    <th className="px-4 py-2.5 font-medium">Day</th>
+                    <th className="px-4 py-2.5 font-medium">Holiday</th>
+                    <th className="px-4 py-2.5 font-medium">Type</th>
+                    {canManage && <th className="px-4 py-2.5 font-medium text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {yearHolidays.map(h => {
+                    const past = h.date < todayKey
+                    const isToday = h.date === todayKey
+                    const soon = !past && daysUntil(todayKey, h.date) <= 7
+                    const editing = editingId === h.id && editDraft
+                    return (
+                      <tr
+                        key={h.id}
+                        className={
+                          isToday || soon ? 'bg-indigo-50/60' : past ? 'text-gray-400' : ''
+                        }
+                      >
+                        {editing ? (
+                          <>
+                            <td className="px-4 py-2" colSpan={2}>
+                              <input
+                                type="date"
+                                className="input"
+                                value={editDraft.date}
+                                onChange={e =>
+                                  setEditDraft(d => (d ? { ...d, date: e.target.value } : d))
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                className="input"
+                                maxLength={100}
+                                value={editDraft.name}
+                                onChange={e =>
+                                  setEditDraft(d => (d ? { ...d, name: e.target.value } : d))
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <SimpleSelect
+                                aria-label="Holiday type"
+                                value={editDraft.type}
+                                onChange={v =>
+                                  setEditDraft(d =>
+                                    d ? { ...d, type: v as HolidayType } : d,
+                                  )
+                                }
+                                options={HOLIDAY_TYPE_OPTIONS}
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                className="btn-primary text-xs !px-3 !py-1.5"
+                                disabled={busy}
+                                onClick={() => saveEdit(h.id)}
+                              >
+                                Save
+                              </button>{' '}
+                              <button
+                                type="button"
+                                className="btn-secondary text-xs !px-3 !py-1.5"
+                                onClick={() => {
+                                  setEditingId(null)
+                                  setEditDraft(null)
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">
+                              {formatDate(h.date)}
+                            </td>
+                            <td className="px-4 py-3">{weekday(h.date)}</td>
+                            <td className="px-4 py-3">
+                              <span className={past ? '' : 'text-gray-900 font-medium'}>{h.name}</span>
+                              {isToday && (
+                                <span className="badge bg-indigo-600 text-white ml-2 whitespace-nowrap">
+                                  Today
+                                </span>
+                              )}
+                              {!isToday && soon && (
+                                <span className="badge bg-indigo-100 text-indigo-800 ml-2 whitespace-nowrap">
+                                  In {daysUntil(todayKey, h.date)} day
+                                  {daysUntil(todayKey, h.date) === 1 ? '' : 's'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${TYPE_BADGE[h.type]}`}
+                              >
+                                {HOLIDAY_TYPE_LABELS[h.type]}
+                              </span>
+                              {!isNonWorkingHolidayType(h.type) && (
+                                <span className="ml-1.5 text-xs text-gray-400">optional</span>
+                              )}
+                            </td>
+                            {canManage && (
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  className="text-xs font-medium text-gray-600 hover:text-gray-900"
+                                  disabled={busy || usingFallback}
+                                  onClick={() => {
+                                    setEditingId(h.id)
+                                    setEditDraft({ date: h.date, name: h.name, type: h.type })
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ml-3 text-xs font-medium text-red-600 hover:text-red-800"
+                                  disabled={busy || usingFallback}
+                                  onClick={() => remove(h)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            )}
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

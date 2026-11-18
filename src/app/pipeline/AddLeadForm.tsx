@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LEAD_SOURCES } from '@/lib/utils'
+import BodyScrollLock from '@/components/BodyScrollLock'
 
 type Member = { id: string; name: string; role: string }
 
@@ -28,9 +29,16 @@ export default function AddLeadForm({ members }: { members: Member[] }) {
 
   return (
     <>
-      <button className="btn-primary" onClick={() => setOpen(true)}>+ Add lead</button>
+      <button
+        type="button"
+        className="btn-primary inline-flex items-center justify-center text-sm !px-3 !py-2 whitespace-nowrap shrink-0"
+        onClick={() => setOpen(true)}
+      >
+        + Add lead
+      </button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <BodyScrollLock />
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-lg font-semibold mb-4">New lead</h2>
             <form onSubmit={submit} className="space-y-3">

@@ -68,7 +68,7 @@ function MiniBar({ pct, tone }: { pct: number; tone: 'neutral' | 'amber' | 'red'
   const bar =
     tone === 'red' ? 'bg-red-500' : tone === 'amber' ? 'bg-amber-400' : tone === 'green' ? 'bg-emerald-500' : 'bg-gray-400'
   return (
-    <div className="h-1 w-14 shrink-0 bg-gray-100 rounded-full overflow-hidden">
+    <div className="h-1.5 flex-1 min-w-0 bg-gray-100 rounded-full overflow-hidden">
       <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.max(0, Math.min(pct, 100))}%` }} />
     </div>
   )
@@ -118,12 +118,114 @@ function Row({ r }: { r: ProjectHealthRow }) {
   const clientUpdate = clientUpdateText(r.daysSinceClientUpdate)
 
   return (
-    <ClickableRow
-      href={href}
-      className="group flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 hover:bg-gray-50/80 md:table-row md:p-0"
-    >
-      {/* Score */}
-      <td className="shrink-0 md:w-14 md:pl-5 md:pr-2 md:py-2.5 align-middle">
+    <ClickableRow href={href} className="group hover:bg-gray-50/80 block w-full md:table-row">
+      {/* Mobile card (single cell) — full name, no side-by-side squeeze */}
+      <td className="md:hidden block w-full px-4 py-3.5 align-top" colSpan={COLS}>
+        <div className="space-y-2.5 w-full min-w-0">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <span
+              className={`inline-flex h-7 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg px-1.5 text-sm font-semibold tabular-nums ring-1 ring-inset ${s.pill}`}
+              title={`Health score ${r.score} / 10`}
+            >
+              {r.score}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start gap-1.5">
+                <Link href={href} className="text-sm font-semibold text-gray-900 hover:underline break-words">
+                  {r.name}
+                </Link>
+                {r.blocker ? (
+                  <span
+                    className="shrink-0 text-xs text-amber-600 cursor-help mt-0.5"
+                    title={`Blocker: ${r.blocker}`}
+                    aria-label="Has a blocker"
+                  >
+                    ⚠
+                  </span>
+                ) : null}
+                <span
+                  className="hidden group-data-[pending=true]:inline-block h-3 w-3 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin mt-0.5"
+                  aria-hidden="true"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5 break-words">
+                {r.owner}
+                <span className="mx-1 text-gray-300">·</span>
+                <span className="text-gray-400">
+                  {r.daysSinceClientUpdate == null
+                    ? 'No client update logged'
+                    : `Client update ${clientUpdate.toLowerCase()}`}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`badge text-[11px] px-2 whitespace-nowrap ${s.chip}`}>{s.text}</span>
+            {r.overBudget && (
+              <span className="badge text-[11px] px-2 whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-100">
+                Over budget
+              </span>
+            )}
+            {r.unsignedCOs > 0 && (
+              <span className="badge text-[11px] px-2 whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-100">
+                {r.unsignedCOs} CO unsigned
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3 w-full">
+            <div className="min-w-0" title={t.title}>
+              <MobileLabel>Timeline</MobileLabel>
+              <div className="flex items-center gap-1.5 text-xs min-w-0">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.dot}`} />
+                <span className="text-gray-700 truncate">{t.text}</span>
+              </div>
+              {t.sub ? <div className="text-[11px] text-gray-400 pl-3 truncate">{t.sub}</div> : null}
+            </div>
+            <div
+              className="min-w-0"
+              title={
+                r.estimatedHours
+                  ? `${Math.round(r.actualHours ?? 0)}h of ${Math.round(r.estimatedHours)}h estimated${
+                      projectedOver ? ` · projected ${r.projectedHours}h` : ''
+                    }`
+                  : 'No hour estimate'
+              }
+            >
+              <MobileLabel>Hours</MobileLabel>
+              <div className="flex items-center gap-1.5 min-w-0 w-full">
+                <span
+                  className={`text-xs tabular-nums shrink-0 ${
+                    burnTone === 'red'
+                      ? 'text-red-700 font-medium'
+                      : burnTone === 'amber'
+                        ? 'text-amber-700'
+                        : r.burn == null
+                          ? 'text-gray-300'
+                          : 'text-gray-700'
+                  }`}
+                >
+                  {r.burn != null ? `${r.burn}%` : '—'}
+                </span>
+                {r.burn != null ? <MiniBar pct={r.burn} tone={burnTone} /> : null}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <MobileLabel>Milestones</MobileLabel>
+              <div className="flex items-center gap-1.5 min-w-0 w-full">
+                <span className={`text-xs tabular-nums shrink-0 ${r.milestonesTotal ? 'text-gray-700' : 'text-gray-300'}`}>
+                  {r.milestonesTotal ? `${r.milestonesDone}/${r.milestonesTotal}` : '—'}
+                </span>
+                {r.milestonesTotal ? (
+                  <MiniBar pct={msPct} tone={r.milestonesDone === r.milestonesTotal ? 'green' : 'neutral'} />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Desktop table cells */}
+      <td className="hidden md:table-cell md:w-14 md:pl-5 md:pr-2 md:py-2.5 align-middle">
         <span
           className={`inline-flex h-7 min-w-[2.5rem] items-center justify-center rounded-lg px-1.5 text-sm font-semibold tabular-nums ring-1 ring-inset ${s.pill}`}
           title={`Health score ${r.score} / 10`}
@@ -132,9 +234,8 @@ function Row({ r }: { r: ProjectHealthRow }) {
         </span>
       </td>
 
-      {/* Project + owner */}
-      <td className="flex-1 min-w-0 md:w-full md:px-3 md:py-2.5 align-middle" title={tooltip || undefined}>
-        <div className="flex items-center gap-1.5 min-w-0 md:max-w-[13rem] lg:max-w-[18rem] xl:max-w-[24rem]">
+      <td className="hidden md:table-cell md:w-full md:max-w-0 md:px-3 md:py-2.5 align-middle" title={tooltip || undefined}>
+        <div className="flex items-center gap-1.5 min-w-0">
           <Link href={href} className="text-sm font-medium text-gray-900 hover:underline truncate">
             {r.name}
           </Link>
@@ -148,20 +249,11 @@ function Row({ r }: { r: ProjectHealthRow }) {
             aria-hidden="true"
           />
         </div>
-        <div className="text-xs text-gray-500 truncate md:max-w-[13rem] lg:max-w-[18rem] xl:max-w-[24rem]">
-          {r.owner}
-          <span className="lg:hidden">
-            <span className="mx-1 text-gray-300">·</span>
-            <span className="text-gray-400">
-              {r.daysSinceClientUpdate == null ? 'No client update logged' : `Client update ${clientUpdate.toLowerCase()}`}
-            </span>
-          </span>
-        </div>
+        <div className="text-xs text-gray-500 truncate">{r.owner}</div>
       </td>
 
-      {/* Status */}
-      <td className="shrink-0 md:px-3 md:py-2.5 align-middle">
-        <div className="flex flex-wrap items-center justify-end md:justify-start gap-1">
+      <td className="hidden md:table-cell md:px-3 md:py-2.5 align-middle">
+        <div className="flex flex-wrap items-center gap-1">
           <span className={`badge text-[11px] px-2 whitespace-nowrap ${s.chip}`}>{s.text}</span>
           {r.overBudget && (
             <span className="badge text-[11px] px-2 whitespace-nowrap bg-red-50 text-red-700 ring-1 ring-inset ring-red-100">
@@ -176,9 +268,7 @@ function Row({ r }: { r: ProjectHealthRow }) {
         </div>
       </td>
 
-      {/* Mobile: metrics wrap onto a second line, three across */}
-      <td className="basis-[calc(33.333%-0.5rem)] grow md:basis-auto md:px-3 md:py-2.5 align-middle" title={t.title}>
-        <MobileLabel>Timeline</MobileLabel>
+      <td className="hidden md:table-cell md:px-3 md:py-2.5 align-middle" title={t.title}>
         <div className="flex items-center gap-1.5 text-xs whitespace-nowrap">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.dot}`} />
           <span className="text-gray-700">{t.text}</span>
@@ -187,7 +277,7 @@ function Row({ r }: { r: ProjectHealthRow }) {
       </td>
 
       <td
-        className="basis-[calc(33.333%-0.5rem)] grow md:basis-auto md:px-3 md:py-2.5 align-middle"
+        className="hidden md:table-cell md:px-3 md:py-2.5 align-middle"
         title={
           r.estimatedHours
             ? `${Math.round(r.actualHours ?? 0)}h of ${Math.round(r.estimatedHours)}h estimated${
@@ -196,10 +286,9 @@ function Row({ r }: { r: ProjectHealthRow }) {
             : 'No hour estimate'
         }
       >
-        <MobileLabel>Hours</MobileLabel>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 w-full max-w-[9rem]">
           <span
-            className={`w-10 text-xs tabular-nums ${
+            className={`w-10 shrink-0 text-xs tabular-nums ${
               burnTone === 'red' ? 'text-red-700 font-medium' : burnTone === 'amber' ? 'text-amber-700' : r.burn == null ? 'text-gray-300' : 'text-gray-700'
             }`}
           >
@@ -210,10 +299,9 @@ function Row({ r }: { r: ProjectHealthRow }) {
         {projectedOver ? <div className="text-[11px] text-gray-400 whitespace-nowrap">proj. {r.projectedHours}h</div> : null}
       </td>
 
-      <td className="basis-[calc(33.333%-0.5rem)] grow md:basis-auto md:px-3 md:py-2.5 align-middle">
-        <MobileLabel>Milestones</MobileLabel>
-        <div className="flex items-center gap-2">
-          <span className={`w-8 text-xs tabular-nums ${r.milestonesTotal ? 'text-gray-700' : 'text-gray-300'}`}>
+      <td className="hidden md:table-cell md:px-3 md:py-2.5 align-middle">
+        <div className="flex items-center gap-2 min-w-0 w-full max-w-[9rem]">
+          <span className={`w-8 shrink-0 text-xs tabular-nums ${r.milestonesTotal ? 'text-gray-700' : 'text-gray-300'}`}>
             {r.milestonesTotal ? `${r.milestonesDone}/${r.milestonesTotal}` : '—'}
           </span>
           {r.milestonesTotal ? (
@@ -250,7 +338,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       disabled={count === 0 && !active}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-40 disabled:cursor-default ${
+      className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-40 disabled:cursor-default ${
         active ? activeClass : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'
       }`}
     >
@@ -290,7 +378,7 @@ export default function ProjectHealthList({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+      <div className="flex flex-nowrap items-center gap-2 px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/50 overflow-x-auto scrollbar-hide">
         <FilterChip
           active={filter === 'all'}
           onClick={() => choose('all')}
@@ -327,16 +415,16 @@ export default function ProjectHealthList({
       {shown.length === 0 ? (
         <p className="px-5 py-6 text-sm text-gray-400">No projects in this group.</p>
       ) : (
-        <table className="block md:table w-full text-sm">
+        <table className="block w-full md:table text-sm table-fixed">
           <thead className="hidden md:table-header-group">
             <tr className="text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
-              <th className="text-left pl-5 pr-2 py-2 font-medium">Score</th>
-              <th className="text-left px-3 py-2 font-medium">Project</th>
-              <th className="text-left px-3 py-2 font-medium">Status</th>
-              <th className="text-left px-3 py-2 font-medium">Timeline</th>
-              <th className="text-left px-3 py-2 font-medium">Hours</th>
-              <th className="text-left px-3 py-2 font-medium">Milestones</th>
-              <th className="hidden lg:table-cell text-right pl-3 pr-5 py-2 font-medium">Client update</th>
+              <th className="text-left pl-5 pr-2 py-2 font-medium w-14">Score</th>
+              <th className="text-left px-3 py-2 font-medium w-full">Project</th>
+              <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Status</th>
+              <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Timeline</th>
+              <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Hours</th>
+              <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Milestones</th>
+              <th className="hidden lg:table-cell text-right pl-3 pr-5 py-2 font-medium whitespace-nowrap">Client update</th>
             </tr>
           </thead>
           <ShowMoreRows
@@ -345,8 +433,8 @@ export default function ProjectHealthList({
             initial={VISIBLE_PROJECTS}
             colSpan={COLS}
             noun="projects"
-            className="block md:table-row-group divide-y divide-gray-100"
-            toggleClassName="block md:table-cell px-5 py-2.5"
+            className="block w-full md:table-row-group divide-y divide-gray-100"
+            toggleClassName="block w-full md:table-cell px-5 py-2.5"
           />
         </table>
       )}

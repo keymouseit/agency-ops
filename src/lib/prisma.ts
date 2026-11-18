@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 
-const PRISMA_SCHEMA_VERSION = 33
+const PRISMA_SCHEMA_VERSION = 35
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -18,6 +18,14 @@ function datasourceUrl() {
     }
     if (!parsed.searchParams.has('pool_timeout')) {
       parsed.searchParams.set('pool_timeout', '20')
+    }
+    // Neon cold-start: give the pooler time to wake a suspended compute
+    if (!parsed.searchParams.has('connect_timeout')) {
+      parsed.searchParams.set('connect_timeout', '30')
+    }
+    // Prisma + Neon pooler: channel_binding=require can fail intermittently
+    if (parsed.searchParams.get('channel_binding') === 'require') {
+      parsed.searchParams.delete('channel_binding')
     }
     return parsed.toString()
   } catch {

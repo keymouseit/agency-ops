@@ -5,8 +5,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 export type SimpleSelectOption = { value: string; label: string }
 
 /**
- * Compact single-select sized like `.input`, with a capped scrollable menu
- * so long lists stay within modals (native <select> menus cannot be sized).
+ * Custom single-select (button + listbox) — avoids native <select> so
+ * Android/Samsung form assist (Prev / Next) does not appear on dropdowns.
+ * Menu is capped/scrollable so long lists stay usable inside modals.
  */
 export default function SimpleSelect({
   value,
@@ -16,6 +17,7 @@ export default function SimpleSelect({
   disabled = false,
   required = false,
   name,
+  className = '',
   'aria-label': ariaLabel,
 }: {
   value: string
@@ -25,6 +27,8 @@ export default function SimpleSelect({
   disabled?: boolean
   required?: boolean
   name?: string
+  /** Extra classes merged onto the trigger button (after `.input`). */
+  className?: string
   'aria-label'?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -48,12 +52,12 @@ export default function SimpleSelect({
   }, [])
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative min-w-0">
       {name ? <input type="hidden" name={name} value={value} required={required} /> : null}
       <button
         type="button"
         disabled={disabled}
-        className="input flex items-center gap-2 text-left bg-white disabled:bg-gray-50 disabled:text-gray-400"
+        className={`input flex items-center gap-2 text-left bg-white disabled:bg-gray-50 disabled:text-gray-400 ${className}`}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={listId}
@@ -80,7 +84,7 @@ export default function SimpleSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute left-0 right-0 z-[100] mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
         >
           {options.map(opt => {
             const active = opt.value === value
@@ -88,7 +92,7 @@ export default function SimpleSelect({
               <li key={opt.value} role="option" aria-selected={active}>
                 <button
                   type="button"
-                  className={`flex w-full px-3 py-1.5 text-left text-sm ${
+                  className={`flex w-full px-3 py-2.5 text-left text-base sm:text-sm sm:py-1.5 ${
                     active
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-900 hover:bg-gray-50'

@@ -37,6 +37,9 @@ export default function LoginForm({ branding }: { branding: Branding }) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    if (typeof document !== 'undefined') {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+    }
 
     const result = await signIn('credentials', {
       email,
@@ -88,7 +91,9 @@ export default function LoginForm({ branding }: { branding: Branding }) {
                   autoComplete="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="login-input input bg-gray-50/80 focus:bg-white"
+                  disabled={loading}
+                  readOnly={loading}
+                  className="login-input input bg-gray-50/80 focus:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="you@keymouse.com"
                 />
               </div>
@@ -101,7 +106,9 @@ export default function LoginForm({ branding }: { branding: Branding }) {
                   autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="login-input input bg-gray-50/80 focus:bg-white"
+                  disabled={loading}
+                  readOnly={loading}
+                  className="login-input input bg-gray-50/80 focus:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="••••••••"
                 />
               </div>

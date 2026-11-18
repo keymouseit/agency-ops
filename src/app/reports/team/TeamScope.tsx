@@ -306,59 +306,64 @@ export function SelectedWeeklyCard({
   ]
 
   return (
-    <section className="card px-4 py-3">
+    <section className="card px-4 py-4 sm:px-5 space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-baseline gap-2 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900">Weekly score</h2>
-          <span className="text-xs text-gray-400 truncate">
-            {p.name} · Team {submittedCount}/{expected.length} submitted this week
-          </span>
+          <p className="text-xs text-gray-500 mt-1 break-words">
+            {p.name}
+            <span className="text-gray-300 mx-1">·</span>
+            Team {submittedCount}/{expected.length} submitted this week
+          </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowAll(true)}
-            className="text-xs text-gray-500 hover:text-gray-900"
-          >
-            Show all {people.length}
-          </button>
-          <Link href="/goals" className="text-xs text-gray-500 hover:text-gray-900">
-            Manage goals →
-          </Link>
-          {canRate && (
+        {canRate && (
+          <div className="shrink-0">
             <SubmitScoreForm
               key={p.id}
               members={formMembers}
               founderMode
               initialMemberId={p.id}
               buttonLabel="+ Submit score"
-              buttonClassName="text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 px-2.5 py-1 rounded-md"
+              buttonClassName="btn-primary inline-flex items-center justify-center text-xs !px-3 !py-1.5 whitespace-nowrap"
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="mt-2.5 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6 items-center">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-xs text-gray-500 hover:text-gray-900"
+        >
+          Show all {people.length}
+        </button>
+        <Link href="/goals" className="text-xs text-gray-500 hover:text-gray-900">
+          Manage goals →
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Left: status + score + 7-day stats */}
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {p.expected ? (
               <span
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
                   p.submitted ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-700'
                 }`}
               >
                 {p.submitted ? 'Submitted' : 'Not submitted'}
               </span>
             ) : (
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
                 No self-score ({p.role})
               </span>
             )}
-            <span className="inline-flex items-baseline gap-1">
+            <span className="inline-flex items-baseline gap-1.5">
               <span
-                className={`text-lg font-bold tabular-nums leading-none ${
+                className={`text-xl font-bold tabular-nums leading-none ${
                   p.recentAvg != null ? scoreTone(p.recentAvg) : 'text-gray-300'
                 }`}
               >
@@ -382,57 +387,64 @@ export function SelectedWeeklyCard({
                 initialMemberId={p.id}
                 lockMember
                 buttonLabel="Rate"
-                buttonClassName="text-xs font-medium text-gray-600 hover:text-gray-900 px-2 py-0.5 rounded-md border border-gray-200 hover:bg-gray-50"
+                buttonClassName="text-xs font-medium text-gray-600 hover:text-gray-900 px-2.5 py-1 rounded-md border border-gray-200 hover:bg-gray-50"
               />
             )}
           </div>
-          <p className="text-xs text-gray-500 leading-snug">
-            {stats.map((st, i) => (
-              <span key={st.label}>
-                {i > 0 && <span className="text-gray-300"> · </span>}
-                {st.label}{' '}
-                <span className={`font-semibold tabular-nums ${st.tone ?? 'text-gray-800'}`}>{st.value}</span>
-              </span>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {stats.map(st => (
+              <div
+                key={st.label}
+                className="rounded-lg border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0"
+              >
+                <div className="text-[10px] uppercase tracking-wide text-gray-400 truncate">{st.label}</div>
+                <div className={`mt-0.5 text-xs font-semibold tabular-nums truncate ${st.tone ?? 'text-gray-800'}`}>
+                  {st.value}
+                </div>
+              </div>
             ))}
-          </p>
+          </div>
         </div>
 
         {/* Right: compact 8-week trend */}
-        <div className="min-w-0 lg:border-l lg:border-gray-100 lg:pl-6">
+        <div className="min-w-0 rounded-xl border border-gray-100 bg-gray-50/40 px-3 py-3 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:border-l lg:border-gray-100 lg:pl-6 lg:rounded-none">
           {hasTrend ? (
-            <table className="w-full text-[11px] tabular-nums">
-              <thead>
-                <tr className="text-gray-400">
-                  <th className="text-left font-medium pb-0.5 pr-2">Last {weeksBack} wks</th>
-                  {cols.map(c => (
-                    <th key={c.key} className="text-center font-medium pb-0.5 whitespace-nowrap">
-                      {c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {TREND_DIMS.map(d => (
-                  <tr key={d.key}>
-                    <td className="text-gray-500 font-medium pr-2" title={d.label}>
-                      {d.label}
-                    </td>
-                    {cols.map(c => {
-                      const v = c[d.key]
-                      return (
-                        <td key={c.key} className="text-center py-px">
-                          {v != null ? (
-                            <span className={`font-semibold ${scoreTone(v)}`}>{v.toFixed(1)}</span>
-                          ) : (
-                            <span className="text-gray-200">–</span>
-                          )}
-                        </td>
-                      )
-                    })}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] tabular-nums min-w-[16rem]">
+                <thead>
+                  <tr className="text-gray-400">
+                    <th className="text-left font-medium pb-1.5 pr-2">Last {weeksBack} wks</th>
+                    {cols.map(c => (
+                      <th key={c.key} className="text-center font-medium pb-1.5 whitespace-nowrap px-0.5">
+                        {c.label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {TREND_DIMS.map(d => (
+                    <tr key={d.key}>
+                      <td className="text-gray-500 font-medium pr-2 py-0.5" title={d.label}>
+                        {d.label}
+                      </td>
+                      {cols.map(c => {
+                        const v = c[d.key]
+                        return (
+                          <td key={c.key} className="text-center py-0.5">
+                            {v != null ? (
+                              <span className={`font-semibold ${scoreTone(v)}`}>{v.toFixed(1)}</span>
+                            ) : (
+                              <span className="text-gray-200">–</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="text-xs text-gray-400">No weekly scores in the last {weeksBack} weeks.</p>
           )}
