@@ -9,6 +9,7 @@ import { formatIstWeekdayLong } from '@/lib/ist'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 import { shortDisplayName } from '@/lib/employee-order'
 import HoursMinutesFields from '@/components/HoursMinutesFields'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -185,19 +186,15 @@ export default function MorningPlanClient({
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className="label">Type</label>
-                        <select
+                        <SimpleSelect
+                          aria-label="Type"
                           value={task.taskType}
-                          onChange={e => updateTask(i, 'taskType', e.target.value)}
-                          className="input"
-                        >
-                          {(taskTypeGroupsForRole(catalog, member?.role ?? 'Dev', task.taskType) ?? dailyTaskTypeGroupsForRole(member?.role ?? 'Dev', task.taskType)).map(group => (
-                            <optgroup key={group.label} label={group.label}>
-                              {group.types.map(t => (
-                                <option key={t.value} value={t.value}>{t.label}</option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
+                          onChange={v => updateTask(i, 'taskType', v)}
+                          options={(
+                            taskTypeGroupsForRole(catalog, member?.role ?? 'Dev', task.taskType) ??
+                            dailyTaskTypeGroupsForRole(member?.role ?? 'Dev', task.taskType)
+                          ).flatMap(group => group.types.map(t => ({ value: t.value, label: t.label })))}
+                        />
                       </div>
                       <div>
                         <label className="label">Priority</label>
@@ -211,18 +208,16 @@ export default function MorningPlanClient({
                       </div>
                       <div>
                         <label className="label">Project</label>
-                        <select
+                        <SimpleSelect
+                          aria-label="Project"
+                          placeholder="— None —"
                           value={task.projectId}
-                          onChange={e => updateTask(i, 'projectId', e.target.value)}
-                          className="input"
-                        >
-                          <option value="">— None —</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={v => updateTask(i, 'projectId', v)}
+                          options={[
+                            { value: '', label: '— None —' },
+                            ...projects.map(p => ({ value: p.id, label: p.name })),
+                          ]}
+                        />
                       </div>
                       <div>
                         <HoursMinutesFields

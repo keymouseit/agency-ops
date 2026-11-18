@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { fmtDate } from '@/lib/utils'
 import { istDateInputValue } from '@/lib/ist'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import SimpleSelect from '@/components/SimpleSelect'
 
 const NO_FURTHER_STATUSES = ['Hold', 'Closed'] as const
 
@@ -366,20 +367,12 @@ export default function MomFollowUpButton({
                   <label className="block text-xs font-medium text-gray-700 mb-1" htmlFor="finalStatus">
                     Deal status <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="finalStatus"
+                  <SimpleSelect
+                    aria-label="Deal status"
                     value={finalStatus}
-                    onChange={e =>
-                      setFinalStatus(e.target.value as (typeof NO_FURTHER_STATUSES)[number])
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  >
-                    {NO_FURTHER_STATUSES.map(s => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={v => setFinalStatus(v as (typeof NO_FURTHER_STATUSES)[number])}
+                    options={NO_FURTHER_STATUSES.map(s => ({ value: s, label: s }))}
+                  />
                   <p className="text-[11px] text-gray-400 mt-1">
                     Active / Waiting Response / Demo statuses remain available on Deal status when you schedule another call.
                   </p>

@@ -131,6 +131,7 @@ export default function LeaveDashboardClient({
   memberId,
   isAdmin,
   canManageBalances = false,
+  hideMyLeavesTab = false,
   myLeaves,
   accrued,
   used,
@@ -144,6 +145,8 @@ export default function LeaveDashboardClient({
   memberId: string
   isAdmin: boolean
   canManageBalances?: boolean
+  /** Founders only use Team admin — hide personal My Leaves. */
+  hideMyLeavesTab?: boolean
   myLeaves: any[]
   accrued: number
   used: number
@@ -156,7 +159,7 @@ export default function LeaveDashboardClient({
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<'my_leaves' | 'admin'>(
-    isAdmin && allPendingLeaves.length > 0 ? 'admin' : 'my_leaves'
+    hideMyLeavesTab || (isAdmin && allPendingLeaves.length > 0) ? 'admin' : 'my_leaves'
   )
   const [leaves, setLeaves] = useState(myLeaves)
   const [pendingLeaves, setPendingLeaves] = useState(allPendingLeaves)
@@ -1241,7 +1244,7 @@ export default function LeaveDashboardClient({
           </Link>
         </div>
         
-        {isAdmin && (
+        {isAdmin && !hideMyLeavesTab && (
           <div className="flex bg-gray-100/80 p-1 rounded-xl ring-1 ring-gray-200/50">
             <button
               onClick={() => setTab('my_leaves')}
@@ -1260,7 +1263,7 @@ export default function LeaveDashboardClient({
         )}
       </div>
 
-      {tab === 'my_leaves' && (
+      {tab === 'my_leaves' && !hideMyLeavesTab && (
         <div className="space-y-6">
           {/* Balance strip — mobile: 2×3 like native; desktop: 6-across */}
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
@@ -2037,10 +2040,10 @@ export default function LeaveDashboardClient({
                 </div>
               </div>
 
-              <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-gray-900">{format(currentMonth, 'MMMM yyyy')}</h3>
-                    <div className="flex space-x-2">
+              <div className="p-3 sm:p-6">
+                  <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{format(currentMonth, 'MMMM yyyy')}</h3>
+                    <div className="flex shrink-0 space-x-2">
                       <button type="button" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 ring-1 ring-gray-200 transition-colors">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                       </button>
@@ -2051,43 +2054,49 @@ export default function LeaveDashboardClient({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden ring-1 ring-gray-200">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                      <div key={day} className="bg-gray-50 py-2 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                        {day}
-                      </div>
-                    ))}
-
-                    {calendarDays.map(day => {
-                      const isCurrentMonth = isSameMonth(day, currentMonth)
-                      const isToday = isSameDay(day, new Date())
-                      const dayLeaves = getLeavesForDay(day, calendarLeaves)
-
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={`min-h-[100px] bg-white p-2 flex flex-col ${!isCurrentMonth ? 'bg-gray-50/50 text-gray-400' : ''}`}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-900'}`}>
-                              {format(day, 'd')}
-                            </span>
-                          </div>
-                          <div className="flex-1 space-y-1 overflow-y-auto max-h-[80px]">
-                            {dayLeaves.map(l => (
-                              <div
-                                key={l.id}
-                                onClick={() => viewHistory(l)}
-                                className={`text-xs px-2 py-1 rounded truncate cursor-pointer font-medium hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all ${calendarLeaveChipClass(l.leaveType, l.status)}`}
-                                title={`${l.member.name} · ${formatLeaveType(l.leaveType, l.timeSlot)} · ${l.status === 'pending' ? 'Waiting' : 'Approved'}`}
-                              >
-                                {shortDisplayName(l.member.name)}
-                              </div>
-                            ))}
-                          </div>
+                  {/* Equal minmax columns + chip truncate so last column never clips mid-letter */}
+                  <div className="overflow-x-auto pb-1">
+                    <div
+                      className="min-w-[720px] grid gap-px bg-gray-200 rounded-xl ring-1 ring-gray-200 overflow-hidden"
+                      style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
+                    >
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                        <div key={day} className="bg-gray-50 py-2 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider min-w-0">
+                          {day}
                         </div>
-                      )
-                    })}
+                      ))}
+
+                      {calendarDays.map(day => {
+                        const isCurrentMonth = isSameMonth(day, currentMonth)
+                        const isToday = isSameDay(day, new Date())
+                        const dayLeaves = getLeavesForDay(day, calendarLeaves)
+
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            className={`min-h-[110px] sm:min-h-[120px] bg-white p-1.5 flex flex-col min-w-0 overflow-hidden ${!isCurrentMonth ? 'bg-gray-50/50 text-gray-400' : ''}`}
+                          >
+                            <div className="flex justify-between items-start mb-1 shrink-0">
+                              <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-900'}`}>
+                                {format(day, 'd')}
+                              </span>
+                            </div>
+                            <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
+                              {dayLeaves.map(l => (
+                                <div
+                                  key={l.id}
+                                  onClick={() => viewHistory(l)}
+                                  className={`block w-full max-w-full min-w-0 box-border text-[10px] sm:text-xs px-1.5 py-0.5 rounded cursor-pointer font-medium leading-tight truncate hover:ring-1 hover:ring-inset hover:ring-black/20 transition-all ${calendarLeaveChipClass(l.leaveType, l.status)}`}
+                                  title={`${l.member.name} · ${formatLeaveType(l.leaveType, l.timeSlot)} · ${l.status === 'pending' ? 'Waiting' : 'Approved'}`}
+                                >
+                                  {shortDisplayName(l.member.name)}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
               </div>
             </div>
@@ -2097,15 +2106,20 @@ export default function LeaveDashboardClient({
       {/* Log Leave Manually Modal */}
       {isManualLogModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Log Leave Manually</h2>
-                <p className="text-xs text-gray-500">Bypass approval process and add a record directly.</p>
-              </div>
-              <button onClick={() => setIsManualLogModalOpen(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+          <div className="relative bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
+            <button
+              type="button"
+              onClick={() => setIsManualLogModalOpen(false)}
+              aria-label="Close"
+              className="absolute top-4 right-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="mb-6 pr-9">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Log Leave Manually</h2>
+              <p className="text-xs text-gray-500">Bypass approval process and add a record directly.</p>
             </div>
 
             {error && <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">{error}</div>}
@@ -2229,21 +2243,22 @@ export default function LeaveDashboardClient({
       {/* Assign Comp Off Modal (HR / Founder) */}
       {isCompOffModalOpen && canManageBalances && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Assign Comp Off</h2>
-                <p className="text-xs text-gray-500">
-                  Company favour credit — does not deduct from regular leave. Employee can apply it like Birthday Leave.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCompOffModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+          <div className="relative bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl ring-1 ring-gray-900/10 overflow-visible">
+            <button
+              type="button"
+              onClick={() => setIsCompOffModalOpen(false)}
+              aria-label="Close"
+              className="absolute top-4 right-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="mb-6 pr-9">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Assign Comp Off</h2>
+              <p className="text-xs text-gray-500">
+                Company favour credit — does not deduct from regular leave. Employee can apply it like Birthday Leave.
+              </p>
             </div>
 
             {error && (

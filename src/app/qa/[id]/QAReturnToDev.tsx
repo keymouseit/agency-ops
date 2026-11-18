@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PROJECT_STATUS_LABELS } from '@/lib/utils'
+import SimpleSelect from '@/components/SimpleSelect'
 
 export default function QAReturnToDev({
   projectId,
@@ -50,18 +51,21 @@ export default function QAReturnToDev({
           Move back to Active →
         </button>
       ) : (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 min-w-[240px]">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 w-full max-w-xs min-w-0">
           <p className="text-xs text-amber-900 font-medium mb-2">
             Send project back to development
           </p>
-          <select
-            value={status}
-            onChange={e => setStatus(e.target.value as 'active' | 'on_hold')}
-            className="input text-xs mb-2"
-          >
-            <option value="active">{PROJECT_STATUS_LABELS.active} (in progress)</option>
-            <option value="on_hold">{PROJECT_STATUS_LABELS.on_hold}</option>
-          </select>
+          <div className="mb-2">
+            <SimpleSelect
+              aria-label="Return status"
+              value={status}
+              onChange={v => setStatus(v as 'active' | 'on_hold')}
+              options={[
+                { value: 'active', label: `${PROJECT_STATUS_LABELS.active} (in progress)` },
+                { value: 'on_hold', label: PROJECT_STATUS_LABELS.on_hold },
+              ]}
+            />
+          </div>
           {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
           <div className="flex gap-2">
             <button

@@ -66,11 +66,12 @@ export default function TestCyclesPanel({
       })()
     : null
 
+  const title = <h2 className="text-sm font-semibold text-gray-900">Test cycles</h2>
+
   return (
-    <div className="card p-5 mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-900">Test cycles</h2>
-        {!hasSignOff && canManage && (
+    <div className="card p-4 sm:p-5 mb-4 min-w-0 overflow-hidden">
+      {!hasSignOff && canManage ? (
+        <div className="mb-4 min-w-0">
           <QAProjectActions
             project={project}
             members={members}
@@ -81,9 +82,12 @@ export default function TestCyclesPanel({
             milestones={milestones}
             editingCycle={editingCycle}
             onCancelEdit={() => setEditingCycleId(null)}
+            titleSlot={title}
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mb-4">{title}</div>
+      )}
 
       {editingCycleId && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-800">

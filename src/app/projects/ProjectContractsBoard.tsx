@@ -42,18 +42,31 @@ function projectPeople(project: ProjectListCardProject): string[] {
   return [...new Set(names.filter(Boolean))]
 }
 
+const CHIP_DOT: Record<string, string> = {
+  slate: 'bg-slate-500',
+  amber: 'bg-amber-500',
+  red: 'bg-red-500',
+  sky: 'bg-sky-500',
+  green: 'bg-emerald-500',
+  violet: 'bg-violet-500',
+}
+
 function FilterChip({
   label,
   active,
   onClick,
   tone = 'slate',
   count,
+  showDot = false,
+  title,
 }: {
   label: string
   active: boolean
   onClick: () => void
   tone?: 'slate' | 'amber' | 'red' | 'sky' | 'green' | 'violet'
   count?: number
+  showDot?: boolean
+  title?: string
 }) {
   const idle =
     'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-slate-50 hover:ring-gray-300'
@@ -70,15 +83,28 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+      title={title ?? label}
+      className={`inline-flex w-full items-center justify-center gap-1 rounded-full px-2 py-2 text-[11px] sm:text-xs font-semibold transition whitespace-nowrap ${
         active ? on[tone] : idle
       }`}
     >
+      {showDot ? (
+        <span
+          className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+            active && tone === 'slate' ? 'bg-white' : CHIP_DOT[tone]
+          }`}
+          aria-hidden
+        />
+      ) : null}
       {label}
       {typeof count === 'number' ? (
         <span
-          className={`tabular-nums font-bold ${
-            active && tone === 'slate' ? 'text-white/80' : 'opacity-70'
+          className={`tabular-nums font-bold rounded-md px-1.5 py-0.5 text-[10px] leading-none ${
+            active && tone === 'slate'
+              ? 'bg-white/15 text-white'
+              : active
+                ? 'bg-black/5'
+                : 'bg-gray-100 text-gray-600'
           }`}
         >
           {count}
@@ -314,55 +340,71 @@ export default function ProjectContractsBoard({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm mb-5 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 shadow-sm mb-5 space-y-3">
+        <div className="space-y-2.5">
           {showPhaseFilter && (
-            <>
-              <FilterChip
-                label="Scoping"
-                tone="sky"
-                active={phases.has('scoping')}
-                count={counts.phaseCounts.scoping}
-                onClick={() => togglePhase('scoping')}
-              />
-              <FilterChip
-                label="Active"
-                tone="green"
-                active={phases.has('active')}
-                count={counts.phaseCounts.active}
-                onClick={() => togglePhase('active')}
-              />
-              <FilterChip
-                label="QA"
-                tone="violet"
-                active={phases.has('qa')}
-                count={counts.phaseCounts.qa}
-                onClick={() => togglePhase('qa')}
-              />
-              <span className="hidden sm:inline w-px h-5 bg-gray-200 mx-0.5" aria-hidden />
-            </>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Phase</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                <FilterChip
+                  label="Scoping"
+                  tone="sky"
+                  showDot
+                  active={phases.has('scoping')}
+                  count={counts.phaseCounts.scoping}
+                  onClick={() => togglePhase('scoping')}
+                />
+                <FilterChip
+                  label="Active"
+                  tone="green"
+                  showDot
+                  active={phases.has('active')}
+                  count={counts.phaseCounts.active}
+                  onClick={() => togglePhase('active')}
+                />
+                <FilterChip
+                  label="QA"
+                  tone="violet"
+                  showDot
+                  active={phases.has('qa')}
+                  count={counts.phaseCounts.qa}
+                  onClick={() => togglePhase('qa')}
+                />
+              </div>
+            </div>
           )}
-          <FilterChip
-            label="Past end date"
-            tone="red"
-            active={pastEndOnly}
-            count={counts.past}
-            onClick={() => setPastEndOnly(v => !v)}
-          />
-          <FilterChip
-            label="Over estimate"
-            tone="amber"
-            active={overEstimateOnly}
-            count={counts.overEst}
-            onClick={() => setOverEstimateOnly(v => !v)}
-          />
-          <FilterChip
-            label="Overdue milestones"
-            tone="red"
-            active={overdueMsOnly}
-            count={counts.overdueMs}
-            onClick={() => setOverdueMsOnly(v => !v)}
-          />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Risk</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              <FilterChip
+                label="Past end"
+                title="Past end date"
+                tone="red"
+                showDot
+                active={pastEndOnly}
+                count={counts.past}
+                onClick={() => setPastEndOnly(v => !v)}
+              />
+              <FilterChip
+                label="Over est."
+                title="Over estimate"
+                tone="amber"
+                showDot
+                active={overEstimateOnly}
+                count={counts.overEst}
+                onClick={() => setOverEstimateOnly(v => !v)}
+              />
+              <FilterChip
+                label="Overdue MS"
+                title="Overdue milestones"
+                tone="red"
+                showDot
+                active={overdueMsOnly}
+                count={counts.overdueMs}
+                onClick={() => setOverdueMsOnly(v => !v)}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

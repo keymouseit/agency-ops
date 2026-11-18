@@ -3,12 +3,18 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LEAD_SOURCES } from '@/lib/utils'
 import BodyScrollLock from '@/components/BodyScrollLock'
+import SimpleSelect from '@/components/SimpleSelect'
+
+const CURRENCIES = ['USD', 'AED', 'INR', 'GBP', 'EUR', 'AUD'] as const
 
 type Member = { id: string; name: string; role: string }
 
 export default function AddLeadForm({ members }: { members: Member[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [source, setSource] = useState<string>(LEAD_SOURCES[0])
+  const [ownerId, setOwnerId] = useState('')
+  const [currency, setCurrency] = useState<string>('USD')
   const router = useRouter()
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -26,13 +32,19 @@ export default function AddLeadForm({ members }: { members: Member[] }) {
   }
 
   const bdMembers = members.filter(m => ['BD', 'Both', 'Founder'].includes(m.role))
+  const defaultOwnerId = bdMembers[0]?.id ?? ''
 
   return (
     <>
       <button
         type="button"
         className="btn-primary inline-flex items-center justify-center text-sm !px-3 !py-2 whitespace-nowrap shrink-0"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setSource(LEAD_SOURCES[0])
+          setOwnerId(defaultOwnerId)
+          setCurrency('USD')
+          setOpen(true)
+        }}
       >
         + Add lead
       </button>
@@ -49,15 +61,25 @@ export default function AddLeadForm({ members }: { members: Member[] }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Source *</label>
-                  <select name="source" required className="input">
-                    {LEAD_SOURCES.map(s => <option key={s}>{s}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="source"
+                    required
+                    aria-label="Source"
+                    value={source}
+                    onChange={setSource}
+                    options={LEAD_SOURCES.map(s => ({ value: s, label: s }))}
+                  />
                 </div>
                 <div>
                   <label className="label">Owner *</label>
-                  <select name="ownerId" required className="input">
-                    {bdMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="ownerId"
+                    required
+                    aria-label="Owner"
+                    value={ownerId || defaultOwnerId}
+                    onChange={setOwnerId}
+                    options={bdMembers.map(m => ({ value: m.id, label: m.name }))}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -67,9 +89,13 @@ export default function AddLeadForm({ members }: { members: Member[] }) {
                 </div>
                 <div>
                   <label className="label">Currency</label>
-                  <select name="currency" className="input">
-                    {['USD','AED','INR','GBP','EUR','AUD'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="currency"
+                    aria-label="Currency"
+                    value={currency}
+                    onChange={setCurrency}
+                    options={CURRENCIES.map(c => ({ value: c, label: c }))}
+                  />
                 </div>
               </div>
               <div>

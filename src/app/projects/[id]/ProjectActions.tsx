@@ -5,6 +5,7 @@ import { softRefresh } from '@/lib/soft-refresh'
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import AssigneeMultiSelect from '../AssigneeMultiSelect'
 import BodyScrollLock from '@/components/BodyScrollLock'
+import SimpleSelect from '@/components/SimpleSelect'
 
 const btn =
   'inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap'
@@ -92,11 +93,41 @@ export default function ProjectActions({
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState('')
   const [selectedStatus, setSelectedStatus] = useState(project.status)
+  const [checkinSubmittedBy, setCheckinSubmittedBy] = useState(members[0]?.id ?? '')
+  const [checkinOnTrack, setCheckinOnTrack] = useState('yes')
+  const [checkinScopeChange, setCheckinScopeChange] = useState('none')
+  const [checkinClientUpdated, setCheckinClientUpdated] = useState('true')
+  const [bdMemberId, setBdMemberId] = useState(project.bdMemberId || '')
+  const [scopeRequestedBy, setScopeRequestedBy] = useState('client')
+  const [scopeChangeOrderSigned, setScopeChangeOrderSigned] = useState('false')
+  const [postMortemOnTime, setPostMortemOnTime] = useState('true')
+  const [postMortemSatisfaction, setPostMortemSatisfaction] = useState('')
+  const [qaSuggestedTestType, setQaSuggestedTestType] = useState('')
   const router = useRouter()
 
   function open(next: ActionView) {
     setFormError('')
     setSelectedStatus(project.status)
+    if (next === 'checkin') {
+      setCheckinSubmittedBy(members[0]?.id ?? '')
+      setCheckinOnTrack('yes')
+      setCheckinScopeChange('none')
+      setCheckinClientUpdated('true')
+    }
+    if (next === 'scope') {
+      setScopeRequestedBy('client')
+      setScopeChangeOrderSigned('false')
+    }
+    if (next === 'assignbd') {
+      setBdMemberId(project.bdMemberId || '')
+    }
+    if (next === 'postmortem') {
+      setPostMortemOnTime('true')
+      setPostMortemSatisfaction('')
+    }
+    if (next === 'status') {
+      setQaSuggestedTestType('')
+    }
     setView(next)
   }
 
@@ -214,13 +245,14 @@ export default function ProjectActions({
             <div className="grid grid-cols-2 gap-3 items-end">
               <div className="min-w-0">
                 <label className="label">Submitted by</label>
-                <select name="submittedById" required className="input">
-                  {members.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
+                <SimpleSelect
+                  name="submittedById"
+                  required
+                  aria-label="Submitted by"
+                  value={checkinSubmittedBy}
+                  onChange={setCheckinSubmittedBy}
+                  options={members.map(m => ({ value: m.id, label: m.name }))}
+                />
               </div>
               <div className="min-w-0">
                 <label className="label">Progress (%)</label>
@@ -232,30 +264,48 @@ export default function ProjectActions({
                 <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
                   On track?
                 </span>
-                <select name="onTrack" className="input">
-                  <option value="yes">Yes</option>
-                  <option value="at_risk">At risk</option>
-                  <option value="no">No</option>
-                </select>
+                <SimpleSelect
+                  name="onTrack"
+                  aria-label="On track"
+                  value={checkinOnTrack}
+                  onChange={setCheckinOnTrack}
+                  options={[
+                    { value: 'yes', label: 'Yes' },
+                    { value: 'at_risk', label: 'At risk' },
+                    { value: 'no', label: 'No' },
+                  ]}
+                />
               </div>
               <div className="min-w-0 flex flex-col gap-1">
                 <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
                   Scope change?
                 </span>
-                <select name="scopeChange" className="input">
-                  <option value="none">None</option>
-                  <option value="logged">Logged with CO</option>
-                  <option value="unlogged">Unlogged ⚠</option>
-                </select>
+                <SimpleSelect
+                  name="scopeChange"
+                  aria-label="Scope change"
+                  value={checkinScopeChange}
+                  onChange={setCheckinScopeChange}
+                  options={[
+                    { value: 'none', label: 'None' },
+                    { value: 'logged', label: 'Logged with CO' },
+                    { value: 'unlogged', label: 'Unlogged ⚠' },
+                  ]}
+                />
               </div>
               <div className="min-w-0 flex flex-col gap-1">
                 <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
                   Client updated?
                 </span>
-                <select name="clientUpdated" className="input">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
+                <SimpleSelect
+                  name="clientUpdated"
+                  aria-label="Client updated"
+                  value={checkinClientUpdated}
+                  onChange={setCheckinClientUpdated}
+                  options={[
+                    { value: 'true', label: 'Yes' },
+                    { value: 'false', label: 'No' },
+                  ]}
+                />
               </div>
             </div>
             <div>
@@ -290,23 +340,35 @@ export default function ProjectActions({
               <label className="label">Description *</label>
               <textarea name="description" rows={2} required className="input" placeholder="What changed? Be specific." />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="label">Requested by</label>
-                <select name="requestedBy" className="input">
-                  <option value="client">Client</option>
-                  <option value="internal">Internal</option>
-                </select>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="min-w-0 flex flex-col gap-1">
+                <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
+                  Requested by
+                </span>
+                <SimpleSelect
+                  name="requestedBy"
+                  aria-label="Requested by"
+                  value={scopeRequestedBy}
+                  onChange={setScopeRequestedBy}
+                  options={[
+                    { value: 'client', label: 'Client' },
+                    { value: 'internal', label: 'Internal' },
+                  ]}
+                />
               </div>
-              <div>
-                <label className="label">Hours added</label>
+              <div className="min-w-0 flex flex-col gap-1">
+                <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end">
+                  Hours added
+                </span>
                 <input name="hoursAdded" type="number" className="input" />
               </div>
-              <div>
-                <label className="label">
-                  Value added (USD){' '}
-                  {userRole === 'Dev' && <span className="text-xs text-gray-400">(Founder/BD only)</span>}
-                </label>
+              <div className="min-w-0 flex flex-col gap-1">
+                <span
+                  className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight min-h-[2.5rem] flex items-end"
+                  title={userRole === 'Dev' ? 'Only Founders and BD can set monetary values' : undefined}
+                >
+                  Value (USD)
+                </span>
                 <input
                   name="valueAdded"
                   type="number"
@@ -318,10 +380,16 @@ export default function ProjectActions({
             </div>
             <div>
               <label className="label">Change order signed?</label>
-              <select name="changeOrderSigned" className="input">
-                <option value="false">No - pending</option>
-                <option value="true">Yes - signed</option>
-              </select>
+              <SimpleSelect
+                name="changeOrderSigned"
+                aria-label="Change order signed?"
+                value={scopeChangeOrderSigned}
+                onChange={setScopeChangeOrderSigned}
+                options={[
+                  { value: 'false', label: 'No - pending' },
+                  { value: 'true', label: 'Yes - signed' },
+                ]}
+              />
             </div>
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={loading} className="btn-primary">
@@ -378,21 +446,46 @@ export default function ProjectActions({
         >
           <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/postmortem`)} className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="label">Est. accuracy (actual/est %)</label>
-                <input name="estimationAccuracy" type="number" step="0.01" className="input" placeholder="e.g. 1.42" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:items-end">
+              <div className="min-w-0">
+                <label className="label">Est. accuracy</label>
+                <input
+                  name="estimationAccuracy"
+                  type="number"
+                  step="0.01"
+                  className="input"
+                  placeholder="actual/est · e.g. 1.42"
+                />
               </div>
-              <div>
-                <label className="label">Client satisfaction (1–10)</label>
-                <input name="clientSatisfaction" type="number" min="1" max="10" className="input" />
+              <div className="min-w-0">
+                <label className="label">Satisfaction (1–10)</label>
+                <SimpleSelect
+                  name="clientSatisfaction"
+                  aria-label="Client satisfaction"
+                  placeholder="Select…"
+                  value={postMortemSatisfaction}
+                  onChange={setPostMortemSatisfaction}
+                  options={[
+                    { value: '', label: 'Select…' },
+                    ...Array.from({ length: 10 }, (_, i) => {
+                      const n = String(i + 1)
+                      return { value: n, label: n }
+                    }),
+                  ]}
+                />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="label">On time?</label>
-                <select name="onTime" className="input">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
+                <SimpleSelect
+                  name="onTime"
+                  aria-label="On time"
+                  value={postMortemOnTime}
+                  onChange={setPostMortemOnTime}
+                  options={[
+                    { value: 'true', label: 'Yes' },
+                    { value: 'false', label: 'No' },
+                  ]}
+                />
               </div>
             </div>
             <div>
@@ -428,21 +521,16 @@ export default function ProjectActions({
           <FormError message={formError} />
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/status`)} className="space-y-3">
             <div>
-              <select
+              <SimpleSelect
                 name="status"
+                aria-label="Project status"
                 value={selectedStatus}
-                onChange={e => setSelectedStatus(e.target.value)}
-                className="input"
-              >
-                {PROJECT_STATUSES.filter(s => {
+                onChange={setSelectedStatus}
+                options={PROJECT_STATUSES.filter(s => {
                   if (userRole === 'Dev' && (s === 'cancelled' || s === 'delivered')) return false
                   return true
-                }).map(s => (
-                  <option key={s} value={s}>
-                    {PROJECT_STATUS_LABELS[s] ?? s}
-                  </option>
-                ))}
-              </select>
+                }).map(s => ({ value: s, label: PROJECT_STATUS_LABELS[s] ?? s }))}
+              />
             </div>
             {userRole === 'Dev' && (
               <p className="text-xs text-gray-500">
@@ -467,13 +555,20 @@ export default function ProjectActions({
                 </div>
                 <div>
                   <label className="label">Suggested test type *</label>
-                  <select name="qaSuggestedTestType" required className="input">
-                    <option value="">— Select —</option>
-                    <option value="sanity">Sanity (quick smoke test)</option>
-                    <option value="regression">Full regression</option>
-                    <option value="specific">Specific module testing</option>
-                    <option value="full">Full comprehensive test</option>
-                  </select>
+                  <SimpleSelect
+                    name="qaSuggestedTestType"
+                    aria-label="Suggested test type"
+                    required
+                    placeholder="— Select —"
+                    value={qaSuggestedTestType}
+                    onChange={setQaSuggestedTestType}
+                    options={[
+                      { value: 'sanity', label: 'Sanity (quick smoke test)' },
+                      { value: 'regression', label: 'Full regression' },
+                      { value: 'specific', label: 'Specific module testing' },
+                      { value: 'full', label: 'Full comprehensive test' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Testing notes/instructions</label>
@@ -517,16 +612,19 @@ export default function ProjectActions({
           <form onSubmit={e => submitForm(e, `/api/projects/${project.id}/assign-bd`)} className="space-y-3">
             <div>
               <label className="label">BD Member</label>
-              <select name="bdMemberId" className="input" defaultValue={project.bdMemberId || ''}>
-                <option value="">No BD assigned</option>
-                {members
-                  .filter(m => ['BD', 'Both', 'Founder'].includes(m.role || ''))
-                  .map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-              </select>
+              <SimpleSelect
+                name="bdMemberId"
+                aria-label="BD Member"
+                placeholder="No BD assigned"
+                value={bdMemberId}
+                onChange={setBdMemberId}
+                options={[
+                  { value: '', label: 'No BD assigned' },
+                  ...members
+                    .filter(m => ['BD', 'Both', 'Founder'].includes(m.role || ''))
+                    .map(m => ({ value: m.id, label: m.name })),
+                ]}
+              />
             </div>
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={loading} className="btn-primary">
@@ -584,7 +682,6 @@ export default function ProjectActions({
               <label className="label">Assigned people</label>
               <AssigneeMultiSelect
                 members={members}
-                defaultOpen
                 selectedIds={
                   project.assigneeIds?.length
                     ? project.assigneeIds

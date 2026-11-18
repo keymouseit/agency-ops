@@ -7,6 +7,9 @@ import { softRefresh } from '@/lib/soft-refresh'
 import type { ProjectEditField } from '@/lib/projects'
 import AssigneeMultiSelect from '../AssigneeMultiSelect'
 import { parseHoursInput } from '@/lib/validation'
+import SimpleSelect from '@/components/SimpleSelect'
+
+const CURRENCIES = ['USD', 'AED', 'INR', 'GBP', 'EUR', 'AUD'] as const
 
 type Member = { id: string; name: string; role: string }
 type WonLead = { id: string; clientName: string }
@@ -47,6 +50,8 @@ export default function EditProjectForm({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [bdMemberId, setBdMemberId] = useState(project.bdMemberId || '')
+  const [currency, setCurrency] = useState(project.currency)
   const router = useRouter()
 
   const can = (field: ProjectEditField) => editableFields.includes(field)
@@ -133,6 +138,8 @@ export default function EditProjectForm({
         className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
         onClick={() => {
           setError('')
+          setBdMemberId(project.bdMemberId || '')
+          setCurrency(project.currency)
           setOpen(true)
         }}
       >
@@ -198,16 +205,19 @@ export default function EditProjectForm({
                   {can('bdMemberId') && (
                     <div>
                       <label className="label">BD (client manager)</label>
-                      <select name="bdMemberId" className="input" defaultValue={project.bdMemberId || ''}>
-                        <option value="">No BD assigned</option>
-                        {members
-                          .filter(m => ['BD', 'Both', 'Founder'].includes(m.role))
-                          .map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                      </select>
+                      <SimpleSelect
+                        name="bdMemberId"
+                        aria-label="BD (client manager)"
+                        placeholder="No BD assigned"
+                        value={bdMemberId}
+                        onChange={setBdMemberId}
+                        options={[
+                          { value: '', label: 'No BD assigned' },
+                          ...members
+                            .filter(m => ['BD', 'Both', 'Founder'].includes(m.role))
+                            .map(m => ({ value: m.id, label: m.name })),
+                        ]}
+                      />
                     </div>
                   )}
                 </div>
@@ -242,11 +252,13 @@ export default function EditProjectForm({
                   {can('currency') && (
                     <div>
                       <label className="label">Currency</label>
-                      <select name="currency" className="input" defaultValue={project.currency}>
-                        {['USD', 'AED', 'INR', 'GBP', 'EUR', 'AUD'].map(c => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
+                      <SimpleSelect
+                        name="currency"
+                        aria-label="Currency"
+                        value={currency}
+                        onChange={setCurrency}
+                        options={CURRENCIES.map(c => ({ value: c, label: c }))}
+                      />
                     </div>
                   )}
                 </div>

@@ -1,13 +1,16 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export type SimpleSelectOption = { value: string; label: string }
+
+type MenuPos = { top: number; left: number; width: number; maxHeight: number; openUp: boolean }
 
 /**
  * Custom single-select (button + listbox) — avoids native <select> so
  * Android/Samsung form assist (Prev / Next) does not appear on dropdowns.
- * Menu is capped/scrollable so long lists stay usable inside modals.
+ * Menu is portaled to document.body so it is not clipped by modal overflow.
  */
 export default function SimpleSelect({
   value,
@@ -32,13 +35,59 @@ export default function SimpleSelect({
   'aria-label'?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<MenuPos | null>(null)
+  const [mounted, setMounted] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   const listId = useId()
   const selected = options.find(o => o.value === value)
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  function updatePos() {
+    const el = btnRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const gap = 4
+    const spaceBelow = window.innerHeight - r.bottom - gap - 8
+    const spaceAbove = r.top - gap - 8
+    const preferDown = spaceBelow >= 160 || spaceBelow >= spaceAbove
+    const maxHeight = Math.max(120, Math.min(224, preferDown ? spaceBelow : spaceAbove))
+    setPos({
+      top: preferDown ? r.bottom + gap : r.top - gap,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)),
+      width: r.width,
+      maxHeight,
+      openUp: !preferDown,
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+    updatePos()
+    function onReposition() {
+      updatePos()
+    }
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return
+      setOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false)
@@ -49,12 +98,53 @@ export default function SimpleSelect({
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
     }
-  }, [])
+  }, [open])
+
+  const menu =
+    open && mounted && pos
+      ? createPortal(
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            className="fixed z-[300] overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-xl"
+            style={{
+              top: pos.openUp ? undefined : pos.top,
+              bottom: pos.openUp ? window.innerHeight - pos.top : undefined,
+              left: pos.left,
+              width: pos.width,
+              maxHeight: pos.maxHeight,
+            }}
+          >
+            {options.map(opt => {
+              const active = opt.value === value
+              return (
+                <li key={opt.value} role="option" aria-selected={active}>
+                  <button
+                    type="button"
+                    className={`flex w-full px-3 py-2.5 text-left text-base sm:text-sm sm:py-1.5 ${
+                      active ? 'bg-blue-600 text-white' : 'text-gray-900 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      onChange(opt.value)
+                      setOpen(false)
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>,
+          document.body,
+        )
+      : null
 
   return (
     <div ref={rootRef} className="relative min-w-0">
       {name ? <input type="hidden" name={name} value={value} required={required} /> : null}
       <button
+        ref={btnRef}
         type="button"
         disabled={disabled}
         className={`input flex items-center gap-2 text-left bg-white disabled:bg-gray-50 disabled:text-gray-400 ${className}`}
@@ -80,35 +170,7 @@ export default function SimpleSelect({
           />
         </svg>
       </button>
-      {open ? (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute left-0 right-0 z-[100] mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        >
-          {options.map(opt => {
-            const active = opt.value === value
-            return (
-              <li key={opt.value} role="option" aria-selected={active}>
-                <button
-                  type="button"
-                  className={`flex w-full px-3 py-2.5 text-left text-base sm:text-sm sm:py-1.5 ${
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-900 hover:bg-gray-50'
-                  }`}
-                  onClick={() => {
-                    onChange(opt.value)
-                    setOpen(false)
-                  }}
-                >
-                  {opt.label}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+      {menu}
     </div>
   )
 }

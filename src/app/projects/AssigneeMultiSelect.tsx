@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type Member = { id: string; name: string; role?: string }
+
+type MenuPos = { top: number; left: number; width: number; maxHeight: number; openUp: boolean }
 
 export default function AssigneeMultiSelect({
   members,
@@ -17,12 +20,60 @@ export default function AssigneeMultiSelect({
 }) {
   const [ids, setIds] = useState(selectedIds)
   const [open, setOpen] = useState(defaultOpen)
+  const [pos, setPos] = useState<MenuPos | null>(null)
+  const [mounted, setMounted] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   const listId = useId()
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  function updatePos() {
+    const el = btnRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const gap = 4
+    const spaceBelow = window.innerHeight - r.bottom - gap - 8
+    const spaceAbove = r.top - gap - 8
+    const preferDown = spaceBelow >= 160 || spaceBelow >= spaceAbove
+    const maxHeight = Math.max(120, Math.min(224, preferDown ? spaceBelow : spaceAbove))
+    const width = Math.min(Math.max(r.width, 288), window.innerWidth - 16)
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+    setPos({
+      top: preferDown ? r.bottom + gap : r.top - gap,
+      left,
+      width,
+      maxHeight,
+      openUp: !preferDown,
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+    updatePos()
+    function onReposition() {
+      updatePos()
+    }
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return
+      setOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false)
@@ -33,7 +84,7 @@ export default function AssigneeMultiSelect({
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
     }
-  }, [])
+  }, [open])
 
   function toggle(id: string) {
     setIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
@@ -47,14 +98,78 @@ export default function AssigneeMultiSelect({
         ? selected.map(m => m.name).join(', ')
         : `${selected[0].name}, ${selected[1].name} +${selected.length - 2}`
 
+  const menu =
+    open && mounted && pos
+      ? createPortal(
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-multiselectable="true"
+            className="fixed z-[300] overflow-y-auto overflow-x-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl"
+            style={{
+              top: pos.openUp ? undefined : pos.top,
+              bottom: pos.openUp ? window.innerHeight - pos.top : undefined,
+              left: pos.left,
+              width: pos.width,
+              maxHeight: pos.maxHeight,
+            }}
+          >
+            {members.map(m => {
+              const checked = ids.includes(m.id)
+              return (
+                <li key={m.id} role="option" aria-selected={checked} className="min-w-0">
+                  <button
+                    type="button"
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm text-left min-w-0 ${
+                      checked ? 'bg-slate-50' : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => toggle(m.id)}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        checked ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {checked ? (
+                        <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
+                          <path
+                            d="M2.5 6.2L4.7 8.4L9.5 3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1 flex items-center justify-between gap-2 overflow-hidden">
+                      <span className="text-gray-900 truncate">{m.name}</span>
+                      {m.role ? (
+                        <span className="text-xs text-gray-400 shrink-0 truncate max-w-[45%]" title={m.role}>
+                          {m.role}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>,
+          document.body,
+        )
+      : null
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative min-w-0">
       {ids.map(id => (
         <input key={id} type="hidden" name={name} value={id} />
       ))}
       <button
+        ref={btnRef}
         type="button"
-        className="input flex items-center gap-2 text-left bg-white"
+        className="input flex items-center gap-2 text-left bg-white min-w-0"
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={listId}
@@ -76,44 +191,7 @@ export default function AssigneeMultiSelect({
           />
         </svg>
       </button>
-      {open ? (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-multiselectable="true"
-          className="relative z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1"
-        >
-          {members.map(m => {
-            const checked = ids.includes(m.id)
-            return (
-              <li key={m.id} role="option" aria-selected={checked}>
-                <button
-                  type="button"
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm text-left ${
-                    checked ? 'bg-slate-50' : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => toggle(m.id)}
-                >
-                  <span
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                      checked ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {checked ? (
-                      <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
-                        <path d="M2.5 6.2L4.7 8.4L9.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  <span className="text-gray-900">{m.name}</span>
-                  {m.role ? <span className="text-xs text-gray-400">{m.role}</span> : null}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+      {menu}
       {ids.length === 0 ? (
         <p className="mt-1 text-xs text-amber-700">Select at least one person.</p>
       ) : (

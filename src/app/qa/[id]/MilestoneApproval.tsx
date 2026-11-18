@@ -91,41 +91,23 @@ export default function MilestoneApproval({
   const progressPct = Math.round((approvedCount / milestones.length) * 100)
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs text-gray-500">
+    <div className="min-w-0">
+      <div className="flex items-end justify-between gap-3 mb-2">
+        <p className="text-xs text-gray-500 min-w-0">
           {approvedCount} of {milestones.length} milestones approved
-          {testingCount > 0 && (
-            <span className="ml-2 text-teal-600 font-medium">
-              · {testingCount} in testing
-            </span>
-          )}
-          {readyForQACount > 0 && (
-            <span className="ml-2 text-blue-600 font-medium">
-              · {readyForQACount} in QA
-            </span>
-          )}
-          {inProgressCount > 0 && (
-            <span className="ml-2 text-amber-700">
-              · {inProgressCount} in progress
-            </span>
-          )}
-          {pendingCount > 0 && (
-            <span className="ml-2 text-gray-400">
-              · {pendingCount} not started
-            </span>
-          )}
-        </div>
-        <div className={`text-sm font-semibold ${
-          progressPct >= 80 ? 'text-green-600' :
-          progressPct >= 50 ? 'text-amber-600' :
-          'text-gray-500'
-        }`}>
+        </p>
+        <p
+          className={`text-sm font-semibold tabular-nums shrink-0 ${
+            progressPct >= 80 ? 'text-green-600' :
+            progressPct >= 50 ? 'text-amber-600' :
+            'text-gray-500'
+          }`}
+        >
           {progressPct}%
-        </div>
+        </p>
       </div>
 
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-3">
         <div
           className={`h-full rounded-full transition-all ${
             progressPct >= 80 ? 'bg-green-500' :
@@ -135,6 +117,29 @@ export default function MilestoneApproval({
           }`}
           style={{ width: `${progressPct}%` }}
         />
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {testingCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-teal-50 text-teal-700 ring-1 ring-teal-100 px-2.5 py-1 text-[11px] font-medium">
+            {testingCount} in testing
+          </span>
+        )}
+        {readyForQACount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-100 px-2.5 py-1 text-[11px] font-medium">
+            {readyForQACount} in QA
+          </span>
+        )}
+        {inProgressCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-100 px-2.5 py-1 text-[11px] font-medium">
+            {inProgressCount} in progress
+          </span>
+        )}
+        {pendingCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-gray-50 text-gray-600 ring-1 ring-gray-200 px-2.5 py-1 text-[11px] font-medium">
+            {pendingCount} not started
+          </span>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -171,9 +176,9 @@ export default function MilestoneApproval({
                   : 'bg-gray-50 border-gray-200'
               }`}
             >
-              <div className="flex items-center gap-3 p-3">
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium ${
+              <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className={`text-sm font-medium break-words ${
                     isApproved ? 'text-gray-500 line-through' : 'text-gray-900'
                   }`}>
                     {m.title}
@@ -206,7 +211,7 @@ export default function MilestoneApproval({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0">
                   {!readOnly && canApprove && (
                     <button
                       type="button"
@@ -257,7 +262,7 @@ export default function MilestoneApproval({
               </div>
 
               {isExpanded && (
-                <div className="px-3 pb-3">
+                <div className="px-3 pb-3 min-w-0 overflow-hidden">
                   {readOnly ? (
                     <MilestoneTestProgress
                       milestoneTitle={m.title}
