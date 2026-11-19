@@ -19,7 +19,7 @@ import {
   isWithinInterval,
   parseISO
 } from 'date-fns'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { leaveRequestDayCost, compOffRequestDayCost, SHORT_LEAVE_MONTHLY_CAP } from '@/lib/leave-math'
 import { formatIstDate, formatIstDateTimeShort, formatIstLeaveRange, istDateInputValue, istYearAndMonth } from '@/lib/ist'
 import { notifyLeavesPendingChanged } from '@/hooks/usePendingLeaveCount'
@@ -233,7 +233,7 @@ export default function LeaveDashboardClient({
   const [endDate, setEndDate] = useState('')
   const [reason, setReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const applySubmittingRef = useRef(false)
 
   // Edit Modal State
   const [editingLeaveId, setEditingLeaveId] = useState<string | null>(null)
@@ -338,7 +338,6 @@ export default function LeaveDashboardClient({
     setEndDate('')
     setReason('')
     setEditingLeaveId(null)
-    setError('')
   }
 
   // Open Edit Modal
@@ -429,8 +428,9 @@ export default function LeaveDashboardClient({
 
   async function handleApplyLeave(e: React.FormEvent) {
     e.preventDefault()
+    if (applySubmittingRef.current || isSubmitting) return
+    applySubmittingRef.current = true
     setIsSubmitting(true)
-    setError('')
 
     try {
       if (isManualLogModalOpen && !reason.trim()) {
@@ -488,7 +488,7 @@ export default function LeaveDashboardClient({
           : ''
       toast.success(
         (editingLeaveId ? 'Leave updated successfully!' : 'Leave requested successfully!') + splitNote,
-        splitNote ? { duration: 6000 } : undefined
+        { id: 'leave-apply', ...(splitNote ? { duration: 6000 } : {}) }
       )
       setIsManualLogModalOpen(false)
       resetForm()
@@ -498,9 +498,9 @@ export default function LeaveDashboardClient({
       void refetchLeaveLists()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      setError(msg)
-      toast.error(msg)
+      toast.error(msg, { id: 'leave-apply' })
     } finally {
+      applySubmittingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -551,7 +551,6 @@ export default function LeaveDashboardClient({
   async function handleAssignCompOff(e: FormEvent) {
     e.preventDefault()
     setCompOffSubmitting(true)
-    setError('')
     try {
       const daysNum = Number(compOffDays)
       if (!Number.isFinite(daysNum) || daysNum <= 0) {
@@ -579,8 +578,7 @@ export default function LeaveDashboardClient({
       router.refresh()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to assign Comp Off'
-      setError(msg)
-      toast.error(msg)
+      toast.error(msg, { id: 'leave-comp-off' })
     } finally {
       setCompOffSubmitting(false)
     }
@@ -771,8 +769,6 @@ export default function LeaveDashboardClient({
 
   return (
     <div className="w-full min-w-0 max-w-6xl mx-auto pb-12">
-      <Toaster position="bottom-right" />
-
       {/* Confirm Delete Modal */}
       {deleteConfirmLeave && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -954,8 +950,7 @@ export default function LeaveDashboardClient({
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md border border-gray-100">
             <h2 className="text-xl font-bold text-gray-900 mb-5">Edit Pending Leave</h2>
-            {error && <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">{error}</div>}
-            
+
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave Type</label>
@@ -1335,12 +1330,6 @@ export default function LeaveDashboardClient({
                   <h2 className="text-lg font-bold text-gray-900">Request time off</h2>
                   <p className="text-xs text-gray-500 mt-1">HR will review and notify you.</p>
                 </div>
-                {error && (
-                  <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">
-                    {error}
-                  </div>
-                )}
-
                 <form onSubmit={handleApplyLeave} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Leave type</label>
@@ -1688,7 +1677,6 @@ export default function LeaveDashboardClient({
                     <button
                       type="button"
                       onClick={() => {
-                        setError('')
                         setCompOffMemberId(allMembers[0]?.id || memberId)
                         setIsCompOffModalOpen(true)
                       }}
@@ -2122,8 +2110,6 @@ export default function LeaveDashboardClient({
               <p className="text-xs text-gray-500">Bypass approval process and add a record directly.</p>
             </div>
 
-            {error && <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">{error}</div>}
-            
             <form onSubmit={handleApplyLeave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
@@ -2260,12 +2246,6 @@ export default function LeaveDashboardClient({
                 Company favour credit — does not deduct from regular leave. Employee can apply it like Birthday Leave.
               </p>
             </div>
-
-            {error && (
-              <div className="mb-5 text-sm text-red-600 bg-red-50 p-3 rounded-xl ring-1 ring-red-600/10">
-                {error}
-              </div>
-            )}
 
             <form onSubmit={handleAssignCompOff} className="space-y-4">
               <div>
