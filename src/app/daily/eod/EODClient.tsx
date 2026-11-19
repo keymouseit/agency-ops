@@ -12,6 +12,7 @@ import EODManualBdActivity from './EODManualBdActivity'
 import { parseManualBdActivityJson, type ManualBdActivityRow } from '@/lib/bd-activity-manual'
 import { parseHoursInput, parseRequiredPositiveHours } from '@/lib/validation'
 import HoursMinutesFields from '@/components/HoursMinutesFields'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Task = {
   id: string
@@ -689,18 +690,16 @@ export default function EODClient({
                 />
                 <div>
                   <label className="label">Project (optional)</label>
-                  <select
+                  <SimpleSelect
+                    aria-label="Project"
+                    placeholder="— None —"
                     value={task.projectId}
-                    onChange={e => updateNewTask(task.clientId, 'projectId', e.target.value)}
-                    className="input bg-white"
-                  >
-                    <option value="">— None —</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={v => updateNewTask(task.clientId, 'projectId', v)}
+                    options={[
+                      { value: '', label: '— None —' },
+                      ...projects.map(p => ({ value: p.id, label: p.name })),
+                    ]}
+                  />
                 </div>
               </div>
               <div>

@@ -363,28 +363,38 @@ export default function MorningPlanForm({
                     </div>
                     <div>
                       <label className="label">Milestone</label>
-                      <select
+                      <SimpleSelect
+                        aria-label="Milestone"
                         value={task.milestoneId}
-                        onChange={e => selectMilestone(i, e.target.value)}
+                        onChange={v => selectMilestone(i, v)}
                         disabled={!task.projectId}
-                        className="input bg-gray-50/50 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <option value="">
-                          {!task.projectId
+                        className="bg-gray-50/50 focus:bg-white"
+                        placeholder={
+                          !task.projectId
                             ? 'Select a project first'
                             : (milestonesByProject.get(task.projectId)?.length ?? 0) === 0
                               ? 'No milestones'
-                              : '— Select milestone —'}
-                        </option>
-                        {(milestonesByProject.get(task.projectId) ?? []).map(m => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                            {MILESTONE_STATUS_CONFIG[m.status]
-                              ? ` · ${MILESTONE_STATUS_CONFIG[m.status].label}`
-                              : ''}
-                          </option>
-                        ))}
-                      </select>
+                              : '— Select milestone —'
+                        }
+                        options={[
+                          {
+                            value: '',
+                            label: !task.projectId
+                              ? 'Select a project first'
+                              : (milestonesByProject.get(task.projectId)?.length ?? 0) === 0
+                                ? 'No milestones'
+                                : '— Select milestone —',
+                          },
+                          ...(milestonesByProject.get(task.projectId) ?? []).map(m => ({
+                            value: m.id,
+                            label: `${m.title}${
+                              MILESTONE_STATUS_CONFIG[m.status]
+                                ? ` · ${MILESTONE_STATUS_CONFIG[m.status].label}`
+                                : ''
+                            }`,
+                          })),
+                        ]}
+                      />
                       {task.projectId && (milestonesByProject.get(task.projectId)?.length ?? 0) === 0 && (
                         <p className="text-[11px] text-gray-400 mt-1">
                           This project has no milestones — type your task below.

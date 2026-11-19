@@ -1,6 +1,7 @@
 'use client'
 
 import { MOM_ACTION_STATUSES, MOM_ACTION_STATUS_COLORS, momActionStatusLabel } from '@/lib/utils'
+import SimpleSelect from '@/components/SimpleSelect'
 
 export type ActionRowDraft = {
   key: string
@@ -162,19 +163,20 @@ export default function MomActionItemsEditor({
               <div className="grid sm:grid-cols-3 gap-3">
                 <div>
                   <label className="label">Owner *</label>
-                  <select
-                    className="input"
-                    value={row.ownerId}
-                    onChange={e => update(index, { ownerId: e.target.value })}
+                  <SimpleSelect
+                    aria-label="Owner"
                     required={required}
-                  >
-                    <option value="">Select owner</option>
-                    {members.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.role})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select owner"
+                    value={row.ownerId}
+                    onChange={v => update(index, { ownerId: v })}
+                    options={[
+                      { value: '', label: 'Select owner' },
+                      ...members.map(m => ({
+                        value: m.id,
+                        label: `${m.name} (${m.role})`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Due date *</label>
@@ -188,15 +190,15 @@ export default function MomActionItemsEditor({
                 </div>
                 <div>
                   <label className="label">Status</label>
-                  <select
-                    className="input"
+                  <SimpleSelect
+                    aria-label="Status"
                     value={row.status}
-                    onChange={e => update(index, { status: e.target.value })}
-                  >
-                    {MOM_ACTION_STATUSES.map(s => (
-                      <option key={s} value={s}>{momActionStatusLabel(s)}</option>
-                    ))}
-                  </select>
+                    onChange={v => update(index, { status: v })}
+                    options={MOM_ACTION_STATUSES.map(s => ({
+                      value: s,
+                      label: momActionStatusLabel(s),
+                    }))}
+                  />
                 </div>
               </div>
               {(row.status === 'Blocked' || row.status === 'Skipped') && (

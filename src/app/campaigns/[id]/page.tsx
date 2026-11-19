@@ -47,9 +47,9 @@ function StatPill({
   }
 
   return (
-    <div className={`rounded-xl border px-3 py-2.5 text-center ${tones[tone]}`}>
-      <div className="text-xl font-bold leading-none">{value}</div>
-      <div className={`text-[10px] uppercase tracking-wide font-medium mt-1 ${labelTones[tone]}`}>
+    <div className={`rounded-xl border px-2.5 py-2 text-center min-w-0 ${tones[tone]}`}>
+      <div className="text-lg sm:text-xl font-bold leading-none tabular-nums">{value}</div>
+      <div className={`text-[10px] uppercase tracking-wide font-medium mt-1 leading-snug ${labelTones[tone]}`}>
         {label}
       </div>
     </div>
@@ -85,171 +85,217 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
   const today = startOfDay(new Date())
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0 overflow-x-hidden">
       <div className="text-xs text-gray-400 mb-4">
         ← <Link href="/campaigns" className="hover:text-gray-700">Campaigns</Link>
       </div>
 
       {/* Hero + stats */}
-      <div className="card p-5 sm:p-6 mb-6 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 overflow-hidden">
-        <div className="grid lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-2 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <CampaignStatusSelect campaignId={campaign.id} currentStatus={campaign.status} />
-              <span className="badge bg-white text-gray-600 border border-gray-200">{campaign.channel}</span>
-            </div>
-            <h1 className="text-2xl font-semibold text-gray-900">{campaign.name}</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Created by {campaign.createdBy.name}
-              {campaign.startDate && ` · ${fmtDate(campaign.startDate)}`}
-              {campaign.endDate && ` → ${fmtDate(campaign.endDate)}`}
+      <div className="card p-4 sm:p-6 mb-6 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-w-0 overflow-hidden">
+        <div className="min-w-0 mb-5">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <CampaignStatusSelect campaignId={campaign.id} currentStatus={campaign.status} />
+            <span className="badge bg-white text-gray-600 border border-gray-200">{campaign.channel}</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 break-words">{campaign.name}</h1>
+          <p className="text-sm text-gray-500 mt-1 break-words">
+            Created by {campaign.createdBy.name}
+            {campaign.startDate && ` · ${fmtDate(campaign.startDate)}`}
+            {campaign.endDate && ` → ${fmtDate(campaign.endDate)}`}
+          </p>
+          {campaign.objective && (
+            <p className="text-sm text-gray-700 mt-3 whitespace-pre-wrap leading-relaxed line-clamp-3 break-words">
+              {campaign.objective}
             </p>
-            {campaign.objective && (
-              <p className="text-sm text-gray-700 mt-3 whitespace-pre-wrap leading-relaxed line-clamp-3">
-                {campaign.objective}
-              </p>
-            )}
-            {campaign.notes && (
-              <p className="text-sm text-gray-500 mt-2 whitespace-pre-wrap line-clamp-2">
-                {campaign.notes}
-              </p>
-            )}
+          )}
+          {campaign.notes && (
+            <p className="text-sm text-gray-500 mt-2 whitespace-pre-wrap line-clamp-2 break-words">
+              {campaign.notes}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-4 min-w-0">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Overview</p>
+            <div className="grid grid-cols-3 gap-2">
+              <StatPill value={stats.scheduled} label="Scheduled" tone="blue" />
+              <StatPill value={stats.completed} label="Completed" tone="green" />
+              <StatPill value={stats.withMom} label="MOM logged" tone="violet" />
+            </div>
           </div>
 
-          <div className="lg:col-span-3 grid sm:grid-cols-3 gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Overview</p>
-              <div className="grid grid-cols-2 gap-2">
-                <StatPill value={stats.scheduled} label="Scheduled" tone="blue" />
-                <StatPill value={stats.completed} label="Completed" tone="green" />
-                <StatPill value={stats.withMom} label="MOM logged" tone="violet" />
-                {/* <StatPill
-                  value={stats.needsMom}
-                  label="Needs MOM"
-                  tone={stats.needsMom > 0 ? 'amber' : 'neutral'}
-                /> */}
-              </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Upcoming calls</p>
+            <div className="grid grid-cols-3 gap-2">
+              <StatPill value={stats.callsToday} label="Today" tone={stats.callsToday > 0 ? 'blue' : 'neutral'} />
+              <StatPill value={stats.callsThisWeek} label="This week" tone={stats.callsThisWeek > 0 ? 'blue' : 'neutral'} />
+              <StatPill value={stats.callsThisMonth} label="This month" tone={stats.callsThisMonth > 0 ? 'blue' : 'neutral'} />
             </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Upcoming calls</p>
-              <div className="grid grid-cols-1 gap-2">
-                <StatPill value={stats.callsToday} label="Today" tone={stats.callsToday > 0 ? 'blue' : 'neutral'} />
-                <StatPill value={stats.callsThisWeek} label="This week" tone={stats.callsThisWeek > 0 ? 'blue' : 'neutral'} />
-                <StatPill value={stats.callsThisMonth} label="This month" tone={stats.callsThisMonth > 0 ? 'blue' : 'neutral'} />
-              </div>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Follow-ups</p>
-              <div className="grid grid-cols-2 gap-2">
-                <StatPill value={stats.followUpsDue} label="Due now" tone={stats.followUpsDue > 0 ? 'amber' : 'neutral'} />
-                <StatPill value={stats.followUpsOverdue} label="Overdue" tone={stats.followUpsOverdue > 0 ? 'red' : 'neutral'} />
-                <StatPill value={stats.followUpsThisWeek} label="This week" tone={stats.followUpsThisWeek > 0 ? 'blue' : 'neutral'} />
-                <StatPill value={stats.followUpsUpcoming} label="Upcoming" tone={stats.followUpsUpcoming > 0 ? 'slate' : 'neutral'} />
-                <StatPill value={stats.followUpsDone} label="Done" tone="green" />
-              </div>
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Follow-ups</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <StatPill value={stats.followUpsDue} label="Due now" tone={stats.followUpsDue > 0 ? 'amber' : 'neutral'} />
+              <StatPill value={stats.followUpsOverdue} label="Overdue" tone={stats.followUpsOverdue > 0 ? 'red' : 'neutral'} />
+              <StatPill value={stats.followUpsThisWeek} label="This week" tone={stats.followUpsThisWeek > 0 ? 'blue' : 'neutral'} />
+              <StatPill value={stats.followUpsUpcoming} label="Upcoming" tone={stats.followUpsUpcoming > 0 ? 'slate' : 'neutral'} />
+              <StatPill value={stats.followUpsDone} label="Done" tone="green" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Calls table */}
-      <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Calls & meetings
-            <span className="font-normal text-gray-400 ml-2">
+      {/* Calls */}
+      <div className="card overflow-hidden min-w-0">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-gray-900">Calls & meetings</h2>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">
               {stats.total} total · {stats.callsToday} today · {stats.callsThisWeek} this week
-            </span>
-          </h2>
-          <ScheduleCallModal
-            campaignId={campaign.id}
-            campaignName={campaign.name}
-            channel={campaign.channel}
-          />
+            </p>
+          </div>
+          <div className="shrink-0">
+            <ScheduleCallModal
+              campaignId={campaign.id}
+              campaignName={campaign.name}
+              channel={campaign.channel}
+            />
+          </div>
         </div>
 
         {campaign.calls.length === 0 ? (
-          <div className="text-center py-10 px-6">
+          <div className="text-center py-10 px-4">
             <p className="text-sm text-gray-500">No calls yet — schedule from LinkedIn replies.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
-              <thead>
-                <tr className="text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/40">
-                  <th className="text-left px-4 py-2 font-semibold">Client</th>
-                  <th className="text-left px-3 py-2 font-semibold">When</th>
-                  <th className="text-left px-3 py-2 font-semibold hidden md:table-cell">Details</th>
-                  <th className="text-left px-3 py-2 font-semibold">Status</th>
-                  <th className="text-right px-4 py-2 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaign.calls.map(c => {
-                  const followUp = momFollowUpBadge(c.mom)
-                  const isScheduled = c.status === 'scheduled'
-                  const isToday = startOfDay(c.scheduledDate).getTime() === today.getTime()
-                  const hasPendingFollowUp = c.mom && isFollowUpPending(c.mom)
+          <>
+            {/* Mobile cards */}
+            <div className="divide-y divide-gray-100 md:hidden">
+              {campaign.calls.map(c => {
+                const followUp = momFollowUpBadge(c.mom)
+                const isScheduled = c.status === 'scheduled'
+                const isToday = startOfDay(c.scheduledDate).getTime() === today.getTime()
+                const hasPendingFollowUp = c.mom && isFollowUpPending(c.mom)
 
-                  return (
-                    <tr
-                      key={c.id}
-                      className={`border-b border-gray-50 hover:bg-slate-50/60 ${
-                        isScheduled ? (isToday ? 'bg-amber-50/30' : 'bg-blue-50/20') : ''
-                      }`}
-                    >
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-gray-900">{c.clientName}</div>
+                return (
+                  <div
+                    key={c.id}
+                    className={`p-4 space-y-2 min-w-0 ${
+                      isScheduled ? (isToday ? 'bg-amber-50/40' : 'bg-blue-50/20') : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 break-words">{c.clientName}</div>
                         {c.companyName && (
-                          <div className="text-xs text-gray-500">{c.companyName}</div>
+                          <div className="text-xs text-gray-500 break-words">{c.companyName}</div>
                         )}
-                        <div className="flex flex-wrap gap-1 mt-1 md:hidden">
-                          {followUp && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${followUp.cls}`}>
-                              {followUp.text}
-                            </span>
-                          )}
-                          {hasPendingFollowUp && (
-                            <FollowUpQuickAction momId={c.mom!.id} compact />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
-                        {callScheduleLabel(c.scheduledDate, c.scheduledTime)}
-                        <div className="text-gray-400">{shortDisplayName(c.createdBy.name)}</div>
-                      </td>
-                      <td className="px-3 py-2.5 hidden md:table-cell">
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {c.mom && (
-                            <span className="badge text-[10px] bg-violet-100 text-violet-800">{c.mom.meetingType}</span>
-                          )}
-                          {followUp && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${followUp.cls}`}>
-                              {followUp.text}
-                            </span>
-                          )}
-                          {hasPendingFollowUp && (
-                            <FollowUpQuickAction momId={c.mom!.id} compact />
-                          )}
-                        </div>
-                        {c.notes && (
-                          <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{c.notes}</p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`badge text-[10px] ${CALL_STATUS_COLORS[c.status] ?? 'bg-gray-100'}`}>
-                          {c.status.replace('_', ' ')}
+                      </div>
+                      <span className={`badge text-[10px] shrink-0 ${CALL_STATUS_COLORS[c.status] ?? 'bg-gray-100'}`}>
+                        {c.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-gray-500">
+                      {callScheduleLabel(c.scheduledDate, c.scheduledTime)}
+                      <span className="text-gray-400"> · {shortDisplayName(c.createdBy.name)}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {c.mom && (
+                        <span className="badge text-[10px] bg-violet-100 text-violet-800">{c.mom.meetingType}</span>
+                      )}
+                      {followUp && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${followUp.cls}`}>
+                          {followUp.text}
                         </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <CallActions callId={c.id} status={c.status} momId={c.momId} compact />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                      {hasPendingFollowUp && <FollowUpQuickAction momId={c.mom!.id} compact />}
+                    </div>
+
+                    {c.notes && (
+                      <p className="text-[11px] text-gray-500 line-clamp-2 break-words">{c.notes}</p>
+                    )}
+
+                    <div className="pt-2 border-t border-gray-100/80">
+                      <CallActions callId={c.id} status={c.status} momId={c.momId} compact />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="overflow-x-auto hidden md:block">
+              <table className="w-full text-sm min-w-[720px]">
+                <thead>
+                  <tr className="text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/40">
+                    <th className="text-left px-4 py-2 font-semibold">Client</th>
+                    <th className="text-left px-3 py-2 font-semibold">When</th>
+                    <th className="text-left px-3 py-2 font-semibold">Details</th>
+                    <th className="text-left px-3 py-2 font-semibold">Status</th>
+                    <th className="text-right px-4 py-2 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaign.calls.map(c => {
+                    const followUp = momFollowUpBadge(c.mom)
+                    const isScheduled = c.status === 'scheduled'
+                    const isToday = startOfDay(c.scheduledDate).getTime() === today.getTime()
+                    const hasPendingFollowUp = c.mom && isFollowUpPending(c.mom)
+
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`border-b border-gray-50 hover:bg-slate-50/60 ${
+                          isScheduled ? (isToday ? 'bg-amber-50/30' : 'bg-blue-50/20') : ''
+                        }`}
+                      >
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-gray-900">{c.clientName}</div>
+                          {c.companyName && (
+                            <div className="text-xs text-gray-500">{c.companyName}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                          {callScheduleLabel(c.scheduledDate, c.scheduledTime)}
+                          <div className="text-gray-400">{shortDisplayName(c.createdBy.name)}</div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {c.mom && (
+                              <span className="badge text-[10px] bg-violet-100 text-violet-800">{c.mom.meetingType}</span>
+                            )}
+                            {followUp && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${followUp.cls}`}>
+                                {followUp.text}
+                              </span>
+                            )}
+                            {hasPendingFollowUp && (
+                              <FollowUpQuickAction momId={c.mom!.id} compact />
+                            )}
+                          </div>
+                          {c.notes && (
+                            <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{c.notes}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`badge text-[10px] ${CALL_STATUS_COLORS[c.status] ?? 'bg-gray-100'}`}>
+                            {c.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 w-[13rem]">
+                          <CallActions callId={c.id} status={c.status} momId={c.momId} compact />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

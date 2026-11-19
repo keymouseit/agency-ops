@@ -51,6 +51,7 @@ export default function EditProjectForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [bdMemberId, setBdMemberId] = useState(project.bdMemberId || '')
+  const [leadId, setLeadId] = useState(project.leadId || '')
   const [currency, setCurrency] = useState(project.currency)
   const router = useRouter()
 
@@ -139,6 +140,7 @@ export default function EditProjectForm({
         onClick={() => {
           setError('')
           setBdMemberId(project.bdMemberId || '')
+          setLeadId(project.leadId || '')
           setCurrency(project.currency)
           setOpen(true)
         }}
@@ -178,14 +180,17 @@ export default function EditProjectForm({
               {can('leadId') && wonLeads.length > 0 && (
                 <div>
                   <label className="label">Link to won lead (optional)</label>
-                  <select name="leadId" className="input" defaultValue={project.leadId || ''}>
-                    <option value="">— Not linked —</option>
-                    {wonLeads.map(l => (
-                      <option key={l.id} value={l.id}>
-                        {l.clientName}
-                      </option>
-                    ))}
-                  </select>
+                  <SimpleSelect
+                    name="leadId"
+                    aria-label="Link to won lead"
+                    placeholder="— Not linked —"
+                    value={leadId}
+                    onChange={setLeadId}
+                    options={[
+                      { value: '', label: '— Not linked —' },
+                      ...wonLeads.map(l => ({ value: l.id, label: l.clientName })),
+                    ]}
+                  />
                 </div>
               )}
 
