@@ -3,6 +3,7 @@ import { fmtDate, STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { QASignOffBadge } from '@/components/QASignOffStatus'
 import { latestCycleProgress, projectMilestoneProgress } from '@/lib/qa-dashboard'
 import { isBlockingCycleResult, QA_CYCLE_RESULT_CONFIG } from '@/lib/qa'
+import { shortDisplayName } from '@/lib/employee-order'
 
 const CYCLE_RESULT_CONFIG = QA_CYCLE_RESULT_CONFIG
 
@@ -78,6 +79,9 @@ export default function QAProjectListCard({
   const overdue =
     project.estimatedEnd && new Date(project.estimatedEnd) < new Date() && project.status !== 'delivered'
 
+  const showLog = canManage && canLogTestCycle && !hasSignOff
+  const detailHref = `/qa/${project.id}`
+
   return (
     <article
       className={`rounded-2xl border bg-white shadow-sm overflow-hidden hover:border-gray-300 transition-colors ${
@@ -90,88 +94,99 @@ export default function QAProjectListCard({
             : 'border-gray-200'
       }`}
     >
-      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/40">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <Link
-                href={`/qa/${project.id}`}
-                className="text-base font-semibold text-gray-900 hover:text-gray-700 truncate"
-              >
-                {project.name}
-              </Link>
-              <span className={`badge text-[11px] ${STATUS_COLORS[project.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                {PROJECT_STATUS_LABELS[project.status] ?? project.status}
-              </span>
-              {qaStatus && (
-                <span className={`badge text-[11px] ${qaStatus.cls}`}>{qaStatus.label}</span>
-              )}
-              {hasSignOff && <QASignOffBadge signed />}
-              {overdue && <span className="badge text-[11px] bg-red-100 text-red-800">Overdue</span>}
-              {project.qaSuggestedTestType && (
-                <span className="badge text-[11px] bg-purple-100 text-purple-700 capitalize">
-                  {project.qaSuggestedTestType} test
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-              <span>
-                <span className="text-gray-400">Dev</span> {project.developer.name}
-              </span>
-              {project.bdMember && (
-                <span>
-                  <span className="text-gray-400">BD</span> {project.bdMember.name}
-                </span>
-              )}
-              {project.estimatedEnd && (
-                <span>
-                  <span className="text-gray-400">Due</span> {fmtDate(project.estimatedEnd)}
-                </span>
-              )}
-              {latestCycle && (
-                <span>
-                  <span className="text-gray-400">Last cycle</span> {fmtDate(latestCycle.startedAt)} ·{' '}
-                  {latestCycle.conductedBy.name}
-                </span>
-              )}
-              {latestCycle && (
-                <span>
-                  <span className="text-gray-400">Type</span> {latestCycle.cycleType.replace('_', ' ')}
-                </span>
-              )}
-              {hasSignOff && project.releaseSignOff && (
-                <span>
-                  <span className="text-gray-400">Signed off</span>{' '}
-                  {fmtDate(project.releaseSignOff.signedOffAt)}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            {canManage && canLogTestCycle && !hasSignOff && (
-              <Link href={`/qa/${project.id}`} className="btn-primary text-xs px-3 py-1.5">
-                + Log test cycle
-              </Link>
-            )}
-            <Link href={`/qa/${project.id}`} className="btn-secondary text-xs px-3 py-1.5">
-              Details →
+      <div className="px-4 py-3.5 space-y-3">
+        {/* Title + primary status */}
+        <div className="min-w-0">
+          <div className="flex items-start gap-2">
+            <Link
+              href={detailHref}
+              className="text-[15px] font-semibold text-gray-900 hover:text-gray-700 leading-snug break-words min-w-0 flex-1"
+            >
+              {project.name}
             </Link>
+            <span
+              className={`badge text-[10px] shrink-0 mt-0.5 ${STATUS_COLORS[project.status] ?? 'bg-gray-100 text-gray-700'}`}
+            >
+              {PROJECT_STATUS_LABELS[project.status] ?? project.status}
+            </span>
+          </div>
+
+          {/* Secondary chips — single wrap row */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {qaStatus && (
+              <span className={`badge text-[10px] ${qaStatus.cls}`}>{qaStatus.label}</span>
+            )}
+            {hasSignOff && <QASignOffBadge signed />}
+            {overdue && <span className="badge text-[10px] bg-red-100 text-red-800">Overdue</span>}
+            {project.qaSuggestedTestType && (
+              <span className="badge text-[10px] bg-purple-100 text-purple-700 capitalize">
+                {project.qaSuggestedTestType} test
+              </span>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="px-5 py-4">
+        {/* People + due — compact two-line meta */}
+        <div className="space-y-1.5 text-sm text-gray-500">
+          <p className="leading-snug break-words">
+            <span className="text-gray-400">Dev</span>{' '}
+            {shortDisplayName(project.developer.name)}
+            {project.bdMember && (
+              <>
+                <span className="text-gray-400 mx-3 text-base leading-none" aria-hidden>·</span>
+                <span className="text-gray-400">BD</span>{' '}
+                {shortDisplayName(project.bdMember.name)}
+              </>
+            )}
+          </p>
+          {project.estimatedEnd && (
+            <p className="inline-flex items-center gap-1.5 leading-snug">
+              <svg
+                className="w-4 h-4 text-gray-400 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.75}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span>
+                <span className="text-gray-400">Due</span> {fmtDate(project.estimatedEnd)}
+              </span>
+            </p>
+          )}
+          {latestCycle && (
+            <p className="leading-snug break-words text-gray-400">
+              Last cycle {fmtDate(latestCycle.startedAt)} ·{' '}
+              {shortDisplayName(latestCycle.conductedBy.name)} ·{' '}
+              {latestCycle.cycleType.replace('_', ' ')}
+            </p>
+          )}
+          {hasSignOff && project.releaseSignOff && (
+            <p className="leading-snug break-words text-gray-400">
+              Signed off {fmtDate(project.releaseSignOff.signedOffAt)} ·{' '}
+              {shortDisplayName(project.releaseSignOff.signedOffBy.name)}
+            </p>
+          )}
+        </div>
+
+        {/* Progress */}
         {totalMilestones > 0 || milestoneProgress.total > 0 ? (
-          <>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-1.5">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                 Milestone progress
               </span>
-              <span className="text-xs font-medium text-gray-600 tabular-nums">
+              <span className="text-[11px] font-medium text-gray-600 tabular-nums">
                 {pct}% · {milestoneLabel}
               </span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${progressColor(pct)}`}
                 style={{ width: `${pct}%` }}
@@ -180,7 +195,7 @@ export default function QAProjectListCard({
             {(milestoneProgress.testing > 0 ||
               milestoneProgress.ready > 0 ||
               (cycleProgress && cycleProgress.total > 0)) && (
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
                 {milestoneProgress.testing > 0 && (
                   <span className="text-teal-600">{milestoneProgress.testing} in testing</span>
                 )}
@@ -189,7 +204,7 @@ export default function QAProjectListCard({
                 )}
                 {cycleProgress && cycleProgress.total > 0 && (
                   <span>
-                    Latest cycle: {cycleProgress.passed}/{cycleProgress.total} passed
+                    Latest: {cycleProgress.passed}/{cycleProgress.total} passed
                     {cycleProgress.failed > 0 && (
                       <span className="text-red-600"> · {cycleProgress.failed} failed</span>
                     )}
@@ -200,17 +215,19 @@ export default function QAProjectListCard({
                 )}
               </div>
             )}
-          </>
+          </div>
         ) : (
           <p className="text-xs text-gray-500">No milestones yet — open project to start QA.</p>
         )}
 
         {isBlockingCycleResult(latestCycle?.result ?? '') && latestCycle?.blockerNote && (
-          <div className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
-            latestCycle.result === 'blocked'
-              ? 'border-orange-200 bg-orange-50 text-orange-900'
-              : 'border-red-200 bg-red-50 text-red-900'
-          }`}>
+          <div
+            className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+              latestCycle.result === 'blocked'
+                ? 'border-orange-200 bg-orange-50 text-orange-900'
+                : 'border-red-200 bg-red-50 text-red-900'
+            }`}
+          >
             <span aria-hidden>{latestCycle.result === 'blocked' ? '⊘' : '✕'}</span>
             <span>
               <span className="font-medium">
@@ -220,6 +237,24 @@ export default function QAProjectListCard({
             </span>
           </div>
         )}
+
+        {/* Actions — full-width bottom row */}
+        <div className={`grid gap-2 pt-0.5 ${showLog ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {showLog && (
+            <Link
+              href={detailHref}
+              className="btn-primary text-xs py-2 px-3 inline-flex items-center justify-center w-full"
+            >
+              + Log cycle
+            </Link>
+          )}
+          <Link
+            href={detailHref}
+            className="btn-secondary text-xs py-2 px-3 inline-flex items-center justify-center w-full"
+          >
+            Details →
+          </Link>
+        </div>
       </div>
     </article>
   )
