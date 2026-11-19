@@ -133,10 +133,10 @@ export default function ScheduleCallModal({ campaignId, campaignName, channel = 
     <>
       <button
         type="button"
-        className="btn-primary inline-flex items-center gap-2"
+        className="btn-primary inline-flex items-center gap-1.5 text-xs py-1.5 px-3"
         onClick={() => { setError(''); setFieldErrors({}); setOpen(true) }}
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
         Schedule call

@@ -26,6 +26,7 @@ import {
 } from './ceo-report-helpers'
 import { groupWeeksByMonth, WEEK_MONTH_GROUP_THRESHOLD } from './week-group-utils'
 import WeekInlinePanel from './WeekInlinePanel'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Employee = { id: string; name: string; email: string; role: string }
 type RangeMode = 'week' | 'month' | 'this_month' | 'custom'
@@ -537,17 +538,16 @@ export default function EmployeeReportCeoView({
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end flex-1">
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Employee</label>
-            <select
+            <SimpleSelect
+              aria-label="Employee"
+              className="text-sm min-w-[200px]"
               value={memberId}
-              onChange={e => onMemberChange(e.target.value)}
-              className="text-sm rounded-lg border border-gray-200 px-3 py-2 min-w-[200px] bg-white"
-            >
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.name} · {e.role}
-                </option>
-              ))}
-            </select>
+              onChange={onMemberChange}
+              options={employees.map(e => ({
+                value: e.id,
+                label: `${e.name} · ${e.role}`,
+              }))}
+            />
           </div>
           {rangeMode === 'custom' ? (
             <div className="flex flex-wrap gap-2 items-end">

@@ -26,6 +26,7 @@ export default function AddProjectForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [bdMemberId, setBdMemberId] = useState('')
+  const [leadId, setLeadId] = useState('')
   const [currency, setCurrency] = useState<string>('USD')
   const router = useRouter()
 
@@ -123,10 +124,17 @@ export default function AddProjectForm({
               {wonLeads.length > 0 && (
                 <div>
                   <label className="label">Link to won lead (optional)</label>
-                  <select name="leadId" className="input">
-                    <option value="">— Not linked —</option>
-                    {wonLeads.map(l => <option key={l.id} value={l.id}>{l.clientName}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="leadId"
+                    aria-label="Link to won lead"
+                    placeholder="— Not linked —"
+                    value={leadId}
+                    onChange={setLeadId}
+                    options={[
+                      { value: '', label: '— Not linked —' },
+                      ...wonLeads.map(l => ({ value: l.id, label: l.clientName })),
+                    ]}
+                  />
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">

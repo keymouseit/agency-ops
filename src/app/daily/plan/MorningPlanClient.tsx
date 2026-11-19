@@ -198,13 +198,12 @@ export default function MorningPlanClient({
                       </div>
                       <div>
                         <label className="label">Priority</label>
-                        <select
+                        <SimpleSelect
+                          aria-label="Priority"
                           value={task.priority}
-                          onChange={e => updateTask(i, 'priority', e.target.value)}
-                          className="input"
-                        >
-                          {PRIORITIES.map(p => <option key={p}>{p}</option>)}
-                        </select>
+                          onChange={v => updateTask(i, 'priority', v)}
+                          options={PRIORITIES.map(p => ({ value: p, label: p }))}
+                        />
                       </div>
                       <div>
                         <label className="label">Project</label>

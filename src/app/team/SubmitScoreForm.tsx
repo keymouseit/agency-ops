@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import BodyScrollLock from '@/components/BodyScrollLock'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Member = { id: string; name: string; role: string }
 const DIMS = ['delivery', 'process', 'communication', 'growth', 'culture'] as const
@@ -32,6 +33,8 @@ export default function SubmitScoreForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
+  const [memberId, setMemberId] = useState(initialMemberId ?? '')
+  const [repeatedMistake, setRepeatedMistake] = useState('false')
   const router = useRouter()
   const label = buttonLabel ?? (founderMode ? "+ Submit this week's score" : "+ Submit this week's score")
   const btnClass = buttonClassName ?? 'btn-primary'
@@ -61,6 +64,8 @@ export default function SubmitScoreForm({
       setLoading(false)
       setOpen(false)
       setScores({})
+      setMemberId(initialMemberId ?? '')
+      setRepeatedMistake('false')
       router.refresh()
     } catch {
       setError('Network error — could not submit scores.')
@@ -70,7 +75,17 @@ export default function SubmitScoreForm({
 
   return (
     <>
-      <button type="button" className={btnClass} onClick={() => setOpen(true)}>{label}</button>
+      <button
+        type="button"
+        className={btnClass}
+        onClick={() => {
+          setMemberId(initialMemberId ?? '')
+          setRepeatedMistake('false')
+          setOpen(true)
+        }}
+      >
+        {label}
+      </button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <BodyScrollLock />
@@ -99,10 +114,18 @@ export default function SubmitScoreForm({
                     </div>
                   </>
                 ) : (
-                  <select name="memberId" required className="input" defaultValue={initialMemberId ?? ''}>
-                    <option value="">Select...</option>
-                    {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
+                  <SimpleSelect
+                    name="memberId"
+                    aria-label={founderMode ? 'Team member' : 'Your name'}
+                    required
+                    placeholder="Select..."
+                    value={memberId}
+                    onChange={setMemberId}
+                    options={[
+                      { value: '', label: 'Select...' },
+                      ...members.map(m => ({ value: m.id, label: m.name })),
+                    ]}
+                  />
                 )}
               </div>
               {DIMS.map(d => (
@@ -133,17 +156,34 @@ export default function SubmitScoreForm({
               {founderMode && (
                 <div>
                   <label className="label">Did you repeat a mistake from last week?</label>
-                  <select name="repeatedMistake" className="input">
-                    <option value="false">No</option>
-                    <option value="true">Yes — I'm working on it</option>
-                  </select>
+                  <SimpleSelect
+                    name="repeatedMistake"
+                    aria-label="Repeated mistake"
+                    value={repeatedMistake}
+                    onChange={setRepeatedMistake}
+                    options={[
+                      { value: 'false', label: 'No' },
+                      { value: 'true', label: "Yes — I'm working on it" },
+                    ]}
+                  />
                 </div>
               )}
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={loading || DIMS.some(d => !scores[d])} className="btn-primary flex-1">
                   {loading ? 'Submitting...' : DIMS.some(d => !scores[d]) ? 'Rate all 5 dimensions' : 'Submit scores'}
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => { setOpen(false); setScores({}) }}>Cancel</button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setOpen(false)
+                    setScores({})
+                    setMemberId(initialMemberId ?? '')
+                    setRepeatedMistake('false')
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

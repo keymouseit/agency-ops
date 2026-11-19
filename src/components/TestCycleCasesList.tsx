@@ -8,6 +8,7 @@ import {
   TEST_CYCLE_CASE_STATUS_CONFIG,
   testCycleCaseSummary,
 } from '@/lib/qa'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type Case = {
   id: string
@@ -163,19 +164,17 @@ export default function TestCycleCasesList({
             >
               <div className="flex items-start gap-2">
                 {canEditStatus ? (
-                  <select
+                  <SimpleSelect
                     value={tc.status}
                     disabled={loading === tc.id}
-                    onChange={e => updateStatus(tc.id, e.target.value)}
-                    className="badge shrink-0 border border-gray-200 bg-white text-gray-800 cursor-pointer" 
+                    onChange={v => updateStatus(tc.id, v)}
+                    className="badge shrink-0 border border-gray-200 bg-white text-gray-800 !py-0.5 !px-2 !text-xs w-auto min-w-[6.5rem]"
                     aria-label={`Status for ${tc.title}`}
-                  >
-                    {TEST_CYCLE_CASE_STATUSES.map(s => (
-                      <option key={s} value={s}>
-                        {TEST_CYCLE_CASE_STATUS_CONFIG[s].label}
-                      </option>
-                    ))}
-                  </select>
+                    options={TEST_CYCLE_CASE_STATUSES.map(s => ({
+                      value: s,
+                      label: TEST_CYCLE_CASE_STATUS_CONFIG[s].label,
+                    }))}
+                  />
                 ) : (
                   <span className={`badge shrink-0 ${cfg.cls}`}>
                     {awaitingRetest ? 'Awaiting re-test' : cfg.label}

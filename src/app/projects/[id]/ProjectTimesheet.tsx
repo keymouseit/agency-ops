@@ -10,6 +10,7 @@ import {
   entryLoggedHours,
   groupEntriesByWeek,
 } from '@/lib/project-timesheet'
+import SimpleSelect from '@/components/SimpleSelect'
 
 type ViewId = 'overview' | 'diary'
 
@@ -132,21 +133,20 @@ export default function ProjectTimesheet({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {memberOptions.length > 1 && (
-            <select
-              className="input text-sm py-1.5 w-auto min-w-[9rem]"
+            <SimpleSelect
+              aria-label="Filter by team member"
+              className="text-sm py-1.5 w-auto min-w-[9rem]"
               value={memberFilter}
-              onChange={e => {
-                setMemberFilter(e.target.value)
+              onChange={v => {
+                setMemberFilter(v)
                 setOpenWeek(undefined)
                 setOpenDay(null)
               }}
-              aria-label="Filter by team member"
-            >
-              <option value="all">All team</option>
-              {memberOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
+              options={[
+                { value: 'all', label: 'All team' },
+                ...memberOptions.map(([id, name]) => ({ value: id, label: name })),
+              ]}
+            />
           )}
           <div className="inline-flex rounded-full border border-gray-200 bg-white p-0.5">
             {([
