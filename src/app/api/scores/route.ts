@@ -4,7 +4,7 @@ import { checkRole, auth } from '@/lib/auth'
 import { getWeekStart } from '@/lib/utils'
 
 export async function POST(req: Request) {
-  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia'])
+  const deny = await checkRole(['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia', 'HR'])
   if (deny) return deny
 
   const data = await req.json()

@@ -75,8 +75,9 @@ body { font-family: var(--font-sans); }
   }
 }
 
-/* iOS Safari date inputs: one-row safe + left-align like selects */
+/* iOS Safari date / datetime inputs: one-row safe + left-align like selects */
 input[type='date'],
+input[type='datetime-local'],
 input.date-input {
   position: relative;
   display: flex;
@@ -102,14 +103,17 @@ input.date-input {
   iOS Safari centers the selected date via ::-webkit-date-and-time-value.
   Force left align to match Leave type / Time slot selects.
 */
-input[type='date']::-webkit-date-and-time-value {
+input[type='date']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value {
   text-align: left !important;
   margin: 0;
   padding: 0;
 }
 
 input[type='date']::-webkit-datetime-edit,
-input[type='date']::-webkit-datetime-edit-fields-wrapper {
+input[type='date']::-webkit-datetime-edit-fields-wrapper,
+input[type='datetime-local']::-webkit-datetime-edit,
+input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
@@ -125,14 +129,22 @@ input[type='date']::-webkit-datetime-edit-fields-wrapper {
 input[type='date']::-webkit-datetime-edit-text,
 input[type='date']::-webkit-datetime-edit-month-field,
 input[type='date']::-webkit-datetime-edit-day-field,
-input[type='date']::-webkit-datetime-edit-year-field {
+input[type='date']::-webkit-datetime-edit-year-field,
+input[type='datetime-local']::-webkit-datetime-edit-text,
+input[type='datetime-local']::-webkit-datetime-edit-month-field,
+input[type='datetime-local']::-webkit-datetime-edit-day-field,
+input[type='datetime-local']::-webkit-datetime-edit-year-field,
+input[type='datetime-local']::-webkit-datetime-edit-hour-field,
+input[type='datetime-local']::-webkit-datetime-edit-minute-field,
+input[type='datetime-local']::-webkit-datetime-edit-ampm-field {
   padding: 0;
   margin: 0;
   text-align: left;
 }
 
 /* Keep native indicator clickable under/near the custom icon as a fallback */
-input[type='date']::-webkit-calendar-picker-indicator {
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
   position: absolute;
   right: 0;
   top: 0;

@@ -5,7 +5,7 @@ import { formatIst, istDateInputValue } from '@/lib/ist'
 import { logger } from '@/lib/logger'
 
 /** Roles that can POST a weekly self-assessment (matches /api/scores checkRole). */
-export const SELF_SCORE_ROLES = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia'] as const
+export const SELF_SCORE_ROLES = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia', 'HR'] as const
 
 export type SelfScoreRole = (typeof SELF_SCORE_ROLES)[number]
 

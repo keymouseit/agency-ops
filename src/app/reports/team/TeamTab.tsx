@@ -30,7 +30,7 @@ const DAILY_LOGGING_ROLES = ['Dev', 'Both', 'QA']
 const LOW_ACTIVITY_RATIO = 20 / (5 * STANDARD_DAY_HOURS)
 
 /** Roles that submit a weekly self-assessment via /api/scores + /checkin. */
-const SELF_SCORE_ROLES = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia']
+const SELF_SCORE_ROLES = ['Dev', 'BD', 'QA', 'Both', 'Founder', 'SocialMedia', 'HR']
 
 const scoreCol = (v: number) => (v >= 8 ? 'text-gray-900' : v >= 6 ? 'text-amber-700' : 'text-red-600')
 
