@@ -43,7 +43,7 @@ export default async function LeavesPage() {
     allPendingLeaves = await prisma.leaveRequest.findMany({
       where: { status: 'pending' },
       include: { member: { select: { name: true, id: true } } },
-      orderBy: { appliedAt: 'asc' },
+      orderBy: { appliedAt: 'desc' },
     })
     allMembers = sortByEmployeeNo(
       await prisma.teamMember.findMany({

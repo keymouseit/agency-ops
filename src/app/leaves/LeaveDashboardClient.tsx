@@ -172,7 +172,10 @@ export default function LeaveDashboardClient({
 
   useEffect(() => {
     setPendingLeaves(
-      allPendingLeaves.filter(l => l.status === 'pending' && !decidedPendingIds.current.has(l.id))
+      allPendingLeaves
+        .filter(l => l.status === 'pending' && !decidedPendingIds.current.has(l.id))
+        .slice()
+        .sort((a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime())
     )
   }, [allPendingLeaves])
 
@@ -187,9 +190,15 @@ export default function LeaveDashboardClient({
         const rows = await pendingRes.json()
         if (Array.isArray(rows)) {
           setPendingLeaves(
-            rows.filter((l: { id: string; status?: string }) =>
-              l.status === 'pending' && !decidedPendingIds.current.has(l.id)
-            )
+            rows
+              .filter((l: { id: string; status?: string }) =>
+                l.status === 'pending' && !decidedPendingIds.current.has(l.id)
+              )
+              .slice()
+              .sort(
+                (a: { appliedAt?: string }, b: { appliedAt?: string }) =>
+                  new Date(b.appliedAt ?? 0).getTime() - new Date(a.appliedAt ?? 0).getTime()
+              )
           )
         }
       }

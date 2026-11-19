@@ -46,7 +46,8 @@ export async function GET(request: Request) {
         member: { select: { id: true, name: true, email: true, role: true } },
         approvedBy: { select: { name: true } },
       },
-      orderBy: { startDate: 'desc' },
+      // Approvals queue: newest applications first; otherwise by leave start date
+      orderBy: status === 'pending' ? { appliedAt: 'desc' } : { startDate: 'desc' },
     })
 
     return NextResponse.json(leaves, {
