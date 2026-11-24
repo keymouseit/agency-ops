@@ -523,6 +523,7 @@ export default function LeaveDashboardClient({
     if (leaveType === 'short_leave') return 'bg-sky-200 text-sky-900'
     if (leaveType === 'half_day') return 'bg-red-100 text-red-800'
     if (leaveType === 'work_from_home') return 'bg-teal-100 text-teal-800'
+    if (leaveType === 'floating_holiday') return 'bg-violet-200 text-violet-900'
     if (leaveType === 'full_day') return 'bg-red-500 text-white'
     // birthday / comp-off / other approved types
     return 'bg-emerald-100 text-emerald-800'
@@ -566,7 +567,9 @@ export default function LeaveDashboardClient({
     .filter(
       l =>
         l.status === 'pending' &&
-        !['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave'].includes(l.leaveType)
+        !['short_leave', 'birthday_leave', 'floating_holiday', 'work_from_home', 'comp_off_leave'].includes(
+          l.leaveType
+        )
     )
     .reduce((total, l) => {
       const paid = Number(l.paidDays)
@@ -581,7 +584,13 @@ export default function LeaveDashboardClient({
 
   // Live preview of how the request being filled in will split into paid / unpaid.
   // Mirrors the server: today's balance minus paid days held by other pending requests.
-  const NO_BALANCE_TYPES = ['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave']
+  const NO_BALANCE_TYPES = [
+    'short_leave',
+    'birthday_leave',
+    'floating_holiday',
+    'work_from_home',
+    'comp_off_leave',
+  ]
   const editingLeave = editingLeaveId ? leaves.find(l => l.id === editingLeaveId) : null
   const reservedByOtherPending = editingLeave
     ? Math.max(
@@ -894,6 +903,7 @@ export default function LeaveDashboardClient({
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
                   <option value="birthday_leave">Birthday Leave</option>
+                  <option value="floating_holiday">Floating Holiday</option>
                   {(canApplyCompOff || leaveType === 'comp_off_leave') && (
                     <option value="comp_off_leave">Comp Off Leave</option>
                   )}
@@ -906,6 +916,11 @@ export default function LeaveDashboardClient({
                 ) : leaveType === 'short_leave' ? (
                   <p className="text-xs text-sky-700 mt-1.5">
                     You must work at least 7 hours on this day for it to count as a short leave.
+                  </p>
+                ) : leaveType === 'floating_holiday' ? (
+                  <p className="text-xs text-violet-700 mt-1.5">
+                    Optional company floating holiday (e.g. Guru Purab). Does not deduct leave balance. Once
+                    approved, plan/EOD alerts are skipped for that day.
                   </p>
                 ) : null}
               </div>
@@ -1237,6 +1252,7 @@ export default function LeaveDashboardClient({
                       <option value="half_day">Half Day</option>
                       <option value="short_leave">Short Leave (2 hours)</option>
                       <option value="birthday_leave">Birthday Leave</option>
+                      <option value="floating_holiday">Floating Holiday</option>
                       {(canApplyCompOff || leaveType === 'comp_off_leave') && (
                         <option value="comp_off_leave">Comp Off Leave</option>
                       )}
@@ -1249,6 +1265,11 @@ export default function LeaveDashboardClient({
                     ) : leaveType === 'short_leave' ? (
                       <p className="text-xs text-sky-700 mt-1.5">
                         You must work at least 7 hours on this day for it to count as a short leave.
+                      </p>
+                    ) : leaveType === 'floating_holiday' ? (
+                      <p className="text-xs text-violet-700 mt-1.5">
+                        Optional company floating holiday. Does not deduct leave balance. Once approved, plan/EOD
+                        alerts are skipped for that day.
                       </p>
                     ) : !canApplyCompOff ? (
                       <p className="text-xs text-gray-500 mt-1.5">
@@ -1817,6 +1838,10 @@ export default function LeaveDashboardClient({
                       WFH
                     </span>
                     <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-violet-200 ring-1 ring-violet-300" />
+                      Floating holiday
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
                       <span className="h-2.5 w-2.5 rounded-sm bg-gray-200 ring-1 ring-gray-300" />
                       Waiting
                     </span>
@@ -1934,9 +1959,15 @@ export default function LeaveDashboardClient({
                   <option value="half_day">Half Day</option>
                   <option value="short_leave">Short Leave (2 hours)</option>
                   <option value="birthday_leave">Birthday Leave</option>
+                  <option value="floating_holiday">Floating Holiday</option>
                   <option value="comp_off_leave">Comp Off Leave</option>
                   <option value="work_from_home">Work From Home</option>
                 </select>
+                {leaveType === 'floating_holiday' ? (
+                  <p className="text-xs text-violet-700 mt-1.5">
+                    Does not deduct leave balance. Skips plan/EOD alerts once approved.
+                  </p>
+                ) : null}
               </div>
               
               {leaveType === 'half_day' && (

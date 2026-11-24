@@ -80,6 +80,7 @@ function leaveBadgeForDay(leaveType: string | null, holidayName: string | null):
   if (leaveType === 'short_leave') return 'Short leave'
   if (leaveType === 'half_day') return 'Half day'
   if (leaveType === 'birthday_leave') return 'Birthday leave'
+  if (leaveType === 'floating_holiday') return 'Floating holiday'
   if (leaveType === 'comp_off_leave') return 'Comp Off leave'
   if (leaveType === 'work_from_home') return 'WFH'
   return 'Full day leave'

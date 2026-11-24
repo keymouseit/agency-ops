@@ -992,7 +992,7 @@ model LeaveRequest {
   memberId        String
   member          TeamMember @relation("EmployeeLeaves", fields: [memberId], references: [id])
   
-  leaveType       String     // "short_leave" | "half_day" | "full_day" | "birthday_leave" | "work_from_home" | "comp_off_leave"
+  leaveType       String     // "short_leave" | "half_day" | "full_day" | "birthday_leave" | "floating_holiday" | "work_from_home" | "comp_off_leave"
   startDate       DateTime
   endDate         DateTime
   reason          String?

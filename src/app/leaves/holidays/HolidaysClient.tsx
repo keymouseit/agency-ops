@@ -164,7 +164,7 @@ export default function HolidaysClient({
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Holiday calendar</h1>
           <p className="text-sm text-gray-500 mt-1">
             KeyMouse IT holidays. No plan, EOD or reminders on national and public holidays. Floating holidays are
-            optional — apply for leave if you take one.
+            optional — apply leave type &quot;Floating holiday&quot; (no balance deduction) if you take one.
           </p>
         </div>
         <Link href="/leaves" className="btn-secondary text-xs shrink-0 self-start md:self-auto">
@@ -430,7 +430,7 @@ export default function HolidaysClient({
 
       <p className="mt-3 text-xs text-gray-400">
         National and public holidays: no Slack or in-app reminders and no plan expected. Floating holidays: reminders
-        still run; anyone on approved leave is left out.
+        still run for everyone else — apply leave type &quot;Floating holiday&quot; (no balance deduction) to skip alerts.
       </p>
     </div>
   )

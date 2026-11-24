@@ -4,6 +4,19 @@ import { istYearAndMonth } from '@/lib/ist'
 export const SHORT_LEAVE_MONTHLY_CAP = 2
 export const BIRTHDAY_LEAVE_YEARLY_CAP = 1
 
+/** Leave types that never deduct paid leave balance (day cost 0). */
+export const ZERO_BALANCE_LEAVE_TYPES = [
+  'short_leave',
+  'birthday_leave',
+  'work_from_home',
+  'comp_off_leave',
+  'floating_holiday',
+] as const
+
+export function isZeroBalanceLeaveType(leaveType: string): boolean {
+  return (ZERO_BALANCE_LEAVE_TYPES as readonly string[]).includes(leaveType)
+}
+
 /** Count Mon–Fri inclusive between two dates (weekends excluded). */
 export function countWorkingDays(startDate: Date, endDate: Date): number {
   const start = new Date(startDate)
@@ -22,18 +35,13 @@ export function countWorkingDays(startDate: Date, endDate: Date): number {
   return count
 }
 
-/** Working-day cost of a leave request (short/birthday/WFH = 0). */
+/** Working-day cost of a leave request (short/birthday/WFH/floating = 0). */
 export function leaveRequestDayCost(
   leaveType: string,
   startDate: Date,
   endDate: Date
 ): number {
-  if (
-    leaveType === 'short_leave' ||
-    leaveType === 'birthday_leave' ||
-    leaveType === 'work_from_home' ||
-    leaveType === 'comp_off_leave'
-  ) {
+  if (isZeroBalanceLeaveType(leaveType)) {
     return 0
   }
   if (leaveType === 'half_day') return 0.5
@@ -102,12 +110,7 @@ export function leaveUnpaidDays(leave: {
   paidDays?: number | null
   unpaidDays?: number | null
 }): number {
-  if (
-    leave.leaveType === 'short_leave' ||
-    leave.leaveType === 'birthday_leave' ||
-    leave.leaveType === 'work_from_home' ||
-    leave.leaveType === 'comp_off_leave'
-  ) {
+  if (isZeroBalanceLeaveType(leave.leaveType)) {
     return 0
   }
   const paid = Number(leave.paidDays ?? 0)
@@ -129,12 +132,7 @@ export function leavePaidDeduction(leave: {
   paidDays?: number | null
   unpaidDays?: number | null
 }): number {
-  if (
-    leave.leaveType === 'short_leave' ||
-    leave.leaveType === 'birthday_leave' ||
-    leave.leaveType === 'work_from_home' ||
-    leave.leaveType === 'comp_off_leave'
-  ) {
+  if (isZeroBalanceLeaveType(leave.leaveType)) {
     return 0
   }
   const paid = leave.paidDays ?? 0

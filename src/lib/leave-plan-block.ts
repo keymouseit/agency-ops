@@ -11,7 +11,7 @@ import { leaveTypeLabel } from '@/lib/leave-today'
  * that day. Management must revoke the leave first (status → "cancelled"),
  * after which planning works as usual.
  *
- * Blocks: full_day, birthday_leave, comp_off_leave (full day only).
+ * Blocks: full_day, birthday_leave, floating_holiday, comp_off_leave (full day only).
  * Does NOT block: half_day, short_leave, work_from_home, comp-off on a half-day
  * slot, or any leave that is pending / rejected / cancelled.
  */
@@ -19,7 +19,13 @@ import { leaveTypeLabel } from '@/lib/leave-today'
 const HALF_DAY_SLOTS = new Set(['morning', 'afternoon', 'before_lunch', 'after_lunch', 'half_day'])
 
 export function isFullDayBlockingLeave(leave: { leaveType: string; timeSlot: string | null }): boolean {
-  if (leave.leaveType === 'full_day' || leave.leaveType === 'birthday_leave') return true
+  if (
+    leave.leaveType === 'full_day' ||
+    leave.leaveType === 'birthday_leave' ||
+    leave.leaveType === 'floating_holiday'
+  ) {
+    return true
+  }
   if (leave.leaveType === 'comp_off_leave') {
     return !(leave.timeSlot && HALF_DAY_SLOTS.has(leave.timeSlot))
   }

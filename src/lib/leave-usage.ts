@@ -8,6 +8,7 @@ export type LeaveUsageSummary = {
   halfDayDays: number
   shortLeaveCount: number
   birthdayLeaveCount: number
+  floatingHolidayCount: number
   compOffLeaveCount: number
   workFromHomeCount: number
   unpaidCount: number
@@ -49,6 +50,7 @@ export function summarizeLeaveUsage(
   let halfDayCount = 0
   let shortLeaveCount = 0
   let birthdayLeaveCount = 0
+  let floatingHolidayCount = 0
   let compOffLeaveCount = 0
   let workFromHomeCount = 0
   let unpaidCount = 0
@@ -76,6 +78,9 @@ export function summarizeLeaveUsage(
       days = 0
     } else if (l.leaveType === 'birthday_leave') {
       birthdayLeaveCount += 1
+      days = countWorkingDays(new Date(l.startDate), new Date(l.endDate))
+    } else if (l.leaveType === 'floating_holiday') {
+      floatingHolidayCount += 1
       days = countWorkingDays(new Date(l.startDate), new Date(l.endDate))
     } else if (l.leaveType === 'comp_off_leave') {
       compOffLeaveCount += 1
@@ -121,6 +126,7 @@ export function summarizeLeaveUsage(
     halfDayDays,
     shortLeaveCount,
     birthdayLeaveCount,
+    floatingHolidayCount,
     compOffLeaveCount,
     workFromHomeCount,
     unpaidCount,

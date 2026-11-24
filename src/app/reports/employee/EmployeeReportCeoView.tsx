@@ -453,7 +453,10 @@ export default function EmployeeReportCeoView({
 
   // Same breakdown as the Leave section: full-day + birthday + comp-off requests count as "Leaves".
   const leaveTileCount =
-    report.leaves.fullDayCount + report.leaves.birthdayLeaveCount + report.leaves.compOffLeaveCount
+    report.leaves.fullDayCount +
+    report.leaves.birthdayLeaveCount +
+    report.leaves.compOffLeaveCount +
+    (report.leaves.floatingHolidayCount ?? 0)
 
   const lookDot = (text: string) => {
     const t = text.toLowerCase()

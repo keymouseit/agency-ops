@@ -6,6 +6,7 @@ export function leaveTypeBadgeClass(leaveType: string) {
   if (leaveType === 'short_leave') return 'bg-sky-100 text-sky-900 border-sky-200'
   if (leaveType === 'half_day') return 'bg-red-100 text-red-800 border-red-200'
   if (leaveType === 'birthday_leave') return 'bg-pink-50 text-pink-800 border-pink-200'
+  if (leaveType === 'floating_holiday') return 'bg-violet-100 text-violet-900 border-violet-200'
   if (leaveType === 'work_from_home') return 'bg-teal-100 text-teal-800 border-teal-200'
   if (leaveType === 'comp_off_leave') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
   // full_day

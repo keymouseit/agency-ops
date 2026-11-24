@@ -373,7 +373,9 @@ export async function getPendingPaidReservation(
     where: {
       memberId,
       status: 'pending',
-      leaveType: { notIn: ['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave'] },
+      leaveType: {
+        notIn: ['short_leave', 'birthday_leave', 'work_from_home', 'comp_off_leave', 'floating_holiday'],
+      },
       startDate: { gte: yearStart, lte: yearEnd },
       ...(opts?.excludeLeaveId ? { id: { not: opts.excludeLeaveId } } : {}),
     },

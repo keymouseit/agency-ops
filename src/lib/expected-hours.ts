@@ -15,6 +15,7 @@ export const FULL_DAY_LEAVE_TYPES = [
   'full_day',
   'birthday_leave',
   'comp_off_leave',
+  'floating_holiday',
 ] as const
 
 export type LeaveForExpectedHours = {
@@ -79,6 +80,7 @@ export function leaveHoursDeduction(leave: LeaveForExpectedHours): number {
 }
 
 function formatExpectedHint(leaveType: string, _timeSlot: string | null, expectedHours: number): string {
+  if (leaveType === 'floating_holiday') return 'Floating holiday'
   if (expectedHours <= 0) return 'On leave'
   const shortName =
     leaveType === 'short_leave'
