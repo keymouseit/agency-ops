@@ -9,6 +9,7 @@ import { MILESTONE_STATUS_CONFIG } from '@/lib/milestone-qa'
 import MorningPlanHeader from './MorningPlanHeader'
 import HoursMinutesFields from '@/components/HoursMinutesFields'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
+import { softRefresh } from '@/lib/soft-refresh'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -147,6 +148,8 @@ export default function MorningPlanForm({
   const milestonesByProject = useMemo(() => {
     const map = new Map<string, MilestoneOption[]>()
     for (const m of milestones) {
+      // Hide completed (QA approved) milestones from the picker.
+      if (m.status === 'done') continue
       const list = map.get(m.projectId) ?? []
       list.push(m)
       map.set(m.projectId, list)
@@ -237,7 +240,9 @@ export default function MorningPlanForm({
       if (!data.id) throw new Error('No log ID returned from server')
 
       setLoading(false)
+      // Soft-nav alone can keep a stale /daily RSC payload; refresh forces the new tasks.
       router.replace(isEdit ? '/daily' : '/daily?saved=1')
+      softRefresh(router)
     } catch (err) {
       setLoading(false)
       if (err instanceof TypeError) {

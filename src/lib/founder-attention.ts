@@ -261,15 +261,12 @@ export async function getFounderAttention(opts: {
     }),
   ]
 
-  // ── Overdue: open MOM actions + next calls past their date ─────────────────
+  // ── Overdue: open MOM actions past their due date (not next-call date) ──────
   const overdueActions = actions.filter(
     a => a.status !== 'Blocked' && differenceInCalendarDays(today, startOfDay(a.dueDate)) > 0
   )
-  const overdueCalls = pendingFollowUps.filter(
-    m => differenceInCalendarDays(today, startOfDay(m.followUpDate!)) > 0
-  )
-  const overdueRows: (AttentionRow & { days: number })[] = [
-    ...overdueActions.map(a => {
+  const overdueRows: (AttentionRow & { days: number })[] = overdueActions
+    .map(a => {
       const days = differenceInCalendarDays(today, startOfDay(a.dueDate))
       const canNudge = a.ownerId !== opts.viewerId
       return {
@@ -281,20 +278,8 @@ export async function getFounderAttention(opts: {
         href: `/mom/${a.mom.parentId ?? a.mom.id}`,
         action: canNudge ? { kind: 'nudge' as const, actionId: a.id } : { kind: 'open' as const },
       }
-    }),
-    ...overdueCalls.map(m => {
-      const days = differenceInCalendarDays(today, startOfDay(m.followUpDate!))
-      return {
-        id: `call-${m.id}`,
-        days,
-        title: `Next call with ${m.clientName}`,
-        meta: `${momClientLabel(m.clientName, m.companyName)} · ${m.createdBy.name}`,
-        urgency: daysLabel(days),
-        href: `/mom/${m.parentId ?? m.id}`,
-        action: { kind: 'open' as const },
-      }
-    }),
-  ].sort((a, b) => b.days - a.days)
+    })
+    .sort((a, b) => b.days - a.days)
 
   // ── Stuck: Blocked actions + Not completed (last 7d) + dependency blockers ──
   // (Escalated blockers moved to "Waiting on you" so nothing is counted twice.)
@@ -469,7 +454,7 @@ export async function getFounderAttention(opts: {
       key: 'overdue',
       label: 'MOM overdue',
       tone: 'red',
-      hint: 'MOM actions and next calls past their date.',
+      hint: 'MOM action items past their due date.',
       count: overdueRows.length,
       rows: overdueRows.slice(0, ROW_LIMIT).map(({ days: _days, ...row }) => row),
       seeAllHref: '/mom?filter=overdue',

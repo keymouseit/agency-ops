@@ -393,14 +393,6 @@ export default function MomForm({
         }
       }
     }
-    const followUpVal = (e.currentTarget.elements.namedItem('followUpDate') as HTMLInputElement | null)?.value
-    const openish = filledActions.filter(r => r.status === 'Open' || r.status === 'InProgress' || r.status === 'Blocked')
-    if (finalStatus === 'Active' && openish.length > 0 && !followUpVal) {
-      setError('Follow-up date is required when status is Active and open actions exist.')
-      setLoading(false)
-      return
-    }
-
     const fd = new FormData(e.currentTarget)
     attendeeIds.forEach(id => fd.append('attendeeIds', id))
     if (customAttendees.length) {
@@ -732,9 +724,7 @@ export default function MomForm({
       <section className="card p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Follow-up & recording</h2>
         <div>
-          <label className="label">
-            Follow-up date{finalStatus === 'Active' ? ' *' : ''}
-          </label>
+          <label className="label">Follow-up date</label>
           <input
             name="followUpDate"
             type="date"
@@ -742,7 +732,7 @@ export default function MomForm({
             defaultValue={initialMom?.followUpDate ?? ''}
           />
           <p className="text-xs text-gray-400 mt-1">
-            Required when status is Active and any open action items exist.
+            Optional next-call date. Overdue on the MOM list is based on action item due dates.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">

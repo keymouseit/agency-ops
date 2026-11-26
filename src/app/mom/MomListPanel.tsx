@@ -73,23 +73,44 @@ function isActionOverdue(action: { dueDate: Date; status: string }, today: Date)
   return differenceInDays(startOfDay(action.dueDate), today) < 0
 }
 
+function worstActionOverdueDays(
+  actions: Array<{ dueDate: Date; status: string }>,
+  today: Date
+): number {
+  let worst = 0
+  for (const a of actions) {
+    if (!isActionOverdue(a, today)) continue
+    const days = Math.abs(differenceInDays(startOfDay(a.dueDate), today))
+    if (days > worst) worst = days
+  }
+  return worst
+}
+
+function overdueActionsPillText(count: number, worstDays: number) {
+  if (count <= 0) return null
+  if (count === 1) return `Action item ${worstDays}d overdue`
+  return `${count} overdue actions · worst ${worstDays}d`
+}
+
 /**
  * Founder / Manager rows: at most one status pill (red = needs action,
- * amber = due soon); everything else as plain grey text.
+ * amber = due soon). Overdue is action-due based only.
  */
 function leadRowPill(opts: {
   blocked: number
   overdueActions: number
-  followUpOverdueDays: number | null
+  worstOverdueDays: number
   followUpDays: number | null
 }): { text: string; cls: string } | null {
   const red = 'bg-red-50 text-red-700 border-red-200'
   const amber = 'bg-amber-50 text-amber-800 border-amber-200'
   if (opts.blocked > 0) return { text: `${opts.blocked} blocked`, cls: red }
   if (opts.overdueActions > 0) {
-    return { text: `${opts.overdueActions} overdue action${opts.overdueActions === 1 ? '' : 's'}`, cls: red }
+    return {
+      text: overdueActionsPillText(opts.overdueActions, opts.worstOverdueDays)!,
+      cls: red,
+    }
   }
-  if (opts.followUpOverdueDays != null) return { text: `Next call ${opts.followUpOverdueDays}d overdue`, cls: red }
   if (opts.followUpDays === 0) return { text: 'Next call today', cls: amber }
   if (opts.followUpDays === 1) return { text: 'Next call tomorrow', cls: amber }
   return null
@@ -110,13 +131,11 @@ function MomListRow({
 
   const overdueActions = record.actions.filter(a => isActionOverdue(a, today))
   const blockedActions = record.actions.filter(a => a.status === 'Blocked')
+  const worstOverdueDays = worstActionOverdueDays(record.actions, today)
   const nextCallBadge = isFollowUpPending(record)
     ? followUpStatusLabel(record, today)
     : null
-  const followUpOverdue =
-    isFollowUpPending(record) &&
-    differenceInDays(startOfDay(record.followUpDate!), today) < 0
-  const needsAttention = overdueActions.length > 0 || followUpOverdue || blockedActions.length > 0
+  const needsAttention = overdueActions.length > 0 || blockedActions.length > 0
   const showBadges = needsAttention || !!nextCallBadge
 
   if (simple) {
@@ -126,7 +145,7 @@ function MomListRow({
     const pill = leadRowPill({
       blocked: blockedActions.length,
       overdueActions: overdueActions.length,
-      followUpOverdueDays: followUpDays != null && followUpDays < 0 ? Math.abs(followUpDays) : null,
+      worstOverdueDays,
       followUpDays,
     })
     const nextCallNote =
@@ -181,7 +200,7 @@ function MomListRow({
             )}
             {overdueActions.length > 0 && (
               <span className="badge border bg-red-50 text-red-700 border-red-200">
-                {overdueActions.length} overdue action{overdueActions.length === 1 ? '' : 's'}
+                {overdueActionsPillText(overdueActions.length, worstOverdueDays)}
               </span>
             )}
             {nextCallBadge && (
@@ -288,12 +307,6 @@ export default function MomListPanel({
       n += r.actions.filter(a => isActionOpen(a.status) && isActionOverdue(a, today)).length
       // Blocked counts even when not overdue — founder must not miss them
       n += r.actions.filter(a => a.status === 'Blocked' && !isActionOverdue(a, today)).length
-      if (
-        isFollowUpPending(r) &&
-        differenceInDays(startOfDay(r.followUpDate!), today) < 0
-      ) {
-        n += 1
-      }
     }
     return n
   }, [normalized, today])
@@ -331,13 +344,7 @@ export default function MomListPanel({
       return searched.filter(r => r.actions.some(a => a.status === 'Blocked'))
     }
     if (extraFilter === 'overdue') {
-      return searched.filter(r => {
-        const actionOd = r.actions.some(a => isActionOverdue(a, today))
-        const fuOd =
-          isFollowUpPending(r) &&
-          differenceInDays(startOfDay(r.followUpDate!), today) < 0
-        return actionOd || fuOd
-      })
+      return searched.filter(r => r.actions.some(a => isActionOverdue(a, today)))
     }
     return searched
   }, [searched, extraFilter, currentMemberId, today])
@@ -373,13 +380,9 @@ export default function MomListPanel({
         r.actions.some(a => a.ownerId === currentMemberId && isActionOpen(a.status))
       ).length
     : 0
-  const overdueCount = searched.filter(r => {
-    const actionOd = r.actions.some(a => isActionOverdue(a, today))
-    const fuOd =
-      isFollowUpPending(r) &&
-      differenceInDays(startOfDay(r.followUpDate!), today) < 0
-    return actionOd || fuOd
-  }).length
+  const overdueCount = searched.filter(r =>
+    r.actions.some(a => isActionOverdue(a, today))
+  ).length
   const dueSoonCount = searched.filter(r => {
     const actionSoon = r.actions.some(a => {
       if (!isActionOpen(a.status)) return false

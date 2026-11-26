@@ -68,6 +68,8 @@ export default async function MorningPlanPage() {
     ? await prisma.milestone.findMany({
         where: {
           projectId: { in: projects.map(p => p.id) },
+          // Daily plan: don't offer QA-approved / completed milestones.
+          status: { not: 'done' },
         },
         select: { id: true, title: true, projectId: true, status: true },
         orderBy: [{ dueDate: 'asc' }, { title: 'asc' }],

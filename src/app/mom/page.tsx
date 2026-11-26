@@ -71,9 +71,7 @@ export default async function MomPage() {
   }))
 
   const today = startOfDay(new Date())
-  const followUpsOverdue = records.filter(r => isFollowUpPending(r) &&
-    differenceInDays(startOfDay(r.followUpDate!), today) < 0
-  ).length
+  // Overdue attention is action-due based only (follow-up/next-call date is optional).
   const followUpsUpcoming = records.filter(r => {
     if (!isFollowUpPending(r)) return false
     const d = differenceInDays(startOfDay(r.followUpDate!), today)
@@ -131,8 +129,8 @@ export default async function MomPage() {
     return d > 0 && d <= 7
   }).length
 
-  const topOverdue: AttentionItem[] = [
-    ...openOverdue.map(a => {
+  const topOverdue: AttentionItem[] = openOverdue
+    .map(a => {
       const rootId = a.mom.parentId ?? a.mom.id
       const clientLabel = a.mom.companyName
         ? `${a.mom.clientName} · ${a.mom.companyName}`
@@ -146,26 +144,7 @@ export default async function MomPage() {
         daysOverdue: actionOverdueDays(a, today),
         href: `/mom/${rootId}`,
       }
-    }),
-    ...records
-      .filter(r => isFollowUpPending(r) && differenceInDays(startOfDay(r.followUpDate!), today) < 0)
-      .map(r => {
-        const rootId = r.parentId ?? r.id
-        const clientLabel = r.companyName
-          ? `${r.clientName} · ${r.companyName}`
-          : r.clientName
-        const days = Math.abs(differenceInDays(startOfDay(r.followUpDate!), today))
-        return {
-          id: r.id,
-          kind: 'follow_up' as const,
-          title: `Follow-up with ${r.clientName}`,
-          clientLabel,
-          ownerName: r.createdBy.name,
-          daysOverdue: days,
-          href: `/mom/${rootId}`,
-        }
-      }),
-  ]
+    })
     .sort((a, b) => b.daysOverdue - a.daysOverdue)
     .slice(0, 5)
 
@@ -187,7 +166,7 @@ export default async function MomPage() {
     .slice(0, 5)
 
   const attentionStats: AttentionStats = {
-    overdueFollowUps: followUpsOverdue,
+    overdueFollowUps: 0,
     overdueActions: openOverdue.length,
     dueToday: actionsDueToday + followUpsDueToday,
     dueNext7Days: actionsDueNext7 + followUpsDueNext7,
@@ -204,7 +183,7 @@ export default async function MomPage() {
     ? blockedActionsList.filter(a => a.ownerId === currentMemberId).length
     : 0
   const bdAttentionStats: BdAttentionStats = {
-    overdueFollowUps: followUpsOverdue,
+    overdueFollowUps: 0,
     overdueActions: openOverdue.length,
     dueNext7Days: bdDueNext7Days,
     myOpenActions: myActions.length,

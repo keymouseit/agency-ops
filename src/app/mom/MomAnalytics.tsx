@@ -92,7 +92,6 @@ function truncateBlockedReason(reason: string, max = 90) {
 /** Slim Founder/Manager attention board — high-signal only, no analytics clutter. */
 export default function MomAnalytics({ stats }: { stats: AttentionStats }) {
   const {
-    overdueFollowUps,
     overdueActions,
     dueToday,
     dueNext7Days,
@@ -108,18 +107,12 @@ export default function MomAnalytics({ stats }: { stats: AttentionStats }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Needs attention</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Overdue, blocked, and soon-due follow-ups and actions — what needs full focus.
+            Overdue is based on action item due dates. Blocked and soon-due items need focus.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-2 mb-2">
-        <MetricCard
-          label="Overdue follow-ups"
-          count={overdueFollowUps}
-          tone={overdueFollowUps > 0 ? 'red' : 'neutral'}
-          href="/mom?filter=overdue"
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
         <MetricCard
           label="Overdue actions"
           count={overdueActions}
@@ -219,7 +212,6 @@ export default function MomAnalytics({ stats }: { stats: AttentionStats }) {
 
       {topOverdue.length === 0 &&
         topBlocked.length === 0 &&
-        overdueFollowUps === 0 &&
         overdueActions === 0 &&
         blockedActions === 0 &&
         dueToday === 0 && (
@@ -241,7 +233,7 @@ export type BdAttentionStats = {
 
 /** Slim BD attention strip — overdue / due-soon / my actions only. */
 export function BdAttentionStrip({ stats }: { stats: BdAttentionStats }) {
-  const { overdueFollowUps, overdueActions, dueNext7Days, myOpenActions, myBlockedActions = 0 } = stats
+  const { overdueActions, dueNext7Days, myOpenActions, myBlockedActions = 0 } = stats
 
   return (
     <div className="mb-6">
@@ -249,18 +241,12 @@ export function BdAttentionStrip({ stats }: { stats: BdAttentionStats }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Needs attention</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Overdue and soon-due items, plus your open actions.
+            Overdue is based on action item due dates, plus soon-due and your open actions.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard
-          label="Overdue follow-ups"
-          count={overdueFollowUps}
-          tone={overdueFollowUps > 0 ? 'red' : 'neutral'}
-          href="/mom?filter=overdue"
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard
           label="Overdue actions"
           count={overdueActions}
@@ -302,7 +288,7 @@ export function BdAttentionStrip({ stats }: { stats: BdAttentionStats }) {
  * amber = due soon, neutral otherwise.
  */
 export function LeadMomStrip({ stats }: { stats: AttentionStats }) {
-  const overdue = stats.overdueActions + stats.overdueFollowUps
+  const overdue = stats.overdueActions
   const items: { label: string; count: number; tone: 'red' | 'amber' | 'neutral'; href: string }[] = [
     { label: 'Overdue', count: overdue, tone: overdue > 0 ? 'red' : 'neutral', href: '/mom?filter=overdue' },
     {

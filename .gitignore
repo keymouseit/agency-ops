@@ -51,3 +51,5 @@ public/uploads/mom/*
 # IDE
 .idea/
 service-account.json
+.vercel
+.env*

@@ -9,6 +9,7 @@ import { formatIstWeekdayLong } from '@/lib/ist'
 import { parseHoursInput, parseRequiredPositiveHours, formatHoursAmount } from '@/lib/validation'
 import { shortDisplayName } from '@/lib/employee-order'
 import HoursMinutesFields from '@/components/HoursMinutesFields'
+import { softRefresh } from '@/lib/soft-refresh'
 
 type Member = { id: string; name: string; role: string }
 type Project = { id: string; name: string; clientName: string | null }
@@ -96,7 +97,16 @@ export default function MorningPlanClient({
       <p className="text-sm text-gray-400 mb-8">EOD report due by 7pm.</p>
       <div className="flex gap-3 justify-center">
         <Link href={`/daily/eod?logId=${logId}`} className="btn-secondary">Submit EOD now →</Link>
-        <Link href="/daily" className="btn-primary">View team dashboard →</Link>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => {
+            router.push('/daily')
+            softRefresh(router)
+          }}
+        >
+          View team dashboard →
+        </button>
       </div>
     </div>
   )

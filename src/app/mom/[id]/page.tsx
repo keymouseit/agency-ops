@@ -343,7 +343,7 @@ export default async function MomDetailPage({
         {followUpDays != null && (
           <div className={`mt-4 px-3 py-2 rounded-lg text-xs font-medium ${
             followUpDays < 0
-              ? 'bg-red-50 text-red-700 border border-red-100'
+              ? 'bg-slate-50 text-slate-600 border border-slate-100'
               : followUpDays === 0
                 ? 'bg-amber-50 text-amber-800 border border-amber-100'
                 : 'bg-blue-50 text-blue-700 border border-blue-100'

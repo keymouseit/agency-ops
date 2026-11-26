@@ -125,13 +125,9 @@ export function validateMomActionsForStatus(opts: {
     }
   }
 
-  const openActions = actions.filter(a => isMomActionOpenish(a.status))
-  if (finalStatus === 'Active' && openActions.length > 0 && !followUpDate) {
-    throw Object.assign(
-      new Error('Follow-up date is required when status is Active and open action items exist.'),
-      { status: 400 }
-    )
-  }
+  // Follow-up / next-call date is optional. Overdue attention is driven by
+  // action-item due dates, not followUpDate.
+  void followUpDate
 }
 
 export async function assertValidActionOwners(ownerIds: string[]) {

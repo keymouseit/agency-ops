@@ -74,8 +74,12 @@ export function followUpStatusLabel(r: MomFollowUpFields, today = startOfDay(new
     return { text: 'Completed', cls: 'bg-green-50 text-green-700 border-green-100' }
   }
   const days = differenceInDays(startOfDay(r.followUpDate), today)
+  // Past next-call dates are informational only — list "overdue" is action-due based.
   if (days < 0) {
-    return { text: `${Math.abs(days)}d overdue`, cls: 'bg-red-50 text-red-700 border-red-100' }
+    return {
+      text: `Next call was ${Math.abs(days)}d ago`,
+      cls: 'bg-slate-50 text-slate-600 border-slate-100',
+    }
   }
   if (days === 0) {
     return { text: 'Next call today', cls: 'bg-amber-50 text-amber-800 border-amber-100' }
