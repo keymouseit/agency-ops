@@ -1,6 +1,90 @@
 import { prisma } from '@/lib/prisma'
 import { BUG_SEVERITIES, BUG_STATUSES } from '@/lib/milestone-qa'
 
+export function formatTestCaseDisplayId(caseNumber: number | null | undefined) {
+  if (!caseNumber || caseNumber < 1) return null
+  return `TC-${String(caseNumber).padStart(3, '0')}`
+}
+
+export function formatBugDisplayId(bugNumber: number | null | undefined) {
+  if (!bugNumber || bugNumber < 1) return null
+  return `BUG-${String(bugNumber).padStart(3, '0')}`
+}
+
+/** Atomically allocate the next project-scoped test case display number. */
+export async function allocateTestCaseNumber(projectId: string) {
+  const project = await prisma.project.update({
+    where: { id: projectId },
+    data: { nextTestCaseNumber: { increment: 1 } },
+    select: { nextTestCaseNumber: true },
+  })
+  return project.nextTestCaseNumber - 1
+}
+
+/** Atomically allocate the next project-scoped bug display number. */
+export async function allocateBugNumber(projectId: string) {
+  const project = await prisma.project.update({
+    where: { id: projectId },
+    data: { nextBugNumber: { increment: 1 } },
+    select: { nextBugNumber: true },
+  })
+  return project.nextBugNumber - 1
+}
+
+/**
+ * Backfill display numbers for legacy rows (caseNumber/bugNumber = 0).
+ * Safe to call repeatedly; only touches unnumbered rows.
+ */
+export async function backfillQaDisplayNumbers(projectId: string) {
+  const [cases, bugs, project] = await Promise.all([
+    prisma.milestoneTestCase.findMany({
+      where: { milestone: { projectId }, caseNumber: 0 },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }),
+    prisma.milestoneBug.findMany({
+      where: { milestone: { projectId }, bugNumber: 0 },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }),
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { nextTestCaseNumber: true, nextBugNumber: true },
+    }),
+  ])
+
+  if (!project) return
+  if (cases.length === 0 && bugs.length === 0) return
+
+  let nextCase = project.nextTestCaseNumber
+  let nextBug = project.nextBugNumber
+
+  for (const tc of cases) {
+    await prisma.milestoneTestCase.update({
+      where: { id: tc.id },
+      data: { caseNumber: nextCase },
+    })
+    nextCase += 1
+  }
+  for (const bug of bugs) {
+    await prisma.milestoneBug.update({
+      where: { id: bug.id },
+      data: { bugNumber: nextBug },
+    })
+    nextBug += 1
+  }
+
+  if (nextCase !== project.nextTestCaseNumber || nextBug !== project.nextBugNumber) {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        nextTestCaseNumber: nextCase,
+        nextBugNumber: nextBug,
+      },
+    })
+  }
+}
+
 export async function upsertBugForFailedTestCase(params: {
   milestoneId: string
   testCaseId: string
@@ -8,12 +92,14 @@ export async function upsertBugForFailedTestCase(params: {
   notes: string | null
   status: string
   reportedById: string
+  projectId: string
 }) {
-  const { milestoneId, testCaseId, title, notes, status, reportedById } = params
+  const { milestoneId, testCaseId, title, notes, status, reportedById, projectId } = params
   const isFailure = status === 'fail' || status === 'blocked'
 
-  const existing = await prisma.milestoneBug.findUnique({
+  const existing = await prisma.milestoneBug.findFirst({
     where: { testCaseId },
+    orderBy: { createdAt: 'asc' },
   })
 
   if (isFailure) {
@@ -21,8 +107,8 @@ export async function upsertBugForFailedTestCase(params: {
       return prisma.milestoneBug.update({
         where: { id: existing.id },
         data: {
-          title,
-          description: notes,
+          title: existing.title || title,
+          description: notes ?? existing.description,
           status: 'open',
           resolvedAt: null,
           resolutionNotes: null,
@@ -31,12 +117,15 @@ export async function upsertBugForFailedTestCase(params: {
       })
     }
 
+    const bugNumber = await allocateBugNumber(projectId)
     return prisma.milestoneBug.create({
       data: {
         milestoneId,
         testCaseId,
+        bugNumber,
         title,
         description: notes,
+        stepsToReproduce: notes,
         severity: status === 'blocked' ? 'high' : 'medium',
         status: 'open',
         reportedById,
@@ -65,10 +154,45 @@ export async function upsertBugForFailedTestCase(params: {
     : null
 }
 
+/** Parse stored attachment value (single URL or JSON string array) into links. */
+export function parseAttachmentUrls(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return []
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((u): u is string => typeof u === 'string' && u.trim() !== '')
+          .map(u => u.trim())
+      }
+    } catch {
+      // fall through to single-URL handling
+    }
+  }
+  return [trimmed]
+}
+
+/** Normalize + pack multiple links into the attachmentUrl column (JSON when >1). */
+export function packAttachmentUrls(urls: Array<string | null | undefined>): string | null {
+  const cleaned = urls
+    .map(u => (typeof u === 'string' ? u.trim() : ''))
+    .filter(Boolean)
+    .map(u => (/^https?:\/\//i.test(u) ? u : `https://${u}`))
+  // de-dupe while preserving order
+  const unique = [...new Set(cleaned)]
+  if (unique.length === 0) return null
+  if (unique.length === 1) return unique[0]
+  return JSON.stringify(unique)
+}
+
 export function serializeMilestoneBug(bug: {
   id: string
+  bugNumber?: number
   title: string
   description: string | null
+  stepsToReproduce?: string | null
+  attachmentUrl?: string | null
   severity: string
   status: string
   testCaseId: string | null
@@ -77,10 +201,16 @@ export function serializeMilestoneBug(bug: {
   resolutionNotes: string | null
   reportedBy: { name: string }
 }) {
+  const attachmentUrls = parseAttachmentUrls(bug.attachmentUrl)
   return {
     id: bug.id,
+    bugNumber: bug.bugNumber ?? 0,
+    displayId: formatBugDisplayId(bug.bugNumber),
     title: bug.title,
     description: bug.description,
+    stepsToReproduce: bug.stepsToReproduce ?? null,
+    attachmentUrl: attachmentUrls[0] ?? null,
+    attachmentUrls,
     severity: bug.severity,
     status: bug.status,
     testCaseId: bug.testCaseId,
@@ -91,23 +221,32 @@ export function serializeMilestoneBug(bug: {
   }
 }
 
-
-
-/** Keep the auto-linked test case aligned with bug status so Dev/QA never see Fail + Fixed together. */
+/**
+ * Keep linked test case status aligned with bug workflow.
+ * With multiple bugs per case: stay failed while any linked bug is open.
+ */
 export async function syncLinkedTestCaseWithBugStatus(params: {
   testCaseId: string | null | undefined
   bugStatus: string
   resolutionNotes?: string | null
+  excludeBugId?: string
 }) {
   if (!params.testCaseId) return null
+
+  const openOthers = await prisma.milestoneBug.count({
+    where: {
+      testCaseId: params.testCaseId,
+      status: 'open',
+      ...(params.excludeBugId ? { id: { not: params.excludeBugId } } : {}),
+    },
+  })
 
   let status: string | null = null
   let notes: string | null | undefined
 
-  if (params.bugStatus === 'open') {
+  if (params.bugStatus === 'open' || openOthers > 0) {
     status = 'fail'
   } else if (params.bugStatus === 'fixed') {
-    // Dev sent fix back — clear Fail so the case waits for QA re-test
     status = 'pending'
     const fixNote = params.resolutionNotes?.trim()
     notes = fixNote

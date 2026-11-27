@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma'
-import { serializeMilestoneBug } from '@/lib/milestone-bugs'
+import {
+  backfillQaDisplayNumbers,
+  formatTestCaseDisplayId,
+  serializeMilestoneBug,
+} from '@/lib/milestone-bugs'
 
 /** Stable creation order — do not sort by status/dueDate (updates reshuffle NULL due dates). */
 export const milestoneListOrderBy = { id: 'asc' as const }
@@ -119,6 +123,8 @@ export function attachTestCasesToMilestones<
 }
 
 export async function fetchProjectForDetailPage(projectId: string) {
+  await backfillQaDisplayNumbers(projectId)
+
   const [project, testCases, bugs, cycleCases] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
@@ -139,6 +145,8 @@ export async function fetchProjectForDetailPage(projectId: string) {
 }
 
 export async function fetchProjectForQAPage(projectId: string) {
+  await backfillQaDisplayNumbers(projectId)
+
   const [project, testCases, bugs, cycleCases] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
@@ -161,6 +169,8 @@ export async function fetchProjectForQAPage(projectId: string) {
 export function serializeMilestoneTestCase(tc: MilestoneTestCaseRow) {
   return {
     id: tc.id,
+    caseNumber: tc.caseNumber ?? 0,
+    displayId: formatTestCaseDisplayId(tc.caseNumber),
     title: tc.title,
     status: tc.status,
     notes: tc.notes,

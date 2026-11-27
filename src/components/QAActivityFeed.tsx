@@ -10,11 +10,8 @@ import {
 import TestCyclesList from '@/components/TestCyclesList'
 import type { TestCycleDetail } from '@/components/TestCycleDetailModal'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import MilestoneBugWorkflow from '@/components/MilestoneBugWorkflow'
 import MilestoneRetestAction from '@/components/MilestoneRetestAction'
 import {
-  BUG_SEVERITY_CONFIG,
-  BUG_STATUS_CONFIG,
   MILESTONE_STATUS_CONFIG,
   milestoneHasTestingVisibility,
   openBugCount,
@@ -59,6 +56,8 @@ type Milestone = {
   qaStartedAt?: string | null
   testCases?: Array<{
     id: string
+    caseNumber?: number
+    displayId?: string | null
     title: string
     status: string
     notes: string | null
@@ -67,8 +66,13 @@ type Milestone = {
   }>
   bugs?: Array<{
     id: string
+    bugNumber?: number
+    displayId?: string | null
     title: string
     description: string | null
+    stepsToReproduce?: string | null
+    attachmentUrl?: string | null
+    attachmentUrls?: string[]
     severity: string
     status: string
     testCaseId: string | null
@@ -236,50 +240,6 @@ function MilestoneReviewsAccordion({
                   <p className="mb-3 text-sm text-gray-500 whitespace-pre-wrap">{m.notes}</p>
                 ) : null}
 
-                {bugs.length > 0 && (
-                  <div className="mb-3">
-                    <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                      Bugs ({bugs.length})
-                    </h4>
-                    <ul className="space-y-1.5">
-                      {bugs.map(bug => {
-                        const statusBug = BUG_STATUS_CONFIG[bug.status] ?? BUG_STATUS_CONFIG.open
-                        const severityCfg = BUG_SEVERITY_CONFIG[bug.severity] ?? BUG_SEVERITY_CONFIG.medium
-                        return (
-                          <li
-                            key={bug.id}
-                            className={`rounded-lg px-2.5 py-2 text-xs border ${
-                              bug.status === 'open'
-                                ? 'bg-red-50 border-red-100'
-                                : bug.status === 'fixed'
-                                  ? 'bg-emerald-50 border-emerald-100'
-                                  : 'bg-gray-50 border-gray-100'
-                            }`}
-                          >
-                            <div className="flex items-start gap-2 flex-wrap">
-                              <span className={`badge shrink-0 ${severityCfg.cls}`}>{severityCfg.label}</span>
-                              <span className={`badge shrink-0 ${statusBug.cls}`}>{statusBug.label}</span>
-                              <span className="flex-1 min-w-0 font-medium text-gray-800">{bug.title}</span>
-                            </div>
-                            {bug.description && (
-                              <p className="text-gray-600 mt-1 whitespace-pre-wrap">{bug.description}</p>
-                            )}
-                            <p className="text-gray-400 mt-1">
-                              {bug.reportedBy.name} · {fmtDate(bug.reportedAt)}
-                            </p>
-                            <MilestoneBugWorkflow
-                              milestoneId={m.id}
-                              bug={bug}
-                              canFix={allowDevFix}
-                              canReview={allowQAReview}
-                            />
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                )}
-
                 <MilestoneRetestAction
                   milestoneId={m.id}
                   milestoneStatus={m.status}
@@ -294,13 +254,16 @@ function MilestoneReviewsAccordion({
                   <p className="text-xs text-gray-400 py-1">No bugs or test cases logged yet.</p>
                 )}
 
-                {showCases && testCases.length > 0 && (
+                {showCases && (
                   <MilestoneTestProgress
                     milestoneTitle={m.title}
                     milestoneStatus={m.status}
                     qaStartedAt={m.qaStartedAt}
                     testCases={testCases}
-                    bugs={[]}
+                    bugs={bugs}
+                    milestoneId={m.id}
+                    canFix={allowDevFix}
+                    canReview={allowQAReview}
                     compact
                   />
                 )}
@@ -331,6 +294,7 @@ export default function QAActivityFeed({
   const inQaCount = milestones.filter(m => m.status === 'ready_for_qa').length
   const testingCount = milestones.filter(m => m.status === 'testing').length
   const approvedCount = milestones.filter(m => m.status === 'done').length
+  const testCaseCount = milestones.reduce((n, m) => n + (m.testCases?.length ?? 0), 0)
   // Include QA-stage milestones, plus any milestone that still has bugs (e.g. back in progress for fixes)
   const qaMilestones = milestones.filter(m => {
     const hasBugs = (m.bugs?.length ?? 0) > 0
@@ -374,9 +338,10 @@ export default function QAActivityFeed({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryChip label="In QA" value={inQaCount} tone="blue" />
         <SummaryChip label="Testing" value={testingCount} tone="teal" />
+        <SummaryChip label="Test cases" value={testCaseCount} tone="neutral" />
         <SummaryChip label="Approved" value={approvedCount} tone="green" />
         <SummaryChip label="Cycles" value={testCycles.length} tone="neutral" />
         <SummaryChip

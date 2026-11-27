@@ -3,6 +3,7 @@ import { auth, checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
 import { logProjectQAActivity } from '@/lib/qa-audit'
+import { allocateTestCaseNumber, formatTestCaseDisplayId } from '@/lib/milestone-bugs'
 
 async function getMilestoneWithAccess(milestoneId: string, writeAccess = false) {
   const session = await auth()
@@ -42,6 +43,7 @@ async function getMilestoneWithAccess(milestoneId: string, writeAccess = false) 
 
 function serializeTestCases(testCases: Array<{
   id: string
+  caseNumber?: number
   title: string
   status: string
   notes: string | null
@@ -50,6 +52,8 @@ function serializeTestCases(testCases: Array<{
 }>) {
   return testCases.map(tc => ({
     id: tc.id,
+    caseNumber: tc.caseNumber ?? 0,
+    displayId: formatTestCaseDisplayId(tc.caseNumber),
     title: tc.title,
     status: tc.status,
     notes: tc.notes,
@@ -92,6 +96,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const sortOrder = milestone!.testCases.length
+  const caseNumber = await allocateTestCaseNumber(milestone!.project.id)
 
   const [testCase] = await prisma.$transaction([
     prisma.milestoneTestCase.create({
@@ -99,6 +104,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         milestoneId: params.id,
         title,
         sortOrder,
+        caseNumber,
       },
       include: { testedBy: { select: { name: true } } },
     }),

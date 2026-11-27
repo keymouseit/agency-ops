@@ -4,11 +4,12 @@ import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import MilestoneBugFixActions from '@/components/MilestoneBugFixActions'
 import { MILESTONE_STATUS_CONFIG, calculateMilestoneProgress, openBugCount, SerializedBug } from '@/lib/milestone-qa'
 
 type TestCase = {
   id: string
+  caseNumber?: number
+  displayId?: string | null
   title: string
   status: string
   notes: string | null
@@ -245,14 +246,15 @@ export default function DeveloperMilestones({
 
               {isExpanded && (
                 <div className="px-3 pb-3">
-                <MilestoneTestProgress
-                  milestoneTitle={m.title}
-                  milestoneStatus={m.status}
-                  qaStartedAt={m.qaStartedAt}
-                  testCases={testCases}
-                  bugs={bugs}
-                />
-                <MilestoneBugFixActions milestoneId={m.id} bugs={bugs} />
+                  <MilestoneTestProgress
+                    milestoneTitle={m.title}
+                    milestoneStatus={m.status}
+                    qaStartedAt={m.qaStartedAt}
+                    testCases={testCases}
+                    bugs={bugs}
+                    milestoneId={m.id}
+                    canFix
+                  />
                 </div>
               )}
             </div>

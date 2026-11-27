@@ -47,6 +47,8 @@ scripts/fix-daily-tasks.ts
 # Uploads
 public/uploads/mom/*
 !public/uploads/mom/.gitkeep
+public/uploads/qa-bugs/*
+!public/uploads/qa-bugs/.gitkeep
 
 # IDE
 .idea/

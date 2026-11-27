@@ -74,6 +74,8 @@ export const BUG_SEVERITY_CONFIG: Record<string, { label: string; cls: string }>
 
 export type SerializedTestCase = {
   id: string
+  caseNumber?: number
+  displayId?: string | null
   title: string
   status: string
   notes: string | null
@@ -83,8 +85,13 @@ export type SerializedTestCase = {
 
 export type SerializedBug = {
   id: string
+  bugNumber?: number
+  displayId?: string | null
   title: string
   description: string | null
+  stepsToReproduce?: string | null
+  attachmentUrl?: string | null
+  attachmentUrls?: string[]
   severity: string
   status: string
   testCaseId: string | null

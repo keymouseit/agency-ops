@@ -4,13 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { fmtDate } from '@/lib/utils'
 import {
+  SerializedBug,
   TEST_CASE_STATUSES,
   TEST_CASE_STATUS_CONFIG,
   testCaseSummary,
 } from '@/lib/milestone-qa'
+import MilestoneBugEditor from './MilestoneBugEditor'
 
 type TestCase = {
   id: string
+  caseNumber?: number
+  displayId?: string | null
   title: string
   status: string
   notes: string | null
@@ -22,20 +26,22 @@ export default function MilestoneTestCaseEditor({
   milestoneId,
   milestoneStatus,
   testCases: initialCases,
+  bugs: initialBugs = [],
 }: {
   milestoneId: string
   milestoneStatus: string
   testCases: TestCase[]
+  bugs?: SerializedBug[]
 }) {
   const router = useRouter()
   const [testCases, setTestCases] = useState(initialCases)
+  const [bugs, setBugs] = useState(initialBugs)
   const [loading, setLoading] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
-  // Editable while actively testing, after approval, or after send-back for fixes
   const canEdit = ['testing', 'done', 'in_progress'].includes(milestoneStatus)
   const showStartTesting = milestoneStatus === 'ready_for_qa'
   const canView =
@@ -127,7 +133,7 @@ export default function MilestoneTestCaseEditor({
   }
 
   async function deleteCase(caseId: string) {
-    if (!confirm('Delete this test case?')) return
+    if (!confirm('Delete this test case and its linked bugs?')) return
     setLoading(caseId)
     try {
       const res = await fetch(`/api/projects/milestones/${milestoneId}/test-cases/${caseId}`, {
@@ -135,6 +141,7 @@ export default function MilestoneTestCaseEditor({
       })
       if (!res.ok) throw new Error((await res.json()).error || 'Failed to delete')
       setTestCases(prev => prev.filter(tc => tc.id !== caseId))
+      setBugs(prev => prev.filter(b => b.testCaseId !== caseId))
       router.refresh()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete')
@@ -185,12 +192,35 @@ export default function MilestoneTestCaseEditor({
         </div>
       )}
 
-      <div className="space-y-2 mb-3">
+      <div className="space-y-3 mb-3">
         {testCases.map(tc => {
           const cfg = TEST_CASE_STATUS_CONFIG[tc.status] ?? TEST_CASE_STATUS_CONFIG.pending
+          const caseBugs = bugs.filter(b => b.testCaseId === tc.id)
           return (
-            <div key={tc.id} className="rounded-lg border border-gray-100 bg-white p-2.5">
+            <div
+              key={tc.id}
+              className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm ring-1 ring-black/[0.02]"
+            >
               <div className="flex items-start gap-2">
+                {canEdit && editingId !== tc.id && (
+                  <button
+                    type="button"
+                    onClick={() => deleteCase(tc.id)}
+                    disabled={loading === tc.id}
+                    aria-label="Delete test case"
+                    title="Delete test case"
+                    className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 disabled:opacity-50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                )}
                 <div className="flex-1 min-w-0">
                   {editingId === tc.id ? (
                     <form
@@ -227,8 +257,13 @@ export default function MilestoneTestCaseEditor({
                       </button>
                     </form>
                   ) : (
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">{tc.title}</div>
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      {tc.displayId && (
+                        <span className="font-mono text-[10px] font-semibold text-teal-800 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded-md shrink-0">
+                          {tc.displayId}
+                        </span>
+                      )}
+                      <div className="text-sm font-semibold text-gray-900 truncate">{tc.title}</div>
                       {tc.status === 'fail' && (
                         <span className="badge text-xs bg-red-100 text-red-800 shrink-0">Failed</span>
                       )}
@@ -239,7 +274,7 @@ export default function MilestoneTestCaseEditor({
                           disabled={loading === tc.id}
                           aria-label="Edit test case"
                           title="Edit test case"
-                          className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                             <path
@@ -276,7 +311,7 @@ export default function MilestoneTestCaseEditor({
                     <select
                       value={tc.status}
                       onChange={e => updateCase(tc.id, { status: e.target.value })}
-                      className="text-xs rounded border border-gray-200 bg-white text-gray-800 px-1.5 py-1"
+                      className="text-xs rounded-md border border-gray-200 bg-white text-gray-800 px-2 py-1.5 shadow-sm"
                     >
                       {TEST_CASE_STATUSES.map(s => (
                         <option key={s} value={s}>{TEST_CASE_STATUS_CONFIG[s].label}</option>
@@ -288,7 +323,7 @@ export default function MilestoneTestCaseEditor({
               </div>
               {canEdit ? (
                 <textarea
-                  className="input text-xs mt-2 w-full"
+                  className="input text-sm mt-2.5 w-full !min-h-0 h-16 resize-y"
                   rows={2}
                   placeholder="Notes (failure reason, steps, etc.)"
                   defaultValue={tc.notes ?? ''}
@@ -298,18 +333,17 @@ export default function MilestoneTestCaseEditor({
                   }}
                 />
               ) : tc.notes ? (
-                <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{tc.notes}</p>
+                <p className="text-xs text-gray-500 mt-1.5 whitespace-pre-wrap">{tc.notes}</p>
               ) : null}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => deleteCase(tc.id)}
-                  disabled={loading === tc.id}
-                  className="text-xs text-red-500 hover:text-red-700 mt-1"
-                >
-                  Delete
-                </button>
-              )}
+
+              <MilestoneBugEditor
+                key={`${tc.id}-${caseBugs.map(b => b.id).join(',')}`}
+                milestoneId={milestoneId}
+                testCaseId={tc.id}
+                testCaseDisplayId={tc.displayId}
+                milestoneStatus={milestoneStatus}
+                bugs={caseBugs}
+              />
             </div>
           )
         })}

@@ -65,6 +65,14 @@ model TeamMember {
   celebrationEmailLogs   CelebrationEmailLog[]
   documents              EmployeeDocument[]  @relation("MemberDocuments")
   documentsUploaded      EmployeeDocument[]  @relation("DocumentsUploaded")
+
+  // ScreenshotMonitor / HR attendance mapping (optional until filled in)
+  ssmEmploymentId        Int?
+  attendanceEmpNo        Int?
+  attendanceFixedStart   String?  // "HH:MM" IST — fixed C-In override (e.g. Sushant)
+  attendanceFixedEnd     String?  // "HH:MM" IST — fixed C-Out override
+  attendanceAdjustments  AttendanceAdjustment[] @relation("AttendanceAdjustmentMember")
+  attendanceAdjustmentsUpdated AttendanceAdjustment[] @relation("AttendanceAdjustmentUpdatedBy")
 }
 
 // ─── BD PIPELINE ─────────────────────────────────────────────
@@ -261,6 +269,10 @@ model Project {
   qaAreasChanged      String?   // files/components modified
   qaHandoffAt         DateTime? // when project was moved to QA
 
+  // Sequential display IDs for QA test cases (TC-001) and bugs (BUG-001)
+  nextTestCaseNumber Int @default(1)
+  nextBugNumber      Int @default(1)
+
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -311,6 +323,7 @@ model MilestoneTestCase {
   id          String     @id @default(cuid())
   milestoneId String
   milestone   Milestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  caseNumber  Int        @default(0) // project-scoped display id → TC-001
   title       String
   status      String     @default("pending") // pending | pass | fail | blocked | skipped
   notes       String?
@@ -320,25 +333,30 @@ model MilestoneTestCase {
   sortOrder   Int        @default(0)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-  bug         MilestoneBug?
+  bugs        MilestoneBug[]
 }
 
 model MilestoneBug {
-  id              String             @id @default(cuid())
-  milestoneId     String
-  milestone       Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-  testCaseId      String?            @unique
-  testCase        MilestoneTestCase? @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
-  title           String
-  description     String?
-  severity        String             @default("medium") // critical | high | medium | low
-  status          String             @default("open") // open | fixed | closed | wont_fix
-  reportedById    String
-  reportedBy      TeamMember         @relation("BugReportedBy", fields: [reportedById], references: [id])
-  resolvedAt      DateTime?
-  resolutionNotes String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id                String             @id @default(cuid())
+  milestoneId       String
+  milestone         Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  testCaseId        String?
+  testCase          MilestoneTestCase? @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
+  bugNumber         Int                @default(0) // project-scoped display id → BUG-001
+  title             String
+  description       String?
+  stepsToReproduce  String?
+  attachmentUrl     String?
+  severity          String             @default("medium") // critical | high | medium | low
+  status            String             @default("open") // open | fixed | closed | wont_fix
+  reportedById      String
+  reportedBy        TeamMember         @relation("BugReportedBy", fields: [reportedById], references: [id])
+  resolvedAt        DateTime?
+  resolutionNotes   String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([testCaseId])
 }
 
 model ScopeChange {
@@ -1013,6 +1031,28 @@ model LeaveRequest {
   @@index([status, appliedAt])
   @@index([memberId, status])
   @@index([startDate, endDate])
+}
+
+// ─── HR ATTENDANCE (ScreenshotMonitor) ───────────────────────
+
+model AttendanceAdjustment {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      TeamMember @relation("AttendanceAdjustmentMember", fields: [memberId], references: [id])
+  /// Business-day midnight IST (same convention as DailyLog.date / LeaveRequest dates)
+  date        DateTime
+  grossHours  String?    // "H:MM" manual override of gross shift hours
+  leaveHours  String?    // "H:MM" manual override / supplement
+  ebh         String?    // Extra billable hours "H:MM" (adds to shortage balance)
+  note        String?
+  updatedById String
+  updatedBy   TeamMember @relation("AttendanceAdjustmentUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([memberId, date])
+  @@index([date])
+  @@index([memberId, date])
 }
 
 // ─── COMPANY BRANDING ────────────────────────────────────────

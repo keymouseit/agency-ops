@@ -3,31 +3,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestCaseEditor from './MilestoneTestCaseEditor'
-import MilestoneBugEditor from './MilestoneBugEditor'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import { allTestCasesPassed, MILESTONE_STATUS_CONFIG, openBugCount } from '@/lib/milestone-qa'
+import {
+  allTestCasesPassed,
+  MILESTONE_STATUS_CONFIG,
+  openBugCount,
+  SerializedBug,
+  SerializedTestCase,
+} from '@/lib/milestone-qa'
 
-type TestCase = {
-  id: string
-  title: string
-  status: string
-  notes: string | null
-  testedAt: string | null
-  testedBy: { name: string } | null
-}
-
-type Bug = {
-  id: string
-  title: string
-  description: string | null
-  severity: string
-  status: string
-  testCaseId: string | null
-  reportedAt: string
-  reportedBy: { name: string }
-  resolvedAt: string | null
-  resolutionNotes: string | null
-}
+type TestCase = SerializedTestCase
+type Bug = SerializedBug
 
 type Milestone = {
   id: string
@@ -267,19 +253,13 @@ export default function MilestoneApproval({
                       bugs={m.bugs}
                     />
                   ) : (
-                    <>
-                      <MilestoneTestCaseEditor
-                        key={`${m.id}-${m.status}`}
-                        milestoneId={m.id}
-                        milestoneStatus={m.status}
-                        testCases={m.testCases}
-                      />
-                      <MilestoneBugEditor
-                        milestoneId={m.id}
-                        milestoneStatus={m.status}
-                        bugs={m.bugs}
-                      />
-                    </>
+                    <MilestoneTestCaseEditor
+                      key={`${m.id}-${m.status}`}
+                      milestoneId={m.id}
+                      milestoneStatus={m.status}
+                      testCases={m.testCases}
+                      bugs={m.bugs}
+                    />
                   )}
                 </div>
               )}
@@ -290,8 +270,8 @@ export default function MilestoneApproval({
 
       <p className="text-xs text-gray-400 mt-3">
         {readOnly
-          ? 'Expand a milestone to review test cases and bugs logged by QA.'
-          : 'Start testing on ready milestones, mark all test cases as Pass, then Approve the milestone. Failed test cases auto-create bugs for the developer.'}
+          ? 'Expand a milestone to review test cases and nested bugs logged by QA.'
+          : 'Start testing on ready milestones, add test cases, log bugs under each case, mark all as Pass, then Approve. Developers fix nested bugs and send them back to QA.'}
       </p>
     </div>
   )

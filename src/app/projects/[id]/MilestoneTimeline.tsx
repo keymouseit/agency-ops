@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { softRefresh } from '@/lib/soft-refresh'
 import { fmtDate } from '@/lib/utils'
 import MilestoneTestProgress from '@/components/MilestoneTestProgress'
-import MilestoneBugFixActions from '@/components/MilestoneBugFixActions'
 import {
   MILESTONE_STATUS_CONFIG,
   calculateMilestoneProgress,
@@ -15,6 +14,8 @@ import {
 
 type TestCase = {
   id: string
+  caseNumber?: number
+  displayId?: string | null
   title: string
   status: string
   notes: string | null
@@ -413,8 +414,9 @@ export default function MilestoneTimeline({
                       qaStartedAt={m.qaStartedAt}
                       testCases={testCases}
                       bugs={bugs}
+                      milestoneId={m.id}
+                      canFix
                     />
-                    <MilestoneBugFixActions milestoneId={m.id} bugs={bugs} />
                   </div>
                 )}
               </div>

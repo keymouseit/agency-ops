@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server'
 import { auth, checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
-import { isValidBugSeverity, isValidBugStatus, serializeMilestoneBug, revertQaApprovedMilestoneToInProgress, syncLinkedTestCaseWithBugStatus } from '@/lib/milestone-bugs'
+import {
+  isValidBugSeverity,
+  isValidBugStatus,
+  packAttachmentUrls,
+  serializeMilestoneBug,
+  revertQaApprovedMilestoneToInProgress,
+  syncLinkedTestCaseWithBugStatus,
+} from '@/lib/milestone-bugs'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 
 export async function PATCH(req: Request, { params }: { params: { id: string; bugId: string } }) {
@@ -19,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
     const deny = await checkRole(['Dev', 'Both', 'Founder'])
     if (deny) return deny
   } else {
-    const deny = await checkRole(['QA', 'Founder'])
+    const deny = await checkRole(['QA', 'Founder', 'Manager', 'Both', 'Dev'])
     if (deny) return deny
   }
 
@@ -45,11 +52,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
     return NextResponse.json({ error: 'Bug not found' }, { status: 404 })
   }
 
+  const assignedIds = new Set([
+    existing.milestone.project.developerId,
+    ...existing.milestone.project.assignees.map(a => a.memberId),
+  ])
+
   if (isDevFix) {
-    const assignedIds = new Set([
-      existing.milestone.project.developerId,
-      ...existing.milestone.project.assignees.map(a => a.memberId),
-    ])
     if (!userId || (!assignedIds.has(userId) && userRole !== 'Founder')) {
       return NextResponse.json(
         { error: 'Only assigned developers can mark bugs as fixed' },
@@ -64,11 +72,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
     if (!data.resolutionNotes?.trim()) {
       return NextResponse.json({ error: 'Please describe what you fixed' }, { status: 400 })
     }
+  } else if (userRole === 'Dev' && !assignedIds.has(userId ?? '')) {
+    return NextResponse.json(
+      { error: 'Only assigned developers can edit bugs on this project' },
+      { status: 403 },
+    )
   }
 
   const update: {
     title?: string
     description?: string | null
+    stepsToReproduce?: string | null
+    attachmentUrl?: string | null
     severity?: string
     status?: string
     resolvedAt?: Date | null
@@ -83,6 +98,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
 
   if (data.description !== undefined) {
     update.description = typeof data.description === 'string' ? data.description.trim() || null : null
+  }
+
+  if (data.stepsToReproduce !== undefined) {
+    update.stepsToReproduce =
+      typeof data.stepsToReproduce === 'string' ? data.stepsToReproduce.trim() || null : null
+  }
+
+  if (data.attachmentUrls !== undefined) {
+    update.attachmentUrl = Array.isArray(data.attachmentUrls)
+      ? packAttachmentUrls(data.attachmentUrls as Array<string | null | undefined>)
+      : null
+  } else if (data.attachmentUrl !== undefined) {
+    update.attachmentUrl =
+      typeof data.attachmentUrl === 'string' ? data.attachmentUrl.trim() || null : null
   }
 
   if (typeof data.severity === 'string') {
@@ -123,6 +152,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
       testCaseId: existing.testCaseId,
       bugStatus: data.status,
       resolutionNotes: bug.resolutionNotes,
+      excludeBugId: bug.id,
     })
   }
 
@@ -179,7 +209,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; bu
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string; bugId: string } }) {
-  const deny = await checkRole(['QA', 'Founder'])
+  const deny = await checkRole(['QA', 'Founder', 'Manager', 'Both'])
   if (deny) return deny
 
   const existing = await prisma.milestoneBug.findUnique({
@@ -191,16 +221,23 @@ export async function DELETE(_req: Request, { params }: { params: { id: string; 
     return NextResponse.json({ error: 'Bug not found' }, { status: 404 })
   }
 
-  if (existing.testCaseId) {
-    return NextResponse.json({
-      error: 'Cannot delete bugs linked to a test case. Update the test case status instead.',
-    }, { status: 400 })
-  }
-
   if (existing.milestone.status === 'done') {
     return NextResponse.json({ error: 'Cannot delete bugs on approved milestones' }, { status: 400 })
   }
 
   await prisma.milestoneBug.delete({ where: { id: params.bugId } })
+
+  if (existing.testCaseId) {
+    const remainingOpen = await prisma.milestoneBug.count({
+      where: { testCaseId: existing.testCaseId, status: 'open' },
+    })
+    if (remainingOpen === 0) {
+      await prisma.milestoneTestCase.update({
+        where: { id: existing.testCaseId },
+        data: { status: 'pending', testedAt: null, testedById: null },
+      })
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }

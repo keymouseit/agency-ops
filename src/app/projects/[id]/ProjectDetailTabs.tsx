@@ -130,6 +130,8 @@ type Props = {
       qaStartedAt: string | null
       testCases: Array<{
         id: string
+        caseNumber?: number
+        displayId?: string | null
         title: string
         status: string
         notes: string | null
@@ -138,8 +140,12 @@ type Props = {
       }>
       bugs: Array<{
         id: string
+        bugNumber?: number
+        displayId?: string | null
         title: string
         description: string | null
+        stepsToReproduce?: string | null
+        attachmentUrl?: string | null
         severity: string
         status: string
         testCaseId: string | null

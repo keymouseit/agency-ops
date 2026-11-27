@@ -3,7 +3,11 @@ import { checkRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
 import { TEST_CASE_STATUSES } from '@/lib/milestone-qa'
-import { upsertBugForFailedTestCase, revertQaApprovedMilestoneToInProgress } from '@/lib/milestone-bugs'
+import {
+  formatTestCaseDisplayId,
+  upsertBugForFailedTestCase,
+  revertQaApprovedMilestoneToInProgress,
+} from '@/lib/milestone-bugs'
 import { logProjectQAActivity } from '@/lib/qa-audit'
 
 export async function PATCH(req: Request, { params }: { params: { id: string; caseId: string } }) {
@@ -76,6 +80,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; ca
       notes: testCase.notes,
       status: testCase.status,
       reportedById: session.user.id,
+      projectId: existing.milestone.project.id,
     })
 
     if (data.status === 'fail' || data.status === 'blocked') {
@@ -117,6 +122,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string; ca
 
   return NextResponse.json({
     id: testCase.id,
+    caseNumber: testCase.caseNumber,
+    displayId: formatTestCaseDisplayId(testCase.caseNumber),
     title: testCase.title,
     status: testCase.status,
     notes: testCase.notes,
